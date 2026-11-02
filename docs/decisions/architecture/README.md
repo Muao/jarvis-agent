@@ -18,3 +18,5 @@ supersedes the old one.
 | [0011](0011-agent-definition-as-plugin-and-jarvis-home.md) | Ship the agent definition as a plugin in agent/; keep personal and runtime data in ~/.jarvis | proposed | agent/**, engine/src/infrastructure/claude/**, engine/src/infrastructure/config/** |
 | [0012](0012-react-vite-spa-with-css-modules-and-tanstack-query.md) | Build the web app as a React 19 + Vite SPA with react-router, CSS Modules and TanStack Query fed by SSE | proposed | web/** |
 | [0013](0013-test-with-vitest-real-postgres-and-a-fake-claude-binary.md) | Test with Vitest/RTL, real Postgres, Playwright and a fake `claude` binary | proposed | tests, engine/test/**, web/e2e/** |
+| [0015](0015-run-on-a-hetzner-vps-reached-over-tailscale.md) | Run Jarvis on a Hetzner VPS as systemd services, reached only over Tailscale | proposed | compose.yaml, web/vite.config.ts, docs/architecture/deployment.md |
+| [0016](0016-secrets-in-infisical-injected-with-infisical-run.md) | Keep secrets in Infisical, inject with infisical run; ~/.jarvis/.env stays the local fallback | proposed | .env.example, engine/package.json, docs/architecture/deployment.md |

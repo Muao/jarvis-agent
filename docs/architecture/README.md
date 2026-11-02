@@ -130,6 +130,12 @@ Visual overview: [`overview.html`](overview.html), published at https://claude.a
 - `~/.jarvis/jarvis.config.json` (example committed): repo, limits, models per role, allowlists, connector scopes.
 - `~/.jarvis/.env` (example committed): `GITHUB_TOKEN` of the bot account, `NOTION_TOKEN`, Google OAuth credentials, `DATABASE_URL`, `POSTGRES_PASSWORD`; iteration 2 adds `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`.
 - Claude: the owner logs in with `claude` once; no key in Jarvis.
+- On a server, secrets come from Infisical (ADR-0016); see [`deployment.md`](deployment.md).
+
+## Deployment (ADR-0015)
+
+The laptop setup stays the default. For an always-on setup, Jarvis runs on a Hetzner VPS as systemd
+services, reachable only over Tailscale: [`deployment.md`](deployment.md).
 
 ## Iterations
 
