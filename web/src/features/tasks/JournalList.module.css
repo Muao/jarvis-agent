@@ -1,0 +1,37 @@
+.journal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-sm);
+}
+
+.entry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.type {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.text {
+  overflow-wrap: anywhere;
+}
+
+.owner {
+  padding: 0 var(--space-2);
+  color: var(--color-info);
+  background: var(--color-info-bg);
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+}
+
+.empty {
+  margin: 0;
+  color: var(--color-text-muted);
+}

@@ -1,0 +1,19 @@
+{
+  "steps": [
+    { "type": "init" },
+    { "type": "text", "text": "Spec approved, implementing." },
+    { "type": "jarvis_tool", "tool": "report_stage", "input": { "stage": "Verifying" } },
+    {
+      "type": "jarvis_tool",
+      "tool": "report_checks",
+      "input": { "passed": true, "summary": "test, lint and typecheck are green" }
+    },
+    { "type": "jarvis_tool", "tool": "report_stage", "input": { "stage": "Reviewing" } },
+    {
+      "type": "jarvis_tool",
+      "tool": "report_pr",
+      "input": { "number": 7, "url": "https://github.com/example/repo/pull/7" }
+    },
+    { "type": "result", "text": "draft PR opened" }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "steps": [
+    { "type": "init" },
+    { "type": "text", "text": "About to fail" },
+    { "type": "stderr", "text": "fatal: something broke token=ghp_abcdefghijklmnop" },
+    { "type": "exit", "code": 2 }
+  ]
+}

@@ -1,0 +1,21 @@
+.status {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.queued,
+.skipped {
+  color: var(--color-text-muted);
+}
+
+.running {
+  color: var(--color-info);
+}
+
+.passed {
+  color: var(--color-success);
+}
+
+.failed {
+  color: var(--color-danger);
+}

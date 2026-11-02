@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1793041546968,
+      "tag": "0000_black_gideon",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793041550968,
+      "tag": "0001_append_only_journals",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.turbo/
+.pnpm-store/
+playwright-report/
+test-results/
+.claude/settings.local.json
+
+# Design prototype lives in the canvas, not in the repo
+docs/design/prototype/
+
+# Jarvis local config (limits, repo); example is committed
+jarvis.config.json

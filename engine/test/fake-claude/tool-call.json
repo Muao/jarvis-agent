@@ -1,0 +1,15 @@
+{
+  "steps": [
+    { "type": "init" },
+    { "type": "text", "text": "Replying" },
+    { "type": "jarvis_tool", "tool": "reply", "input": { "text": "hello from fake" } },
+    {
+      "type": "tool_use",
+      "id": "toolu_bash_1",
+      "name": "Bash",
+      "input": { "command": "ls" },
+      "output": "a.txt"
+    },
+    { "type": "result", "text": "done" }
+  ]
+}

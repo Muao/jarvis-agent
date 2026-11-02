@@ -1,0 +1,17 @@
+.indicator {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.live {
+  color: var(--color-success);
+}
+
+.reconnecting {
+  color: var(--color-warning);
+}
+
+.offline {
+  color: var(--color-danger);
+}

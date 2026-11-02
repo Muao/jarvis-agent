@@ -1,0 +1,73 @@
+/* Provisional neutral tokens (ADR-0012). The owner's design replaces these values; names stay. */
+:root {
+  /* surface and text */
+  --color-bg: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-surface-muted: #eef0f4;
+  --color-border: #d8dce3;
+  --color-text: #1b1f27;
+  --color-text-muted: #5a6272;
+  --color-focus: #2457d6;
+  --color-backdrop: rgb(0 0 0 / 0.4);
+
+  /* intent */
+  --color-accent: #2457d6;
+  --color-accent-contrast: #ffffff;
+  --color-success: #1f7a3d;
+  --color-success-bg: #e3f4e8;
+  --color-warning: #8a5a00;
+  --color-warning-bg: #fff3d6;
+  --color-danger: #b3261e;
+  --color-danger-bg: #fde8e6;
+  --color-info: #2457d6;
+  --color-info-bg: #e6edfc;
+
+  /* task stages: text colour on a tinted background; the label and symbol carry the meaning */
+  --stage-intake: #5a6272;
+  --stage-intake-bg: #eef0f4;
+  --stage-context: #2457d6;
+  --stage-context-bg: #e6edfc;
+  --stage-spec-review: #7a3db8;
+  --stage-spec-review-bg: #f1e7fb;
+  --stage-implementing: #0d6e7a;
+  --stage-implementing-bg: #dff3f5;
+  --stage-verifying: #8a5a00;
+  --stage-verifying-bg: #fff3d6;
+  --stage-reviewing: #a1407a;
+  --stage-reviewing-bg: #fbe7f2;
+  --stage-pr-open: #1f7a3d;
+  --stage-pr-open-bg: #e3f4e8;
+  --stage-fixing: #b25a00;
+  --stage-fixing-bg: #ffe9d2;
+  --stage-done: #1f7a3d;
+  --stage-done-bg: #ffffff;
+  --stage-blocked: #8a5a00;
+  --stage-blocked-bg: #fff3d6;
+  --stage-failed: #b3261e;
+  --stage-failed-bg: #ffffff;
+  --stage-cancelled: #5a6272;
+  --stage-cancelled-bg: #ffffff;
+
+  /* spacing, radius, shadow */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-pill: 999px;
+  --shadow-dialog: 0 12px 32px var(--color-backdrop);
+
+  /* type */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-size-sm: 0.8125rem;
+  --font-size-md: 0.9375rem;
+  --font-size-lg: 1.125rem;
+  --line-height: 1.5;
+
+  /* layout */
+  --nav-width: 13rem;
+}

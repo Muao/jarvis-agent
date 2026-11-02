@@ -1,0 +1,32 @@
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.repeat,
+.times {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.reason {
+  flex-basis: 100%;
+  padding-inline-start: var(--space-3);
+  border-inline-start: 3px solid var(--color-border);
+}
+
+.empty {
+  margin: 0;
+  color: var(--color-text-muted);
+}

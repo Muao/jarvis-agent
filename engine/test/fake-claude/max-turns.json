@@ -1,0 +1,7 @@
+{
+  "steps": [
+    { "type": "init" },
+    { "type": "text", "text": "Still going" },
+    { "type": "result", "subtype": "error_max_turns", "turns": 3, "text": "Reached max turns" }
+  ]
+}

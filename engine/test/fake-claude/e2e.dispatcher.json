@@ -1,0 +1,13 @@
+{
+  "steps": [
+    { "type": "init" },
+    { "type": "text", "text": "This is a code change: I will create a task." },
+    {
+      "type": "jarvis_tool",
+      "tool": "create_task",
+      "input": { "title": "Add a page", "description": "Add an About page to the web app." }
+    },
+    { "type": "jarvis_tool", "tool": "reply", "input": { "text": "On it: T-1 is started." } },
+    { "type": "result", "text": "task created" }
+  ]
+}

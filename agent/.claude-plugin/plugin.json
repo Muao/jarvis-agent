@@ -1,0 +1,5 @@
+{
+  "name": "jarvis",
+  "description": "Jarvis agent definition: profile, dispatcher and worker prompts, subagents, SDD skill and artifact templates.",
+  "version": "0.1.0"
+}

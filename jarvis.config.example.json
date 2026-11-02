@@ -1,0 +1,39 @@
+{
+  "repo": {
+    "path": "/absolute/path/to/your/working/repository",
+    "remote": "origin",
+    "baseBranch": "main"
+  },
+  "limits": {
+    "maxConcurrentWorkers": 1,
+    "checkRetries": 3,
+    "ciFixRounds": 2,
+    "reviewRounds": 3,
+    "taskTimeoutMinutes": 60,
+    "maxTurnsPerRun": 60,
+    "maxBudgetUsdPerRun": 3,
+    "dailyBudgetUsd": 20,
+    "permissionTimeoutMinutes": 30,
+    "stallMinutes": 10
+  },
+  "watch": {
+    "pollSeconds": 60
+  },
+  "models": {
+    "dispatcher": "sonnet",
+    "worker": "sonnet",
+    "reviewer": "sonnet"
+  },
+  "allowlist": {
+    "githubReviewers": ["github-login-of-a-reviewer"],
+    "autoAllowedCommands": []
+  },
+  "connectors": {
+    "notionRoot": "notion-page-id-optional",
+    "googleFolder": "google-drive-folder-id-optional"
+  },
+  "engine": {
+    "port": 4310,
+    "claudeBinary": "claude"
+  }
+}

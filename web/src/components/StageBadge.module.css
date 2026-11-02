@@ -1,0 +1,83 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border: 1px solid currentcolor;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+/* Terminal stages get a solid border-style change on top of their symbol and word. */
+.terminal {
+  border-width: 2px;
+}
+
+.symbol {
+  font-size: 0.9em;
+}
+
+.intake {
+  color: var(--stage-intake);
+  background: var(--stage-intake-bg);
+}
+
+.context {
+  color: var(--stage-context);
+  background: var(--stage-context-bg);
+}
+
+.specReview {
+  color: var(--stage-spec-review);
+  background: var(--stage-spec-review-bg);
+}
+
+.implementing {
+  color: var(--stage-implementing);
+  background: var(--stage-implementing-bg);
+}
+
+.verifying {
+  color: var(--stage-verifying);
+  background: var(--stage-verifying-bg);
+}
+
+.reviewing {
+  color: var(--stage-reviewing);
+  background: var(--stage-reviewing-bg);
+}
+
+.prOpen {
+  color: var(--stage-pr-open);
+  background: var(--stage-pr-open-bg);
+}
+
+.fixing {
+  color: var(--stage-fixing);
+  background: var(--stage-fixing-bg);
+}
+
+.done {
+  color: var(--stage-done);
+  background: var(--stage-done-bg);
+}
+
+.blocked {
+  color: var(--stage-blocked);
+  background: var(--stage-blocked-bg);
+  border-style: dashed;
+}
+
+.failed {
+  color: var(--stage-failed);
+  background: var(--stage-failed-bg);
+}
+
+.cancelled {
+  color: var(--stage-cancelled);
+  background: var(--stage-cancelled-bg);
+  text-decoration: line-through;
+}

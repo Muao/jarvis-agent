@@ -1,0 +1,38 @@
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-sm);
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+}
+
+.done {
+  color: var(--color-success);
+}
+
+.current {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.stopped {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+.pending {
+  color: var(--color-text-muted);
+}
+
+.repeats {
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,15 @@
+.banner {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+  border-bottom: 1px solid currentcolor;
+}
+
+.warning {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
+
+.danger {
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
+}

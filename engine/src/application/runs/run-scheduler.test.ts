@@ -1,0 +1,235 @@
+import { JarvisConfigSchema } from '@jarvis/shared';
+import { describe, expect, it } from 'vitest';
+import {
+  buildTestApp,
+  createTaskInNewThread,
+  systemTexts,
+  type TestApp,
+} from '../testing/index.js';
+
+function configWith(limits: Record<string, number>) {
+  return JarvisConfigSchema.parse({ repo: { path: '/jarvis/repo' }, limits });
+}
+
+const app = (): TestApp => buildTestApp({ realRuns: true });
+
+describe('RunScheduler worker slots (DSP-08, LIM-05)', () => {
+  it('queues the second task with a position message and starts it when the first exits', async () => {
+    const a = app();
+    const first = await createTaskInNewThread(a);
+    const second = await createTaskInNewThread(a);
+
+    expect(a.runner.processes.map((p) => p.spec.taskId)).toEqual([first.taskId]);
+    expect(await a.scheduler.isQueued(second.taskId)).toBe(true);
+    expect(systemTexts(a, second.thread.id)).toEqual(['Queued — position 1']);
+    expect(a.task(second.taskId).stage).toBe('Intake');
+
+    await a.runner.forTask(first.taskId)?.succeed();
+
+    expect(a.runner.processes.map((p) => p.spec.taskId)).toEqual([first.taskId, second.taskId]);
+    expect(await a.scheduler.isQueued(second.taskId)).toBe(false);
+    expect(a.task(second.taskId).stage).toBe('Context');
+  });
+
+  it('numbers the queue and serves it first in, first out', async () => {
+    const a = app();
+    const first = await createTaskInNewThread(a);
+    const second = await createTaskInNewThread(a);
+    const third = await createTaskInNewThread(a);
+
+    expect(systemTexts(a, third.thread.id)).toEqual(['Queued — position 2']);
+    await a.runner.forTask(first.taskId)?.succeed();
+    expect(a.runner.live.map((p) => p.spec.taskId)).toEqual([second.taskId]);
+  });
+
+  it('reads the slot limit when it decides, so a raised limit applies without a restart', async () => {
+    const a = app();
+    await createTaskInNewThread(a);
+    const second = await createTaskInNewThread(a);
+    expect(a.runner.live).toHaveLength(1);
+
+    a.config.set(configWith({ maxConcurrentWorkers: 2 }));
+    await a.scheduler.resumeQueued();
+
+    expect(a.runner.live.map((p) => p.spec.taskId)).toContain(second.taskId);
+  });
+
+  it('never starts two processes for the same request', async () => {
+    const a = app();
+    const { taskId } = await createTaskInNewThread(a);
+    const second = await createTaskInNewThread(a);
+
+    await Promise.all([
+      a.scheduler.requestWorkerRun(taskId),
+      a.scheduler.requestWorkerRun(taskId),
+      a.scheduler.requestWorkerRun(second.taskId),
+      a.scheduler.requestWorkerRun(second.taskId),
+    ]);
+
+    expect(a.runner.processes).toHaveLength(1);
+    expect(systemTexts(a, second.thread.id)).toEqual(['Queued — position 1']);
+  });
+
+  it('drops queued work of a cancelled task', async () => {
+    const a = app();
+    const first = await createTaskInNewThread(a);
+    const second = await createTaskInNewThread(a);
+
+    await a.cancelTask.execute({ taskId: second.taskId });
+    await a.runner.forTask(first.taskId)?.succeed();
+
+    expect(await a.scheduler.isQueued(second.taskId)).toBe(false);
+    expect(a.runner.processes.map((p) => p.spec.taskId)).toEqual([first.taskId]);
+  });
+
+  it('stops the live worker of a cancelled task', async () => {
+    const a = app();
+    const { taskId } = await createTaskInNewThread(a);
+
+    await a.cancelTask.execute({ taskId });
+
+    expect(a.runner.forTask(taskId)?.stopped).toBe(true);
+    expect([...a.db.tables.runs.values()].map((r) => r.status)).toEqual(['stopped']);
+  });
+
+  it('does not start a worker for a task that waits for the owner', async () => {
+    const a = app();
+    const { task } = await a.seed.task({ stage: 'Spec Review' });
+
+    await a.scheduler.requestWorkerRun(task.id);
+
+    expect(a.runner.processes).toHaveLength(0);
+    expect(await a.scheduler.isQueued(task.id)).toBe(false);
+  });
+
+  it('reports a runner that cannot start as a failed run and a message', async () => {
+    const a = app();
+    a.runner.failNext(new Error('spawn claude ENOENT'));
+
+    const { thread } = await createTaskInNewThread(a);
+
+    const runs = [...a.db.tables.runs.values()];
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ status: 'failed' });
+    expect(runs[0]?.error).toContain('spawn claude ENOENT');
+    expect(await a.scheduler.isQueued('T-1')).toBe(false);
+    expect(systemTexts(a, thread.id)).toEqual([]);
+  });
+});
+
+describe('RunScheduler daily budget (LIM-04)', () => {
+  it('starts nothing once the budget is used up, tells the thread once, and resumes when it is raised', async () => {
+    const a = app();
+    a.config.set(configWith({ dailyBudgetUsd: 1 }));
+    const first = await createTaskInNewThread(a);
+    await a.runner.forTask(first.taskId)?.succeed(1.5);
+
+    const second = await createTaskInNewThread(a);
+    await a.scheduler.requestWorkerRun(second.taskId);
+
+    expect(a.runner.processes).toHaveLength(1);
+    expect(systemTexts(a, second.thread.id)).toHaveLength(1);
+    expect(systemTexts(a, second.thread.id)[0]).toContain('Daily budget of $1 is used up');
+    expect(await a.scheduler.isQueued(second.taskId)).toBe(true);
+
+    a.config.set(configWith({ dailyBudgetUsd: 100 }));
+    await a.scheduler.resumeQueued();
+
+    expect(a.runner.live.map((p) => p.spec.taskId)).toEqual([second.taskId]);
+  });
+
+  it('resumes the next day because usage counts from local midnight', async () => {
+    const a = app();
+    a.config.set(configWith({ dailyBudgetUsd: 1 }));
+    const first = await createTaskInNewThread(a);
+    await a.runner.forTask(first.taskId)?.succeed(2);
+    const second = await createTaskInNewThread(a);
+    expect(a.runner.live).toHaveLength(0);
+
+    a.clock.advanceMinutes(48 * 60);
+    await a.scheduler.resumeQueued();
+
+    expect(a.runner.live.map((p) => p.spec.taskId)).toEqual([second.taskId]);
+  });
+
+  it('pauses dispatcher turns too, with one message per thread and day', async () => {
+    const a = app();
+    a.config.set(configWith({ dailyBudgetUsd: 1 }));
+    const first = await createTaskInNewThread(a);
+    await a.runner.forTask(first.taskId)?.succeed(2);
+
+    const posted = await a.postOwnerMessage.execute({ text: 'status?' });
+    await a.postOwnerMessage.execute({ threadId: posted.threadId, text: 'hello?' });
+
+    expect(a.runner.forThread(posted.threadId, 'dispatcher')).toBeUndefined();
+    expect(systemTexts(a, posted.threadId)).toHaveLength(1);
+
+    a.config.set(configWith({ dailyBudgetUsd: 100 }));
+    await a.scheduler.resumeQueued();
+    expect(a.runner.forThread(posted.threadId, 'dispatcher')?.spec.firstMessage).toContain(
+      'status?\n\nhello?',
+    );
+  });
+});
+
+describe('RunScheduler dispatcher turns (DSP-04)', () => {
+  it('runs turns of one thread one at a time and later messages in the next turn', async () => {
+    const a = app();
+    const posted = await a.postOwnerMessage.execute({ text: 'first' });
+    await a.postOwnerMessage.execute({ threadId: posted.threadId, text: 'second' });
+    await a.scheduler.requestDispatcherTurn(posted.threadId);
+
+    expect(a.runner.processes).toHaveLength(1);
+    expect(a.runner.processes[0]?.spec.firstMessage).toContain('first');
+    expect(a.runner.processes[0]?.spec.firstMessage).not.toContain('second');
+
+    await a.runner.processes[0]?.succeed();
+
+    expect(a.runner.processes).toHaveLength(2);
+    expect(a.runner.processes[1]?.spec.firstMessage).toContain('second');
+    expect(a.messagesOf(posted.threadId).map((m) => m.body.delivery)).toEqual([
+      'delivered',
+      'delivered',
+    ]);
+
+    await a.runner.processes[1]?.succeed();
+    expect(a.runner.processes).toHaveLength(2);
+  });
+
+  it('runs turns of different threads in parallel and takes no worker slot', async () => {
+    const a = app();
+    const { taskId } = await createTaskInNewThread(a);
+    const one = await a.postOwnerMessage.execute({ text: 'thread one' });
+    const two = await a.postOwnerMessage.execute({ text: 'thread two' });
+
+    expect(a.runner.live.map((p) => p.spec.role).sort()).toEqual([
+      'dispatcher',
+      'dispatcher',
+      'worker',
+    ]);
+    expect(a.runner.forThread(one.threadId, 'dispatcher')).toBeDefined();
+    expect(a.runner.forThread(two.threadId, 'dispatcher')).toBeDefined();
+    expect(a.runner.forTask(taskId)).toBeDefined();
+  });
+
+  it('starts the dispatcher in the repository without stdin kept open and resumes its session', async () => {
+    const a = app();
+    const posted = await a.postOwnerMessage.execute({ text: 'one' });
+    const process = a.runner.processes[0];
+    expect(process?.spec).toMatchObject({
+      role: 'dispatcher',
+      cwd: '/jarvis/repo',
+      keepStdinOpen: false,
+      threadId: posted.threadId,
+      model: 'sonnet',
+    });
+    expect(process?.spec.taskId).toBeUndefined();
+    expect(process?.spec.resumeSessionId).toBeUndefined();
+    await process?.reportSession('claude-d1');
+    await process?.succeed();
+
+    await a.postOwnerMessage.execute({ threadId: posted.threadId, text: 'two' });
+
+    expect(a.runner.processes[1]?.spec.resumeSessionId).toBe('claude-d1');
+  });
+});

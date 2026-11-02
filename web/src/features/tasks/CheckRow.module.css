@@ -1,0 +1,19 @@
+.row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) 7rem 5rem 3rem;
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+}
+
+.name {
+  overflow-wrap: anywhere;
+}
+
+.duration {
+  color: var(--color-text-muted);
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}

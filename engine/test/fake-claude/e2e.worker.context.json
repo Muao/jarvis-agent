@@ -1,0 +1,28 @@
+{
+  "steps": [
+    { "type": "init" },
+    { "type": "text", "text": "Reading the repository." },
+    {
+      "type": "tool_use",
+      "id": "toolu_read_1",
+      "name": "Read",
+      "input": { "file_path": "AGENTS.md" },
+      "output": "# AGENTS"
+    },
+    {
+      "type": "write_artifacts",
+      "files": {
+        "context.md": "# Context\nThe web app has no About page.\n",
+        "spec.md": "# Spec\nAn About page at /about.\n\n| Route | Page |\n| --- | --- |\n| /about | About |\n",
+        "plan.md": "# Plan\n1. Add the route.\n2. Add the page.\n",
+        "tasks.md": "# Tasks\n- [ ] route\n- [ ] page\n"
+      }
+    },
+    {
+      "type": "jarvis_tool",
+      "tool": "submit_spec_for_approval",
+      "input": { "summary": "Add an About page at /about." }
+    },
+    { "type": "result", "text": "spec submitted" }
+  ]
+}

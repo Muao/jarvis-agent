@@ -1,0 +1,8 @@
+{
+  "steps": [
+    { "type": "init" },
+    { "type": "thinking", "text": "hmm" },
+    { "type": "text", "text": "Working on it" },
+    { "type": "result", "text": "All done" }
+  ]
+}

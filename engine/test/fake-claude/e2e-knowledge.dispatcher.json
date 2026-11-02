@@ -1,0 +1,12 @@
+{
+  "steps": [
+    { "type": "init" },
+    { "type": "text", "text": "This is a question: I will answer without a task." },
+    {
+      "type": "jarvis_tool",
+      "tool": "reply",
+      "input": { "text": "The About page lives at /about and is a static route." }
+    },
+    { "type": "result", "text": "answered" }
+  ]
+}

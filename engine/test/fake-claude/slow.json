@@ -1,0 +1,8 @@
+{
+  "steps": [
+    { "type": "init" },
+    { "type": "text", "text": "started" },
+    { "type": "sleep", "ms": 60000 },
+    { "type": "result" }
+  ]
+}
