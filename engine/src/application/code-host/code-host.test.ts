@@ -77,6 +77,7 @@ describe('PollPullRequests: nothing changed', () => {
     expect(app.task(task.id).stage).toBe('PR Open');
     expect(app.db.tables.watches.get(task.id)?.lastCheckedAt).toBe(app.clock.now());
     expect(app.codeHost.reads).toEqual([7, 7]);
+    expect(app.logger.infos.filter((i) => i.context['event'] === 'watch.polled')).toEqual([]);
   });
 
   it('does nothing for a PR the host has no news about, even before the first poll', async () => {
@@ -156,6 +157,9 @@ describe('PollPullRequests: CI result', () => {
 
     expect(app.task(task.id)).toMatchObject({ stage: 'Fixing', counters: { ciFixRounds: 1 } });
     expect(systemTexts(app, thread.id)).toContain('CI failed on aaaaaaa: test.');
+    expect(app.logger.infos.filter((i) => i.context['event'] === 'watch.polled')).toMatchObject([
+      { context: { taskId: task.id } },
+    ]);
     const [input] = workerInput(app, task.id);
     expect(input).toContain('CI failed on PR #7');
     expect([...app.db.tables.messages.values()].find((m) => m.kind === 'owner')?.body.source).toBe(

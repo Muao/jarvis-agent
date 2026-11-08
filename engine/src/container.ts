@@ -165,7 +165,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
   }
 
   const redact = createRedactor([env.githubToken ?? '', env.notionToken ?? '']);
-  const logger = new ConsoleLogger({ redact });
+  const logger = new ConsoleLogger({ redact, level: env.logLevel });
   const pool = await connectDatabase(env.databaseUrl);
 
   const hub = new SseHub();

@@ -107,6 +107,14 @@ describe('answering and awaiting', () => {
       }),
     );
     expect(app.owner.updates.map((m) => m.id)).toContain(card?.id);
+    const lifecycle = app.logger.infos.filter((i) =>
+      String(i.context['event']).startsWith('permission.'),
+    );
+    expect(lifecycle.map((i) => i.context['event'])).toEqual([
+      'permission.requested',
+      'permission.answered',
+    ]);
+    expect(lifecycle[1]?.context).toMatchObject({ runId: identity.runId, taskId });
     expect(app.db.tables.runEvents.get(identity.runId)?.at(-1)).toMatchObject({
       payload: { decision: 'allow' },
     });

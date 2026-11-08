@@ -4,6 +4,8 @@ import { assertSubscriptionOnly, StartupError } from './infrastructure/config/in
 
 import { startTimers, type RunningTimers } from './presentation/timers/index.js';
 
+// Fastify's own request logging; the engine's lifecycle lines use JARVIS_LOG_LEVEL (ConsoleLogger).
+// At info it would write two lines per HTTP request, which the SPA makes constantly.
 const LOG_LEVEL = 'warn';
 
 async function main(): Promise<void> {

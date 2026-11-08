@@ -14,7 +14,7 @@ function setup() {
   let listener: (() => void) | undefined;
   const unsubscribe = vi.fn();
   const timers = new FakeTimers();
-  const logger = { warn: vi.fn(), error: vi.fn() };
+  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const supervision = createSupervision({
     app: app as unknown as Deps['app'],
     onConfigChange: (l) => {

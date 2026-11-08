@@ -15,6 +15,8 @@ interface Rerun {
   readonly headSha: string;
 }
 
+const NOTHING = { rerun: null, changes: 0 } as const;
+
 /**
  * One watcher tick (CI-01, CI-02, CI-07, CI-09), called by the timer every `watch.pollSeconds`.
  * For each open PR: read the snapshot, diff it against what was processed, and handle the changes
@@ -66,7 +68,17 @@ export class PollPullRequests {
     if (!waiting) return;
 
     const snapshot = await codeHost.snapshot(watch.prNumber);
-    const rerun = await this.apply(watch, snapshot, botLogin);
+    const { rerun, changes } = await this.apply(watch, snapshot, botLogin);
+    // A quiet tick (the usual one) writes nothing: one line per PR that actually changed.
+    if (changes > 0) {
+      this.deps.notifiers.logger.info(
+        `watcher found ${changes} change(s) on PR #${watch.prNumber}`,
+        {
+          event: 'watch.polled',
+          taskId: watch.taskId,
+        },
+      );
+    }
     if (rerun !== null) await this.rerun(rerun);
   }
 
@@ -74,16 +86,16 @@ export class PollPullRequests {
     watch: Watch,
     snapshot: PullRequestSnapshot,
     botLogin: string,
-  ): Promise<Rerun | null> {
+  ): Promise<{ readonly rerun: Rerun | null; readonly changes: number }> {
     const { clock, config, handler } = this.deps;
-    return transact(this.deps, async (tx, outbox): Promise<Rerun | null> => {
+    return transact(this.deps, async (tx, outbox) => {
       // Read again inside the transaction: the task may have moved while the snapshot was fetched.
       const current = await tx.watches.get(watch.taskId);
       const task = await tx.tasks.get(watch.taskId);
       if (current === null || task === null || task.stage !== 'PR Open' || task.pr === null) {
-        return null;
+        return NOTHING;
       }
-      if (current.prNumber !== watch.prNumber) return null;
+      if (current.prNumber !== watch.prNumber) return NOTHING;
 
       const context = { botLogin, reviewers: config.current().allowlist.githubReviewers };
       const diff = diffPullRequest(current.state, snapshot, context);
@@ -108,7 +120,10 @@ export class PollPullRequests {
           : { lastGreen: handled.lastGreen, rerunHeadSha: handled.rerunHeadSha }),
       });
       if (JSON.stringify(summary) !== JSON.stringify(current.summary)) outbox.taskChanged(task);
-      return handled?.rerun == null ? null : { taskId: task.id, ...handled.rerun };
+      return {
+        rerun: handled?.rerun == null ? null : { taskId: task.id, ...handled.rerun },
+        changes: diff.changes.length,
+      };
     });
   }
 

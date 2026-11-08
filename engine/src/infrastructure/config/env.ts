@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import type { LogLevel } from '../logging/console-logger.js';
 import { StartupError } from './startup-error.js';
 
 /** The only environment the engine reads (ADR-0007). */
@@ -8,6 +9,8 @@ export interface JarvisEnv {
   readonly databaseUrl: string;
   /** Interface the API binds to; loopback unless the runtime image sets `JARVIS_LISTEN_HOST` (ADR-0017). */
   readonly listenHost: string;
+  /** Lowest severity the engine writes; `JARVIS_LOG_LEVEL`, default `info` (ADR-0018). */
+  readonly logLevel: LogLevel;
   readonly githubToken?: string;
   readonly notionToken?: string;
 }
@@ -34,6 +37,8 @@ const nonEmpty = (value: string | undefined): string | undefined => {
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost']);
 const isLoopback = (host: string): boolean => LOOPBACK_HOSTS.has(host);
 
+const LOG_LEVELS: readonly LogLevel[] = ['error', 'warn', 'info'];
+
 /** `process.env` is read here and in main.ts only (architecture test). */
 export function loadEnv(source: EnvSource = process.env): JarvisEnv {
   const databaseUrl = nonEmpty(source['DATABASE_URL']);
@@ -56,10 +61,19 @@ export function loadEnv(source: EnvSource = process.env): JarvisEnv {
         'only the runtime container sets it, together with JARVIS_INSIDE_CONTAINER=1 (ADR-0017).',
     );
   }
+  const requestedLevel = nonEmpty(source['JARVIS_LOG_LEVEL']) ?? 'info';
+  const logLevel = LOG_LEVELS.find((level) => level === requestedLevel);
+  if (logLevel === undefined) {
+    throw new StartupError(
+      `JARVIS_LOG_LEVEL=${requestedLevel} is not valid. Use one of ${LOG_LEVELS.join(', ')} ` +
+        '(default info), or unset it in ~/.jarvis/.env.',
+    );
+  }
   return {
     jarvisHome: nonEmpty(source['JARVIS_HOME']) ?? join(homedir(), '.jarvis'),
     databaseUrl,
     listenHost,
+    logLevel,
     ...(githubToken !== undefined ? { githubToken } : {}),
     ...(notionToken !== undefined ? { notionToken } : {}),
   };

@@ -301,6 +301,13 @@ export class FakeDatabasePing implements DatabasePing {
 export class RecordingLogger implements Logger {
   readonly entries: { level: 'warn' | 'error'; message: string; context: LogContext }[] = [];
 
+  /** Lifecycle lines, kept apart so tests about warnings and errors do not see them. */
+  readonly infos: { message: string; context: LogContext }[] = [];
+
+  info(message: string, context: LogContext = {}): void {
+    this.infos.push({ message, context });
+  }
+
   warn(message: string, context: LogContext = {}): void {
     this.entries.push({ level: 'warn', message, context });
   }

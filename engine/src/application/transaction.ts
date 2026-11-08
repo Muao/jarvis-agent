@@ -1,7 +1,7 @@
 import type { StreamEvent } from '@jarvis/shared';
 import type { Message, Task } from '../domain/index.js';
 import type { EventBus } from './ports/event-bus.js';
-import type { Logger } from './ports/logger.js';
+import type { LogContext, Logger } from './ports/logger.js';
 import type { OwnerChannel } from './ports/owner-channel.js';
 import type { RunCoordinator, WorkerRunReason } from './ports/run-coordinator.js';
 import type { UnitOfWork, Repositories } from './ports/unit-of-work.js';
@@ -18,6 +18,7 @@ type Effect =
   | { readonly type: 'message_created'; readonly message: Message }
   | { readonly type: 'message_updated'; readonly message: Message }
   | { readonly type: 'event'; readonly event: StreamEvent }
+  | { readonly type: 'log'; readonly message: string; readonly context: LogContext }
   | { readonly type: 'dispatcher_turn'; readonly threadId: string }
   | { readonly type: 'worker_run'; readonly taskId: string; readonly reason: WorkerRunReason }
   | { readonly type: 'deliver_to_worker'; readonly taskId: string }
@@ -51,6 +52,11 @@ export class Outbox {
     this.publish({ type: 'task', id: task.id });
     this.publish({ type: 'thread', id: task.threadId });
     this.publish({ type: 'overview' });
+  }
+
+  /** A lifecycle line at `info`; written only if the transaction committed. */
+  info(message: string, context: LogContext): void {
+    this.effects.push({ type: 'log', message, context });
   }
 
   requestDispatcherTurn(threadId: string): void {
@@ -94,6 +100,9 @@ export class Outbox {
         return to.owner.updated(effect.message);
       case 'event':
         return to.events.publish(effect.event);
+      case 'log':
+        to.logger.info(effect.message, effect.context);
+        return Promise.resolve();
       case 'dispatcher_turn':
         return to.runs.requestDispatcherTurn(effect.threadId);
       case 'worker_run':

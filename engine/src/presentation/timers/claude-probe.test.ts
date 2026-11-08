@@ -4,7 +4,7 @@ import { FakeTimers } from './testing/fake-timers.js';
 
 function setup() {
   const checks = { check: vi.fn().mockResolvedValue({ status: 'ok', summary: '', details: [] }) };
-  const logger = { warn: vi.fn(), error: vi.fn() };
+  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const timers = new FakeTimers();
   const refresh = createClaudeProbeRefresh({ checks, logger, timers });
   return { checks, logger, timers, refresh };

@@ -29,6 +29,11 @@ export class TaskWriter {
   ): Promise<Task> {
     const moved = transition(task, to, { ...input, at: this.deps.clock.now() });
     await this.persist(tx, outbox, moved.task, moved.event);
+    outbox.info(`task ${task.id} moved ${task.stage} -> ${to}`, {
+      event: 'task.stage',
+      taskId: task.id,
+      threadId: task.threadId,
+    });
     return moved.task;
   }
 

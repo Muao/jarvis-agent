@@ -12,7 +12,7 @@ describe('PR watcher', () => {
     const watcher = createPrWatcher({
       pollPullRequests: { execute },
       config,
-      logger: { warn: vi.fn(), error: vi.fn() },
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
       timers,
     });
 

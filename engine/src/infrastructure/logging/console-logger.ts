@@ -1,6 +1,10 @@
 import type { LogContext, Logger } from '../../application/ports/logger.js';
 
-type Level = 'warn' | 'error';
+export type LogLevel = 'error' | 'warn' | 'info';
+type Level = LogLevel;
+
+/** A line is written when its level is at least as severe as the configured one. */
+const SEVERITY: Readonly<Record<LogLevel, number>> = { error: 0, warn: 1, info: 2 };
 type Write = (line: string) => void;
 
 export interface ConsoleLoggerOptions {
@@ -9,6 +13,8 @@ export interface ConsoleLoggerOptions {
   /** Where lines go; stderr by default. */
   readonly write?: Write;
   readonly now?: () => Date;
+  /** Lines less severe than this are dropped; `info` by default. */
+  readonly level?: LogLevel;
 }
 
 const toStderr: Write = (line) => {
@@ -25,6 +31,10 @@ export class ConsoleLogger implements Logger {
     this.now = options.now ?? (() => new Date());
   }
 
+  info(message: string, context?: LogContext): void {
+    this.log('info', message, context);
+  }
+
   warn(message: string, context?: LogContext): void {
     this.log('warn', message, context);
   }
@@ -34,6 +44,7 @@ export class ConsoleLogger implements Logger {
   }
 
   private log(level: Level, message: string, context: LogContext = {}): void {
+    if (SEVERITY[level] > SEVERITY[this.options.level ?? 'info']) return;
     let line: string;
     try {
       line = JSON.stringify({ time: this.now().toISOString(), level, message, ...context });

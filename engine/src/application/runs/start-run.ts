@@ -255,6 +255,15 @@ export class StartRun {
       ...(run.taskId === null ? {} : { taskId: run.taskId }),
       threadId: run.threadId,
     };
+    this.deps.notifiers.logger.info(`run ${run.id} started`, {
+      event: 'run.started',
+      runId: run.id,
+      sessionId: session.id,
+      ...(run.taskId === null ? {} : { taskId: run.taskId }),
+      threadId: run.threadId,
+      role: run.role,
+      model: spec.model,
+    });
     try {
       live.handle = runner.start(spec, sink);
     } catch (error) {

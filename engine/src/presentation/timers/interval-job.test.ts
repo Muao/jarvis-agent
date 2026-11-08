@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { IntervalJob } from './interval-job.js';
 import { FakeTimers } from './testing/fake-timers.js';
 
-const logger = () => ({ warn: vi.fn(), error: vi.fn() });
+const logger = () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() });
 
 function deferred() {
   let resolve!: () => void;

@@ -64,6 +64,12 @@ export class RequestPermission {
       }
       return created;
     });
+    this.deps.notifiers.logger.info(`permission requested for ${request.tool}`, {
+      event: 'permission.requested',
+      runId: request.runId,
+      threadId: request.threadId,
+      ...(request.taskId === null ? {} : { taskId: request.taskId }),
+    });
     await recordPermissionEvent({ ...this.deps, logger: this.deps.notifiers.logger }, request);
     return request.id;
   }

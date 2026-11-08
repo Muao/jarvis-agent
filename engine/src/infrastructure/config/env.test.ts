@@ -11,6 +11,7 @@ describe('loadEnv', () => {
       jarvisHome: join(homedir(), '.jarvis'),
       databaseUrl: 'postgres://x',
       listenHost: '127.0.0.1',
+      logLevel: 'info',
     });
   });
 
@@ -74,9 +75,24 @@ describe('loadEnv', () => {
       jarvisHome: '/tmp/h',
       databaseUrl: 'postgres://x',
       listenHost: '127.0.0.1',
+      logLevel: 'info',
       githubToken: 'g',
       notionToken: 'n',
     });
+  });
+
+  it.each(['error', 'warn', 'info'] as const)('accepts JARVIS_LOG_LEVEL=%s', (level) => {
+    expect(loadEnv({ DATABASE_URL: 'p', JARVIS_LOG_LEVEL: level }).logLevel).toBe(level);
+  });
+
+  it('defaults an empty JARVIS_LOG_LEVEL to info', () => {
+    expect(loadEnv({ DATABASE_URL: 'p', JARVIS_LOG_LEVEL: '' }).logLevel).toBe('info');
+  });
+
+  it('refuses an unknown JARVIS_LOG_LEVEL as a start-up error', () => {
+    const run = () => loadEnv({ DATABASE_URL: 'p', JARVIS_LOG_LEVEL: 'debug' });
+    expect(run).toThrow(StartupError);
+    expect(run).toThrow(/JARVIS_LOG_LEVEL=debug.*error, warn, info/);
   });
 
   it('treats empty tokens as absent', () => {

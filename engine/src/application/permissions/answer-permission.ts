@@ -36,6 +36,12 @@ export class AnswerPermission {
       return next;
     });
     this.deps.waiters.settle(permissionId);
+    this.deps.notifiers.logger.info(`permission for ${decided.tool} ${decided.status}`, {
+      event: 'permission.answered',
+      runId: decided.runId,
+      threadId: decided.threadId,
+      ...(decided.taskId === null ? {} : { taskId: decided.taskId }),
+    });
     await recordPermissionEvent({ ...this.deps, logger: this.deps.notifiers.logger }, decided);
   }
 }
