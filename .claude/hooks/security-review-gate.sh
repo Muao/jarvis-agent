@@ -27,19 +27,26 @@ EXCLUDE_PATHSPEC=(
   ':(exclude).claude/skills/security-review/SKILL.md'
 )
 
+# Only added lines count. A pattern that is already in the branch shows up in the diff as an
+# unchanged context line as soon as a nearby line moves, and denying a commit over a line it
+# does not introduce teaches everyone to work around this gate. `+++` is the file header.
+added_lines() {
+  grep -E '^\+' | grep -vE '^\+\+\+' || true
+}
+
 # What to scan depends on the action: staged diff for a commit, not-yet-pushed commits for a
 # push, and the working tree for a deploy (nothing is committed from the deploy path, but
 # scripts/deploy.sh itself and any local edits to it are worth a last look).
 findings=""
 if printf '%s' "$command" | grep -qE '(^|[;&|[:space:]])git[[:space:]]+commit([[:space:]]|$)'; then
-  findings="$(git diff --cached -- . "${EXCLUDE_PATHSPEC[@]}" 2>/dev/null | grep -nE "$SECRET_PATTERN" || true)"
+  findings="$(git diff --cached -- . "${EXCLUDE_PATHSPEC[@]}" 2>/dev/null | added_lines | grep -nE "$SECRET_PATTERN" || true)"
   scope="staged changes (git diff --cached)"
 elif printf '%s' "$command" | grep -qE '(^|[;&|[:space:]])git[[:space:]]+push([[:space:]]|$)'; then
   range_diff="$(git diff '@{u}..HEAD' -- . "${EXCLUDE_PATHSPEC[@]}" 2>/dev/null || git diff 'origin/main..HEAD' -- . "${EXCLUDE_PATHSPEC[@]}" 2>/dev/null || true)"
-  findings="$(printf '%s' "$range_diff" | grep -nE "$SECRET_PATTERN" || true)"
+  findings="$(printf '%s' "$range_diff" | added_lines | grep -nE "$SECRET_PATTERN" || true)"
   scope="commits about to be pushed"
 else
-  findings="$(git diff -- . "${EXCLUDE_PATHSPEC[@]}" 2>/dev/null | grep -nE "$SECRET_PATTERN" || true)"
+  findings="$(git diff -- . "${EXCLUDE_PATHSPEC[@]}" 2>/dev/null | added_lines | grep -nE "$SECRET_PATTERN" || true)"
   scope="working tree (uncommitted changes)"
 fi
 
