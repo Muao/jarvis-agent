@@ -14,10 +14,53 @@ describe('loadEnv', () => {
     });
   });
 
-  it('takes the listen host from JARVIS_LISTEN_HOST', () => {
-    expect(loadEnv({ DATABASE_URL: 'p', JARVIS_LISTEN_HOST: '0.0.0.0' }).listenHost).toBe(
-      '0.0.0.0',
+  it('accepts an explicit 127.0.0.1 listen host', () => {
+    expect(loadEnv({ DATABASE_URL: 'p', JARVIS_LISTEN_HOST: '127.0.0.1' }).listenHost).toBe(
+      '127.0.0.1',
     );
+  });
+
+  it('normalizes localhost to 127.0.0.1', () => {
+    expect(loadEnv({ DATABASE_URL: 'p', JARVIS_LISTEN_HOST: 'localhost' }).listenHost).toBe(
+      '127.0.0.1',
+    );
+  });
+
+  it('falls back to 127.0.0.1 when JARVIS_LISTEN_HOST is empty', () => {
+    expect(loadEnv({ DATABASE_URL: 'p', JARVIS_LISTEN_HOST: '' }).listenHost).toBe('127.0.0.1');
+  });
+
+  it.each(['::1', '127.0.0.2', '127.evil.com'])(
+    'refuses %s, which 127.0.0.1 would not reach or is a lookalike',
+    (host) => {
+      const run = () => loadEnv({ DATABASE_URL: 'p', JARVIS_LISTEN_HOST: host });
+      expect(run).toThrow(StartupError);
+      expect(run).toThrow(/Allowed values are 127\.0\.0\.1 and localhost/);
+    },
+  );
+
+  it('refuses a non-loopback listen host outside the container', () => {
+    const run = () => loadEnv({ DATABASE_URL: 'p', JARVIS_LISTEN_HOST: '0.0.0.0' });
+    expect(run).toThrow(StartupError);
+    expect(run).toThrow(/Refusing to start.*JARVIS_LISTEN_HOST=0\.0\.0\.0.*ADR-0015.*Unset/s);
+  });
+
+  it('refuses a non-loopback listen host when the container flag is not exactly 1', () => {
+    const source = {
+      DATABASE_URL: 'p',
+      JARVIS_LISTEN_HOST: '0.0.0.0',
+      JARVIS_INSIDE_CONTAINER: '0',
+    };
+    expect(() => loadEnv(source)).toThrow(StartupError);
+  });
+
+  it('accepts 0.0.0.0 inside the container', () => {
+    const env = loadEnv({
+      DATABASE_URL: 'p',
+      JARVIS_LISTEN_HOST: '0.0.0.0',
+      JARVIS_INSIDE_CONTAINER: '1',
+    });
+    expect(env.listenHost).toBe('0.0.0.0');
   });
 
   it('honours JARVIS_HOME and optional tokens', () => {

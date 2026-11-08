@@ -30,6 +30,7 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://jarvis:jarvis@postgres:5432/jarvis
+      JARVIS_INSIDE_CONTAINER: '1'
       JARVIS_LISTEN_HOST: 0.0.0.0 # inside the container; the published port below is loopback only
     command: pnpm --filter @jarvis/engine start
     ports:

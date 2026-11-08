@@ -27,6 +27,13 @@ const nonEmpty = (value: string | undefined): string | undefined => {
   return trimmed ? trimmed : undefined;
 };
 
+/**
+ * The child `claude` reaches the API over 127.0.0.1 (container.ts), so only hosts that serve it are allowed;
+ * `localhost` is normalized to 127.0.0.1 because it can resolve to `::1`, which the child cannot reach.
+ */
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost']);
+const isLoopback = (host: string): boolean => LOOPBACK_HOSTS.has(host);
+
 /** `process.env` is read here and in main.ts only (architecture test). */
 export function loadEnv(source: EnvSource = process.env): JarvisEnv {
   const databaseUrl = nonEmpty(source['DATABASE_URL']);
@@ -38,10 +45,21 @@ export function loadEnv(source: EnvSource = process.env): JarvisEnv {
   }
   const githubToken = nonEmpty(source['GITHUB_TOKEN']);
   const notionToken = nonEmpty(source['NOTION_TOKEN']);
+  const requestedHost = nonEmpty(source['JARVIS_LISTEN_HOST']) ?? '127.0.0.1';
+  const listenHost = requestedHost === 'localhost' ? '127.0.0.1' : requestedHost;
+  if (!isLoopback(requestedHost) && nonEmpty(source['JARVIS_INSIDE_CONTAINER']) !== '1') {
+    throw new StartupError(
+      `Refusing to start: JARVIS_LISTEN_HOST=${requestedHost} is not allowed here: it is either exposed beyond this machine or not reachable at 127.0.0.1. ` +
+        'Allowed values are 127.0.0.1 and localhost, because the child claude reaches the API over 127.0.0.1. ' +
+        'Engine, web and Postgres must be reachable only over loopback and the tailnet (ADR-0015). ' +
+        'Unset JARVIS_LISTEN_HOST (check your shell profile and ~/.jarvis/.env) to bind 127.0.0.1; ' +
+        'only the runtime container sets it, together with JARVIS_INSIDE_CONTAINER=1 (ADR-0017).',
+    );
+  }
   return {
     jarvisHome: nonEmpty(source['JARVIS_HOME']) ?? join(homedir(), '.jarvis'),
     databaseUrl,
-    listenHost: nonEmpty(source['JARVIS_LISTEN_HOST']) ?? '127.0.0.1',
+    listenHost,
     ...(githubToken !== undefined ? { githubToken } : {}),
     ...(notionToken !== undefined ? { notionToken } : {}),
   };

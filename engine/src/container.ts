@@ -36,7 +36,7 @@ import { FileProfileStore } from './infrastructure/profile/file-profile-store.js
 import { AgentsMdRepoInfo } from './infrastructure/repo/agents-md-repo-info.js';
 import { SseHub } from './infrastructure/sse/sse-hub.js';
 import { WebOwnerChannel } from './infrastructure/sse/web-owner-channel.js';
-import { LISTEN_HOST, buildServer } from './presentation/http/server.js';
+import { LOOPBACK_HOST, buildServer } from './presentation/http/server.js';
 import type { TimerDeps } from './presentation/timers/index.js';
 
 /** `<repo checkout>/agent`: the Claude Code plugin the runs load (ADR-0011). */
@@ -61,7 +61,7 @@ export interface Container {
   readonly server: FastifyInstance;
   /** What main.ts hands to `startTimers` (T13). */
   readonly timerDeps: TimerDeps;
-  /** Binds the API to 127.0.0.1 and returns its base URL. Runs started after this call can reach it. */
+  /** Binds the API to the configured listen host and returns its base URL. Runs started after this call can reach it. */
   listen(): Promise<string>;
   /** Stops accepting requests, then releases the config watcher and the database pool. */
   close(): Promise<void>;
@@ -164,7 +164,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
   const hub = new SseHub();
   const github = await createGitHub(env, config, logger);
   const port = options.port ?? config.engine.port;
-  let apiUrl = `http://${LISTEN_HOST}:${port}`;
+  let apiUrl = `http://${LOOPBACK_HOST}:${port}`;
 
   const runner = new ClaudeCliRunner({
     binary: config.engine.claudeBinary,
@@ -252,7 +252,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
         throw error;
       }
       const address = server.addresses()[0];
-      apiUrl = `http://${LISTEN_HOST}:${address?.port ?? port}`;
+      apiUrl = `http://${LOOPBACK_HOST}:${address?.port ?? port}`;
       return apiUrl;
     },
     async close() {

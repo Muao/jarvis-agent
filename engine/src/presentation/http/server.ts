@@ -9,8 +9,8 @@ import { statusRoutes } from './routes/status.js';
 import { taskRoutes } from './routes/tasks.js';
 import { threadRoutes } from './routes/threads.js';
 
-/** The API is bound to loopback only (ADM-07); `container.ts` passes this to `listen`. */
-export const LISTEN_HOST = '127.0.0.1';
+/** Loopback address the child `claude` uses to reach the API (ADM-07); the listen host itself is `env.listenHost`. */
+export const LOOPBACK_HOST = '127.0.0.1';
 
 export interface ServerOptions {
   readonly stream: StreamSource;
