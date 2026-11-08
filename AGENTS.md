@@ -39,5 +39,5 @@ Add a row when a module is created.
 - Never set `ANTHROPIC_API_KEY` or call the Anthropic API/SDK: Jarvis runs Claude only through the `claude` CLI on the subscription (ADR-0004).
 - Secrets live only in `~/.jarvis/.env`; limits and settings in `~/.jarvis/jarvis.config.json`. Commit only the `*.example` files.
 - Keep diffs in scope: no drive-by refactors, renames or "improvements" outside the task.
-- Conventional commits. Branch from `main`; never push to `main` directly.
+- Conventional commits. Branch from `main`.
 - Reply to the user in the language they wrote in; code and identifiers stay in English. Specs may be in Ukrainian.
