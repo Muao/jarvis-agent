@@ -6,6 +6,7 @@ import {
   type Task,
 } from '../../domain/index.js';
 import type { BodyOf } from '../conversation/message-bodies.js';
+import { untrustedContent } from '../conversation/untrusted.js';
 import type { ConfigProvider } from '../ports/config-provider.js';
 import type { Repositories } from '../ports/unit-of-work.js';
 import type { GreenRun, Watch, WatchSummary } from '../ports/watch-repository.js';
@@ -156,10 +157,14 @@ export class HandleCodeHostChange {
     return { lastGreen, rerunHeadSha, rerun };
   }
 
-  /** The tick's feedback, one line per allowlisted comment or change request (CI-05). */
+  /** The tick's feedback, one entry per allowlisted comment or change request (CI-05). Comment
+   *  bodies are external text and enter the worker's prompt only as untrusted data (ADR-0026). */
   private feedback(changes: readonly CodeHostChange[]): string[] {
     return changes.flatMap((change) => {
-      if (change.type === 'comment') return [`- ${change.author}: ${change.body.trim()}`];
+      if (change.type === 'comment')
+        return [
+          `- ${change.author}:\n${untrustedContent({ source: 'pr-comment', author: change.author, body: change.body })}`,
+        ];
       if (change.type === 'review' && change.state === 'changes_requested') {
         return [`- ${change.reviewer} requested changes.`];
       }

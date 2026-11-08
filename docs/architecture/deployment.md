@@ -70,6 +70,12 @@ claude -p "ping"  # must answer without ANTHROPIC_API_KEY
 
    The file is `root:root 0600`: systemd reads `EnvironmentFile=` as root, and a child `claude` running as `jarvis` must not be able to read the long-lived client secret.
 4. Install the Infisical CLI on the server and on the laptop. Laptop: `infisical login && infisical run --env=dev -- pnpm dev`.
+5. Postgres password (ADR-0024): generate one (`openssl rand -base64 24`), store it in Infisical as
+   `POSTGRES_PASSWORD` and inside `DATABASE_URL` / `DATABASE_URL_TEST`. `compose.yaml` carries no
+   default and refuses to start without it. On a volume created with the old default:
+   `docker compose exec postgres psql -U jarvis -c "ALTER USER jarvis PASSWORD '<new>'"`, then restart
+   the engine. The local fallback is the same variables in `~/.jarvis/.env`; keep that file an export
+   of Infisical (`infisical export --env=dev`), not a second source of truth.
 
 ## 3a. Connectors
 
@@ -82,7 +88,7 @@ preference and the one SSH-tunnel fallback are in [`connectors.md`](connectors.m
 tailscale ssh jarvis@<host>
 git clone https://github.com/burnjohn/jarvis-agent.git ~/jarvis && cd ~/jarvis
 mkdir -p ~/.jarvis && cp jarvis.config.example.json ~/.jarvis/jarvis.config.json   # set repo.path, limits
-docker compose up -d
+docker compose --env-file ~/.jarvis/.env up -d   # POSTGRES_PASSWORD has no default (ADR-0024)
 pnpm install --frozen-lockfile && pnpm --filter @jarvis/web build
 ```
 

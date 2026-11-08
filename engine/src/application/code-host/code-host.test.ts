@@ -277,7 +277,9 @@ describe('PollPullRequests: review', () => {
     await poll(app, snapshot({ comments: [human(10, 'alice', 'Please rename `foo` to `bar`.')] }));
 
     expect(app.task(task.id)).toMatchObject({ stage: 'Fixing', counters: { reviewRounds: 1 } });
-    expect(workerInput(app, task.id)[0]).toContain('- alice: Please rename `foo` to `bar`.');
+    expect(workerInput(app, task.id)[0]).toContain(
+      '- alice:\n<untrusted-content source="pr-comment" author="alice">\nPlease rename `foo` to `bar`.\n</untrusted-content>',
+    );
     expect(workerRuns(app)).toHaveLength(1);
     expect(systemTexts(app, thread.id)).toContain('Review feedback received — fixing (round 1/3).');
     expect(app.db.tables.watches.get(task.id)?.summary?.comments).toMatchObject([

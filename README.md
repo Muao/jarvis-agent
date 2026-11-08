@@ -20,8 +20,9 @@ API key, or with a `claude` login that is not a subscription.
 
 ```sh
 mkdir -p ~/.jarvis
-cp .env.example ~/.jarvis/.env                              # add GITHUB_TOKEN of the bot account when you want PRs followed
+cp .env.example ~/.jarvis/.env                              # set POSTGRES_PASSWORD (openssl rand -base64 24) and the DATABASE_URLs; add GITHUB_TOKEN of the bot account when you want PRs followed
 cp jarvis.config.example.json ~/.jarvis/jarvis.config.json  # set repo.path to your working repository, repo.remote to a remote name such as origin
+export COMPOSE_ENV_FILES=~/.jarvis/.env                     # compose has no default Postgres password (ADR-0024)
 docker compose up -d                                        # Postgres 18 on 127.0.0.1:5433
 pnpm install
 pnpm dev                                                    # engine on http://127.0.0.1:4310, web on http://127.0.0.1:5180
@@ -64,6 +65,7 @@ Postgres is the same `postgres` service. The profile is off unless you pass `--p
 
 ```sh
 export TARGET_REPO=/absolute/path/to/your/working/repository   # mounted at /work/repo
+export COMPOSE_ENV_FILES=~/.jarvis/.env                        # POSTGRES_PASSWORD, as above (ADR-0024)
 docker compose --profile server build
 docker compose --profile server run --rm engine sh -c \
   'sed "s#/absolute/path/to/your/working/repository#/work/repo#" jarvis.config.example.json > ~/.jarvis/jarvis.config.json'

@@ -28,7 +28,7 @@ Jarvis backend: Fastify 5 + Drizzle ORM + PostgreSQL, onion layers (ADR-0003). R
 
 ## Testing rules (ADR-0013)
 
-- **Docker must be up for `test:int`** (`docker compose up -d`): `*.int.test.ts` files use Postgres on 127.0.0.1:5433,
+- **Docker must be up for `test:int`** (`docker compose --env-file ~/.jarvis/.env up -d`, ADR-0024): `*.int.test.ts` files use Postgres on 127.0.0.1:5433,
   database `jarvis_test` (`DATABASE_URL_TEST`). Never run tests against `jarvis`.
 - Unit tests: `src/**/*.test.ts` excluding `*.int.test.ts`. The `int` project runs serially (forks, `maxWorkers: 1`).
 - No test runs the real `claude`; use the fake binary and fakes for ports.

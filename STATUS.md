@@ -32,7 +32,7 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
   flags 5 files that were already unformatted before this work and are left alone deliberately
   (`agent/prompts/dispatcher.md`, `set-task-target-repo.test.ts`, `allowed-repo-resolver.*`,
   `file-profile-store.test.ts`).
-- **UI check before the PR (ADR-0022, ADR-0023)**, spec `docs/specs/ui-verification.md`: `ui` config
+- **UI check before the PR (ADR-0022)**, spec `docs/specs/ui-verification.md`: `ui` config
   block (off by default), an engine-leased dev server (`start_dev_server` / `stop_dev_server`, one
   lease engine-wide, killed on lease expiry, run exit, shutdown and on finding an orphan at start),
   Playwright MCP pinned at 0.0.84 in the worker's `mcp.json` with `browser_evaluate`,
@@ -67,8 +67,22 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
   `ciFixRounds 2`, `reviewRounds 3`. On a Max subscription the budget is an estimate, not a bill — a brake
   against runaway loops (ADR-0006).
 
+- **Docs and secrets hardening (2026-11-08)**: ADRs consolidated — new 0024 (secrets only in Infisical)
+  and 0025 (server operations) supersede 0007/0015/0016/0017/0018; never-committed 0020+0021 merged into
+  0020 (dispatcher-writable owner data) and 0022+0023 into 0022 (UI verification). New ADR-0026: the
+  engine wraps PR review comments in `<untrusted-content>` tags (`application/conversation/untrusted.ts`,
+  used by the watcher's worker input), and worker/SOUL prompts now require report-and-ask on an
+  injection attempt. `compose.yaml` no longer carries a default Postgres password (`${POSTGRES_PASSWORD:?}`;
+  run compose with `--env-file ~/.jarvis/.env` or `with-secrets.sh`). Spec CON-03/04/10 and the
+  architecture README brought up to date with ADR-0019/0020/0024/0025.
+
 ## Next
 
+0. **Set the real Postgres password** *(owner)*: generate (`openssl rand -base64 24`), store in Infisical
+   (`POSTGRES_PASSWORD`, `DATABASE_URL`, `DATABASE_URL_TEST`) and mirror into `~/.jarvis/.env`; on every
+   existing volume (laptop, rehearsal) run
+   `docker compose exec postgres psql -U jarvis -c "ALTER USER jarvis PASSWORD '<new>'"`. Until then
+   `docker compose up` fails fast asking for the variable (ADR-0024).
 1. **Close the four Important findings** of the final review. `Important 3` — `ExecStartPost`'s `curl -f`
    treating an honest 503 as failure — **must land before the first `systemctl enable`**; it is the only
    item with a deadline.
@@ -80,7 +94,7 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
    `start_dev_server`, `attach_image` and `stop_dev_server`, so the run proves the UI-check tools are
    reachable and that their refusals (with `ui.enabled: false`) do not derail the task. It needs ports
    4310 and 5180 free: `docker compose stop` first if the rehearsal containers are up.
-4. **Verify the GitHub attachment endpoint** (ADR-0023, open question 1 of the UI spec): whether
+4. **Verify the GitHub attachment endpoint** (ADR-0022, open question 1 of the UI spec): whether
    `uploads.github.com/user-attachments/assets` accepts a fine-grained PAT is unknown and untested.
    One real PR in the sandbox repo answers it. If it refuses, the choice is a classic PAT or
    `ui.attachToPr: false`.
