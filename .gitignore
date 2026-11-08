@@ -24,3 +24,6 @@ docs/design/prototype/
 
 # Jarvis local config (limits, repo); example is committed
 jarvis.config.json
+
+# Subagent-driven-development scratch (ledger, briefs, review packages)
+.superpowers/
