@@ -191,3 +191,62 @@ describe('readMcpEnv', () => {
     );
   });
 });
+
+describe('what the model is told when the engine refuses', () => {
+  it('names the field a validation error complained about', async () => {
+    const { transport } = fakeTransport(() =>
+      json(400, {
+        code: 'validation_failed',
+        message: 'Request validation failed',
+        details: [{ path: 'kind', message: 'Unrecognized key' }],
+      }),
+    );
+    const client = await connect('dispatcher', transport);
+
+    const result = await client.callTool({
+      name: 'create_task',
+      arguments: { title: 'Check PR 38', description: 'Walk its UI' },
+    });
+
+    expect(JSON.stringify(result)).toContain('kind: Unrecognized key');
+  });
+
+  it('joins several details, so one call shows every bad field', async () => {
+    const { transport } = fakeTransport(() =>
+      json(400, {
+        code: 'validation_failed',
+        message: 'Request validation failed',
+        details: [
+          { path: 'kind', message: 'Unrecognized key' },
+          { path: 'pr', message: 'Unrecognized key' },
+        ],
+      }),
+    );
+    const client = await connect('dispatcher', transport);
+
+    const result = await client.callTool({
+      name: 'create_task',
+      arguments: { title: 'Check PR 38', description: 'Walk its UI' },
+    });
+
+    const text = JSON.stringify(result);
+    expect(text).toContain('kind: Unrecognized key');
+    expect(text).toContain('pr: Unrecognized key');
+  });
+
+  it('keeps the plain message when the engine sends no details', async () => {
+    const { transport } = fakeTransport(() =>
+      json(403, { code: 'forbidden', message: 'task T-1 is Done; it takes no more input' }),
+    );
+    const client = await connect('dispatcher', transport);
+
+    const result = await client.callTool({
+      name: 'send_to_task',
+      arguments: { task: 'T-1', message: 'hi' },
+    });
+
+    const text = JSON.stringify(result);
+    expect(text).toContain('takes no more input');
+    expect(text).not.toContain('undefined');
+  });
+});

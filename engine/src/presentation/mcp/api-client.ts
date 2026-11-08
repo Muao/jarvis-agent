@@ -56,10 +56,27 @@ export interface ApiClientOptions {
   readonly transport?: HttpTransport;
 }
 
+/**
+ * A 400 from the engine carries `details` saying which field was wrong; without them the model sees
+ * only "Request validation failed" and can do nothing but guess (observed 2026-11-08, when a stale
+ * engine rejected `create_task`'s new fields and the agent retried the same call three times).
+ */
+function detailLines(details: unknown): string[] {
+  if (!Array.isArray(details)) return [];
+  return details.flatMap((entry) => {
+    const { path, message } = (entry ?? {}) as { path?: unknown; message?: unknown };
+    if (typeof message !== 'string' || message === '') return [];
+    return [typeof path === 'string' && path !== '' ? `${path}: ${message}` : message];
+  });
+}
+
 function engineMessage(body: string, status: number): string {
   try {
-    const parsed = JSON.parse(body) as { message?: unknown };
-    if (typeof parsed.message === 'string' && parsed.message !== '') return parsed.message;
+    const parsed = JSON.parse(body) as { message?: unknown; details?: unknown };
+    if (typeof parsed.message === 'string' && parsed.message !== '') {
+      const details = detailLines(parsed.details);
+      return details.length === 0 ? parsed.message : `${parsed.message}: ${details.join('; ')}`;
+    }
   } catch {
     // not JSON: fall through to the status line
   }
