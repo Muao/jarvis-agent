@@ -17,7 +17,7 @@ setup has been run yet, and the laptop differs from the server in ways that deci
   `~/.claude/.credentials.json` (mode 600). On a headless box the login is `claude`, then `/login`, with a
   code pasted back. The owner has never done this, so it must be tried before the VPS exists.
 - The server runs as the non-root user `jarvis` (uid 1000) and logs to journald. The laptop has neither.
-- On the owner's laptop the `claude` on `PATH` is a corporate wrapper (`/usr/local/bin/claude-wrapper`) that needs
+- On the owner's laptop the `claude` on `PATH` is a managed wrapper, not the official binary, and it needs
   about 20 seconds per invocation, longer than the engine's 8-second connection-probe timeout, so
   `engine.claudeBinary` has to point at the genuine installed binary. Inside a Linux image the official
   installer gives a plain, fast `claude`, so the image is closer to the server than the laptop host is.
