@@ -6,6 +6,7 @@ export type { ConfigProvider, ConfigStatus } from './config-provider.js';
 export type { ConnectionChecks, ConnectionOutcome } from './connection-checks.js';
 export type { DatabasePing } from './database-ping.js';
 export type { EventBus } from './event-bus.js';
+export type { Heartbeat } from './heartbeat.js';
 export type { IdGenerator } from './id-generator.js';
 export type { JournalEntry, JournalRepository } from './journal-repository.js';
 export type { LogContext, Logger } from './logger.js';

@@ -11,6 +11,8 @@ export interface JarvisEnv {
   readonly listenHost: string;
   /** Lowest severity the engine writes; `JARVIS_LOG_LEVEL`, default `info` (ADR-0018). */
   readonly logLevel: LogLevel;
+  /** Healthchecks.io style ping URL; it carries a token, so it is a secret. Absent: no heartbeat (ADR-0018). */
+  readonly heartbeatUrl?: string;
   readonly githubToken?: string;
   readonly notionToken?: string;
 }
@@ -36,6 +38,15 @@ const nonEmpty = (value: string | undefined): string | undefined => {
  */
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost']);
 const isLoopback = (host: string): boolean => LOOPBACK_HOSTS.has(host);
+
+const isHttpUrl = (value: string): boolean => {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === 'https:' || protocol === 'http:';
+  } catch {
+    return false;
+  }
+};
 
 const LOG_LEVELS: readonly LogLevel[] = ['error', 'warn', 'info'];
 
@@ -69,11 +80,19 @@ export function loadEnv(source: EnvSource = process.env): JarvisEnv {
         '(default info), or unset it in ~/.jarvis/.env.',
     );
   }
+  const heartbeatUrl = nonEmpty(source['HEARTBEAT_URL']);
+  if (heartbeatUrl !== undefined && !isHttpUrl(heartbeatUrl)) {
+    // The value is never echoed: the token is in it.
+    throw new StartupError(
+      'HEARTBEAT_URL is not a valid http(s) URL. Fix it in ~/.jarvis/.env, or unset it to run without a heartbeat.',
+    );
+  }
   return {
     jarvisHome: nonEmpty(source['JARVIS_HOME']) ?? join(homedir(), '.jarvis'),
     databaseUrl,
     listenHost,
     logLevel,
+    ...(heartbeatUrl !== undefined ? { heartbeatUrl } : {}),
     ...(githubToken !== undefined ? { githubToken } : {}),
     ...(notionToken !== undefined ? { notionToken } : {}),
   };

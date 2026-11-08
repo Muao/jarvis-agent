@@ -4,6 +4,25 @@ import { describe, expect, it } from 'vitest';
 import { assertSubscriptionOnly, loadEnv } from './env.js';
 import { StartupError } from './startup-error.js';
 
+describe('loadEnv heartbeat', () => {
+  it('leaves heartbeatUrl out when HEARTBEAT_URL is unset or empty', () => {
+    expect(loadEnv({ DATABASE_URL: 'p' })).not.toHaveProperty('heartbeatUrl');
+    expect(loadEnv({ DATABASE_URL: 'p', HEARTBEAT_URL: '  ' })).not.toHaveProperty('heartbeatUrl');
+  });
+
+  it('reads HEARTBEAT_URL', () => {
+    const url = 'https://hc-ping.example/ping/abc';
+    expect(loadEnv({ DATABASE_URL: 'p', HEARTBEAT_URL: url }).heartbeatUrl).toBe(url);
+  });
+
+  it('refuses an invalid URL without echoing the value', () => {
+    const run = () => loadEnv({ DATABASE_URL: 'p', HEARTBEAT_URL: 'ftp://secret-token-9' });
+    expect(run).toThrow(StartupError);
+    expect(run).toThrow(/HEARTBEAT_URL is not a valid http\(s\) URL/);
+    expect(run).not.toThrow(/secret-token-9/);
+  });
+});
+
 describe('loadEnv', () => {
   it('defaults the home to ~/.jarvis and maps only known variables', () => {
     const env = loadEnv({ DATABASE_URL: 'postgres://x', OTHER: 'ignored' });

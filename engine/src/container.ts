@@ -10,6 +10,7 @@ import {
   type ConfigStatus,
 } from './application/index.js';
 import { FileArtifactStore } from './infrastructure/artifacts/file-artifact-store.js';
+import { HttpHeartbeat } from './infrastructure/heartbeat/http-heartbeat.js';
 import { buildChildEnv } from './infrastructure/claude/child-env.js';
 import { ClaudeCliRunner } from './infrastructure/claude/index.js';
 import type { RunSpec } from './application/index.js';
@@ -164,7 +165,11 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
     await assertSubscriptionLogin(config.engine.claudeBinary, options.env);
   }
 
-  const redact = createRedactor([env.githubToken ?? '', env.notionToken ?? '']);
+  const redact = createRedactor([
+    env.githubToken ?? '',
+    env.notionToken ?? '',
+    env.heartbeatUrl ?? '',
+  ]);
   const logger = new ConsoleLogger({ redact, level: env.logLevel });
   const pool = await connectDatabase(env.databaseUrl);
 
@@ -256,6 +261,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
       onConfigChange: (listener) => provider.onChange(() => listener()),
       logger,
       checks: connections,
+      ...(env.heartbeatUrl === undefined ? {} : { heartbeat: new HttpHeartbeat(env.heartbeatUrl) }),
     },
     async listen() {
       try {
