@@ -199,7 +199,7 @@ describe('GitHubCodeHost.rerunFailedChecks', () => {
   });
 });
 
-describe('GitHubCodeHost: a repo other than its own (ADR-0019)', () => {
+describe('GitHubCodeHost: a repo other than its own (ADR-0012)', () => {
   const TARGET = { owner: 'other', name: 'repo' };
 
   it('asks the target repo for every part of the snapshot', async () => {
@@ -315,7 +315,7 @@ describe('GitHubCodeHost errors', () => {
   });
 });
 
-describe('GitHubCodeHost.uploadAttachment (ADR-0022)', () => {
+describe('GitHubCodeHost.uploadAttachment (ADR-0014)', () => {
   const UPLOAD = 'POST /user-attachments/assets';
   const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
   const upload = { name: 'shot.png', contentType: 'image/png', bytes };
@@ -337,7 +337,7 @@ describe('GitHubCodeHost.uploadAttachment (ADR-0022)', () => {
     });
   });
 
-  it("resolves the repository id of the task's own repo (ADR-0019)", async () => {
+  it("resolves the repository id of the task's own repo (ADR-0012)", async () => {
     const h = host({
       'GET /repos/other/sandbox': { body: { id: 99 } },
       [UPLOAD]: (url) => ({

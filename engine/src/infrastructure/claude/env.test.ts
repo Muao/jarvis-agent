@@ -43,7 +43,7 @@ describe('buildChildEnv', () => {
     );
   });
 
-  it('passes the Playwright browsers path through to the MCP grandchild (ADR-0022)', () => {
+  it('passes the Playwright browsers path through to the MCP grandchild (ADR-0014)', () => {
     expect(buildChildEnv(source, { role: 'worker' })['PLAYWRIGHT_BROWSERS_PATH']).toBe(
       '/ms-playwright',
     );
@@ -56,7 +56,7 @@ describe('buildChildEnv', () => {
     expect(env).not.toHaveProperty('CLAUDE_CODE_SESSION_ID');
   });
 
-  it('strips billing, database and chat secrets (ADR-0004, ADR-0007)', () => {
+  it('strips billing, database and chat secrets (ADR-0003, ADR-0015)', () => {
     const env = buildChildEnv(source, { role: 'worker', githubToken: 'ghp_bot' });
     for (const name of [
       'ANTHROPIC_API_KEY',
@@ -86,7 +86,7 @@ describe('buildChildEnv', () => {
     expect(buildChildEnv({ PATH: '/bin' }, { role: 'worker' })).toEqual({ PATH: '/bin' });
   });
 
-  describe('telemetry (ADR-0018)', () => {
+  describe('telemetry (ADR-0016)', () => {
     const telemetry = {
       enabled: true,
       otlpEndpoint: 'http://127.0.0.1:4318',

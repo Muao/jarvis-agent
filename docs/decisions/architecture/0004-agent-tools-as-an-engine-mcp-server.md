@@ -7,7 +7,7 @@ supersedes: []
 superseded-by: []
 ---
 
-# ADR-0005: Give the dispatcher and workers their capabilities as tools of a Jarvis MCP server, including the permission prompt tool
+# ADR-0004: Give the dispatcher and workers their capabilities as tools of a Jarvis MCP server, including the permission prompt tool
 
 ## Context and Problem Statement
 The dispatcher and workers must change Jarvis state (create a task, report a stage, ask the owner,
@@ -29,7 +29,10 @@ Tools by role (names indicative, final list in the engine spec):
 - Worker: `report_stage`, `ask_owner`, `submit_spec_for_approval`, `report_checks`, `report_pr`, `log_note`.
 - Both: `approve` — the `--permission-prompt-tool`; blocks until the owner answers in the UI or the timeout from config denies.
 
-There is no tool to merge, push to `main`, change limits or touch another task.
+There is no tool to merge, push to `main`, or touch another task. Later records added tools on top of
+this list — per-repo allowed commands (ADR-0012), `remember` and `update_config` incl. limits
+(ADR-0013), the UI-check tools (ADR-0014), `comment_on_pr` (ADR-0018) — each with its own boundary;
+`shared/src/mcp.ts` is the authoritative per-role tool list.
 
 ### Consequences
 - Good, because one writer (the engine) owns state; artifacts stay files written by the worker in its worktree.
@@ -39,5 +42,5 @@ There is no tool to merge, push to `main`, change limits or touch another task.
 ### Confirmation
 - RULE: Role, task id and thread id are read only from env set by the engine; no tool accepts them as arguments.
   CHECK: unit test on tool schemas + reviewer
-- RULE: Tool sets per role match the lists above; adding a tool updates this ADR.
+- RULE: Tool sets per role match `shared/src/mcp.ts`; adding a tool needs an ADR that names it.
   CHECK: `engine/src/presentation/mcp/tools.test.ts`

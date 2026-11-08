@@ -8,7 +8,7 @@ import {
 } from '@jarvis/shared';
 import { keys } from './keys';
 
-/** The only module besides `client.ts` that talks to the network: one `EventSource` per app (ADR-0012). */
+/** The only module besides `client.ts` that talks to the network: one `EventSource` per app (ADR-0010). */
 const STREAM_URL = '/api/stream';
 
 export type ConnectionStatus = 'live' | 'reconnecting' | 'offline';

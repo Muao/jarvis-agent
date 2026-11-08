@@ -14,7 +14,7 @@ async function seedTask(): Promise<void> {
   );
 }
 
-describe('PgUnitOfWork (ADR-0010)', () => {
+describe('PgUnitOfWork (ADR-0008)', () => {
   it('commits the task change and its journal row together', async () => {
     await seedTask();
     await pg.uow.run(async (tx) => {
@@ -165,7 +165,7 @@ describe('PgUnitOfWork (ADR-0010)', () => {
   });
 });
 
-describe('append-only journals (ADR-0010)', () => {
+describe('append-only journals (ADR-0008)', () => {
   it('rejects UPDATE and DELETE on task_events', async () => {
     await seedTask();
     await pg.repos.journal.append(taskEvent('T-1', 'note', NOW, 'system', { a: 1 }));

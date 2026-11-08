@@ -23,11 +23,11 @@ const loopbackUrlOf = (what: string) =>
     message: `must be an http(s) URL on 127.0.0.1 or localhost (${what})`,
   });
 
-/** The local Alloy receiver (ADR-0018). */
+/** The local Alloy receiver (ADR-0016). */
 const loopbackUrl = loopbackUrlOf('the local Alloy receiver');
 
 /**
- * `~/.jarvis/jarvis.config.json` (ADR-0006). Strict everywhere: a mistyped limit
+ * `~/.jarvis/jarvis.config.json` (ADR-0005). Strict everywhere: a mistyped limit
  * or a stray key (for instance a token) is an error, never silently ignored.
  */
 export const JarvisConfigSchema = z.strictObject({
@@ -36,7 +36,7 @@ export const JarvisConfigSchema = z.strictObject({
     remote: z.string().min(1).default('origin'),
     baseBranch: z.string().min(1).default('main'),
   }),
-  /** ADR-0019: repos a task may target besides `repo` (the default), by clone-on-demand. */
+  /** ADR-0012: repos a task may target besides `repo` (the default), by clone-on-demand. */
   repos: z
     .strictObject({
       allow: z
@@ -83,7 +83,7 @@ export const JarvisConfigSchema = z.strictObject({
     })
     .prefault({}),
   /**
-   * ADR-0022: the UI check the worker runs in `Reviewing` — an engine-leased dev server plus
+   * ADR-0014: the UI check the worker runs in `Reviewing` — an engine-leased dev server plus
    * Playwright MCP, driven by the `ui-tester` subagent. Off until the owner turns it on.
    */
   ui: z
@@ -99,9 +99,9 @@ export const JarvisConfigSchema = z.strictObject({
       maxScenarios: positiveInt(8),
       maxScreenshots: positiveInt(12),
       maxImageMb: positiveNumber(5),
-      /** ADR-0022: false leaves screenshot file names in the PR instead of inline images. */
+      /** ADR-0014: false leaves screenshot file names in the PR instead of inline images. */
       attachToPr: z.boolean().default(true),
-      /** Chromium cannot use user namespaces inside the runtime container (ADR-0017). */
+      /** Chromium cannot use user namespaces inside the runtime container (ADR-0016). */
       noSandbox: z.boolean().default(false),
       /** A diff touching none of these globs is not a UI change. */
       paths: z
@@ -117,7 +117,7 @@ export const JarvisConfigSchema = z.strictObject({
         ]),
     })
     .prefault({}),
-  /** Claude Code's own OTel export (ADR-0018). Off by default; the credential lives in `.env`, never here. */
+  /** Claude Code's own OTel export (ADR-0016). Off by default; the credential lives in `.env`, never here. */
   telemetry: z
     .strictObject({
       enabled: z.boolean().default(false),

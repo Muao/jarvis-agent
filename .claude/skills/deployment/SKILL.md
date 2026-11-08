@@ -1,14 +1,14 @@
 ---
 name: deployment
-description: How Jarvis is deployed to the Hetzner VPS (ADR-0015) and the deployment practices behind that setup. Use when touching scripts/deploy.sh, deploy/systemd/*, docs/architecture/deployment.md, or compose.yaml's server profile; when adding a new service or route that needs to be deployed; or when asked how to deploy, roll back, or redesign the deploy flow.
+description: How Jarvis is deployed to the Hetzner VPS (ADR-0016) and the deployment practices behind that setup. Use when touching scripts/deploy.sh, deploy/systemd/*, docs/architecture/deployment.md, or compose.yaml's server profile; when adding a new service or route that needs to be deployed; or when asked how to deploy, roll back, or redesign the deploy flow.
 ---
 
 # Deployment
 
-Jarvis runs on a single Hetzner VPS as systemd services, reached only over Tailscale (ADR-0015), with secrets
-from Infisical (ADR-0016). Production is bare systemd — not Docker — because the engine has to run the host's
+Jarvis runs on a single Hetzner VPS as systemd services, reached only over Tailscale (ADR-0016), with secrets
+from Infisical (ADR-0015). Production is bare systemd — not Docker — because the engine has to run the host's
 own Node/pnpm toolchain to work on the target repository. Docker is used only for Postgres on the server, and
-separately for a laptop-only rehearsal container (ADR-0017) that is never the deploy target.
+separately for a laptop-only rehearsal container (ADR-0016) that is never the deploy target.
 
 The full setup is `docs/architecture/deployment.md`; the files are listed in `deploy/README.md`. This skill is
 about how to *change* the deploy flow without breaking the properties it currently holds.
@@ -37,7 +37,7 @@ Always invoke it as `pnpm run deploy`, never the bare `pnpm deploy` — that bar
 
 - **Backward-compatible migrations before the restart.** Step 4 runs before step 5 on purpose: the old code
   must keep working against the new schema for the gap between them. Any new migration has to be additive
-  (expand/contract), matching ADR-0010 — never a rename or drop that the currently-running engine can't survive.
+  (expand/contract), matching ADR-0008 — never a rename or drop that the currently-running engine can't survive.
 - **Health-gate the restart, not just the deploy.** `ExecStartPost` in the systemd unit is what actually
   enforces this, not the script — a new unit for a new service should carry the same kind of gate
   (`ExecStartPost` hitting its own health route, or an equivalent check) rather than relying on the deploy

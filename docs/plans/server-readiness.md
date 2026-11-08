@@ -3,7 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax.
 
-**Goal:** Jarvis runs unattended on the VPS from ADR-0015, the owner can tell at a glance whether it is alive
+**Goal:** Jarvis runs unattended on the VPS from ADR-0016, the owner can tell at a glance whether it is alive
 and what every agent session cost and did, and the Linux setup is rehearsed on the laptop before the server exists.
 
 **Architecture:** No new runtime in the engine. Liveness is one HTTP route plus a heartbeat ping; "what happened"
@@ -11,24 +11,24 @@ is the engine's existing JSON log on stderr (raised to `info`) and Claude Code's
 both shipped by one Grafana Alloy agent on the host; "what it cost" is the `runs` table the engine already fills,
 exposed through one usage query and one admin page.
 
-**Tech Stack:** Fastify 5, Drizzle, Vitest (ADR-0013 fakes), React/TanStack Query, Docker (Ubuntu 24.04 image
+**Tech Stack:** Fastify 5, Drizzle, Vitest (ADR-0011 fakes), React/TanStack Query, Docker (Ubuntu 24.04 image
 for the rehearsal), systemd, Infisical CLI, Grafana Alloy + Grafana Cloud (OTLP), healthchecks.io.
 
-**Spec:** `docs/specs/abstract-project-spec.md` (`ADM-*`, `LIM-04`, `SEC-05`, `NFR-*`), ADR-0015, ADR-0016,
-`docs/architecture/deployment.md`. New decisions this plan needs: ADR-0017 (runtime image as rehearsal), ADR-0018
+**Spec:** `docs/specs/abstract-project-spec.md` (`ADM-*`, `LIM-04`, `SEC-05`, `NFR-*`), ADR-0016, ADR-0015,
+`docs/architecture/deployment.md`. New decisions this plan needs: ADR-0016 (runtime image as rehearsal), ADR-0016
 (telemetry). Both are written in Phase 0 and treated as binding once the owner accepts them.
 
 ## Global Constraints
 
-- No `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` anywhere; the start-up guard in `engine/src/main.ts` stays (ADR-0004).
+- No `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` anywhere; the start-up guard in `engine/src/main.ts` stays (ADR-0003).
 - Child `claude` env is an allow-list in `engine/src/infrastructure/claude/child-env.ts`; every new variable is added
-  there explicitly and tested (ADR-0007).
+  there explicitly and tested (ADR-0015).
 - No new engine dependency without an ADR. This plan adds **none** to `engine/package.json` (OTel comes from the
   CLI and from Alloy, not from the engine).
-- Engine, web and Postgres bind `127.0.0.1` only (ADR-0015). The runtime image publishes ports on `127.0.0.1` too.
+- Engine, web and Postgres bind `127.0.0.1` only (ADR-0016). The runtime image publishes ports on `127.0.0.1` too.
 - Secrets: names only in `.env.example`; values in `~/.jarvis/.env` (laptop) or Infisical `prod` (server).
-- Logs never contain secrets: everything goes through `ConsoleLogger`, which redacts (ADR-0007).
-- Integration tests use `jarvis_test` on 127.0.0.1:5433; no test runs the real `claude` (ADR-0013).
+- Logs never contain secrets: everything goes through `ConsoleLogger`, which redacts (ADR-0015).
+- Integration tests use `jarvis_test` on 127.0.0.1:5433; no test runs the real `claude` (ADR-0011).
 - Conventional commits; one commit per task.
 
 ## Review Focus
@@ -48,19 +48,19 @@ for the rehearsal), systemd, Infisical CLI, Grafana Alloy + Grafana Cloud (OTLP)
 
 ## Phase 0: decisions (owner accepts before code)
 
-### Task 0.1: ADR-0017 — Linux runtime image as a rehearsal of the server, not a deployment target
+### Task 0.1: ADR-0016 — Linux runtime image as a rehearsal of the server, not a deployment target
 
 **Files:** Create `docs/decisions/architecture/0017-linux-runtime-image-as-server-rehearsal.md`; modify
 `docs/decisions/architecture/README.md` (index row).
 
-- [ ] Write the ADR in the MADR shape of ADR-0015: context (macOS keeps the login in Keychain, Linux in
+- [ ] Write the ADR in the MADR shape of ADR-0016: context (macOS keeps the login in Keychain, Linux in
       `~/.claude/.credentials.json`; headless `/login`; non-root user; journald), options (rehearse in a container
       on the laptop; rehearse on a throwaway Hetzner box; do not rehearse), decision (container, `compose.yaml`
-      profile `server`, same `pnpm` scripts, ADR-0015 unchanged), consequences, confirmation rule:
+      profile `server`, same `pnpm` scripts, ADR-0016 unchanged), consequences, confirmation rule:
       `RULE: compose profile server publishes only 127.0.0.1 ports. CHECK: grep -n "127.0.0.1" compose.yaml`.
-- [ ] Commit: `docs: ADR-0017 linux runtime image as server rehearsal`.
+- [ ] Commit: `docs: ADR-0016 linux runtime image as server rehearsal`.
 
-### Task 0.2: ADR-0018 — Telemetry: engine logs via journald, Claude Code OTel export, one Alloy agent, Grafana Cloud
+### Task 0.2: ADR-0016 — Telemetry: engine logs via journald, Claude Code OTel export, one Alloy agent, Grafana Cloud
 
 **Files:** Create `docs/decisions/architecture/0018-telemetry-journald-claude-otel-grafana-cloud.md`; modify README index.
 
@@ -73,13 +73,13 @@ for the rehearsal), systemd, Infisical CLI, Grafana Alloy + Grafana Cloud (OTLP)
       Prometheus on the host, no public probe (the tailnet is private; external uptime checkers cannot reach it).
 - [ ] Confirmation rules: `RULE: engine has no @opentelemetry dependency. CHECK: grep -c opentelemetry engine/package.json → 0`;
       `RULE: OTEL_* reach a child only when telemetry.enabled. CHECK: engine/src/infrastructure/claude/env.test.ts`.
-- [ ] Commit: `docs: ADR-0018 telemetry via journald, claude otel and grafana cloud`.
+- [ ] Commit: `docs: ADR-0016 telemetry via journald, claude otel and grafana cloud`.
 
 **Gate 0:** owner reads both ADRs and sets `status: accepted` (or edits). Nothing below starts before that.
 
 ---
 
-## Phase 1: environment parity (ADR-0017)
+## Phase 1: environment parity (ADR-0016)
 
 ### Task 1.1: runtime image and compose profile
 
@@ -113,14 +113,14 @@ carries the host's macOS install, whose binaries cannot execute under Linux.
       ```
 - [ ] Verify by hand on the laptop: all five commands succeed; `docker compose --profile server run --rm engine
       ls -la /home/jarvis/.claude/.credentials.json` shows mode `600`.
-- [ ] Commit: `build: linux runtime image and compose profile server (ADR-0017)`.
+- [ ] Commit: `build: linux runtime image and compose profile server (ADR-0016)`.
 
 ### Task 1.2: env test for the listen host (only if 1.1 added `JARVIS_LISTEN_HOST`)
 
 **Files:** Modify `engine/src/infrastructure/config/env.ts`, `env.test.ts`.
 
 - [ ] Test `loadEnv` returns `listenHost: '127.0.0.1'` when unset and the given value when set; refuses `0.0.0.0`
-      unless `JARVIS_INSIDE_CONTAINER=1` is also set (keeps ADR-0015's loopback rule on hosts).
+      unless `JARVIS_INSIDE_CONTAINER=1` is also set (keeps ADR-0016's loopback rule on hosts).
 - [ ] Run `pnpm --filter @jarvis/engine test:unit`; commit `feat(engine): configurable listen host for containers`.
 
 **Gate 1:** `docker compose --profile server up -d` on the laptop, `/api/connections` shows `claude: ok`, and a
@@ -128,7 +128,7 @@ dispatcher run with `--model haiku` answers in the web chat served from the cont
 
 ---
 
-## Phase 2: server readiness (ADR-0015/0016 TODOs, health, liveness)
+## Phase 2: server readiness (ADR-0016/0016 TODOs, health, liveness)
 
 ### Task 2.1: deploy files in the repo
 
@@ -138,7 +138,7 @@ point to `deploy/`).
 
 - [ ] `with-secrets.sh`: if `INFISICAL_CLIENT_ID` is set → `infisical login --method=universal-auth` (token to
       `INFISICAL_TOKEN`) then `exec infisical run --env=${JARVIS_ENV:-prod} --projectId "$INFISICAL_PROJECT_ID" -- "$@"`;
-      otherwise `exec "$@"` (laptop fallback, ADR-0016). `set -euo pipefail`; no secret echoed.
+      otherwise `exec "$@"` (laptop fallback, ADR-0015). `set -euo pipefail`; no secret echoed.
 - [ ] Units as sketched in `deployment.md`, plus `Restart=on-failure`, `RestartSec=5`, `Environment=NODE_ENV=production`,
       and `ExecStartPost=/usr/bin/curl -fsS --retry 10 --retry-connrefused http://127.0.0.1:4310/api/health` on the
       engine (so a bad start fails the unit, not just logs).
@@ -146,7 +146,7 @@ point to `deploy/`).
       extract the proxy object to a const used by both `server` and `preview`.
 - [ ] `deploy/README.md`: rebuild runbook (restore snapshot → `claude -p ping` → re-login if needed → `systemctl status`
       → `/api/health`) and the update sequence from `deployment.md §5`.
-- [ ] Commit: `build: systemd units, infisical wrapper and vite preview for the VPS (ADR-0015, ADR-0016)`.
+- [ ] Commit: `build: systemd units, infisical wrapper and vite preview for the VPS (ADR-0016, ADR-0015)`.
 
 ### Task 2.2: `GET /api/health`
 
@@ -226,7 +226,7 @@ appear as JSON with `event`; with a real healthchecks.io URL the check turns gre
 
 ---
 
-## Phase 3: telemetry (ADR-0018)
+## Phase 3: telemetry (ADR-0016)
 
 ### Task 3.1: config block `telemetry`
 
@@ -247,7 +247,7 @@ attributes need run data.
       `OTEL_LOGS_EXPORTER=otlp`, `OTEL_EXPORTER_OTLP_PROTOCOL=<protocol>`, `OTEL_EXPORTER_OTLP_ENDPOINT=<otlpEndpoint>`,
       `OTEL_LOG_USER_PROMPTS=0`, `OTEL_RESOURCE_ATTRIBUTES=service.name=jarvis-claude,jarvis.role=<role>,jarvis.run_id=<runId>,jarvis.task_id=<taskId|->,jarvis.session_id=<sessionId>`.
       A child never receives `OTEL_EXPORTER_OTLP_HEADERS` or any other Grafana Cloud credential: it exports to the
-      local Alloy endpoint, and Alloy alone authenticates upstream (ADR-0018).
+      local Alloy endpoint, and Alloy alone authenticates upstream (ADR-0016).
 - [ ] Tests: disabled → no `OTEL_*`/`CLAUDE_CODE_ENABLE_TELEMETRY` key at all; enabled → the exact set above,
       `OTEL_LOG_USER_PROMPTS` is `0`, and no `OTEL_EXPORTER_OTLP_HEADERS` in the child env even when the engine has it.
 - [ ] Commit `feat(engine): claude code otel export when telemetry.enabled`.
@@ -264,7 +264,7 @@ attributes need run data.
       `dailyBudgetUsd`, tokens by model (`claude_code.token.usage` by `type`), tool errors (`tool_result` events with
       `success=false`), rate-limit events, last 50 lifecycle lines.
 - [ ] README: install Alloy on the VPS, where the env file goes, which Grafana Cloud stack tokens are needed.
-- [ ] Commit `build(deploy): alloy pipeline and grafana overview dashboard (ADR-0018)`.
+- [ ] Commit `build(deploy): alloy pipeline and grafana overview dashboard (ADR-0016)`.
 
 **Gate 3:** laptop with `telemetry.enabled: true`, Alloy running locally (`brew install grafana/grafana/alloy`),
 one `--model haiku` run shows up in Grafana Cloud Explore as metrics with `jarvis.run_id` and as logs with the
@@ -342,7 +342,7 @@ Phases 1, 2, 3, 4 can be worked in parallel after Gate 0; owned paths do not ove
 
 | Phase | Item |
 |---|---|
-| 0 | Accept ADR-0017 and ADR-0018 |
+| 0 | Accept ADR-0016 and ADR-0016 |
 | 1 | Nothing (laptop only) |
 | 2 | healthchecks.io account (free), one check URL; Infisical project `jarvis` with `dev`/`prod`; Google: service account key or a published OAuth desktop client (connectors.md) |
 | 3 | Grafana Cloud stack (free), OTLP endpoint + token for Alloy |

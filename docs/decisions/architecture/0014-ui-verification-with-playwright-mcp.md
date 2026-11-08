@@ -23,11 +23,11 @@ supersedes: []
 superseded-by: []
 ---
 
-# ADR-0022: Verify a UI change in a real browser through Playwright MCP, and put the evidence inline in the PR through GitHub's `user-attachments` upload
+# ADR-0014: Verify a UI change in a real browser through Playwright MCP, and put the evidence inline in the PR through GitHub's `user-attachments` upload
 
 One record for the whole UI check: who drives the browser, who owns the dev server, and how the
-screenshots reach the reviewer. (It merges the former ADR-0022 and ADR-0023, which were never
-committed separately.)
+screenshots reach the reviewer. (It merges the browser-check and screenshot decisions, drafted
+together and never committed separately.)
 
 ## Context and Problem Statement
 
@@ -99,7 +99,7 @@ point: a link the reviewer has to open is not evidence they will look at.
 - Good: the dev server is a process the engine starts, leases and kills, like the worktrees; the whole
   undocumented GitHub surface is one method with one tested fallback.
 - Bad: the runtime image grows ~400 MB; `ui.devCommand` is global while a task may target another repo
-  (ADR-0019) — the owner edits the config to switch; a cold `npx` fetch of Playwright MCP needs the npm
+  (ADR-0012) — the owner edits the config to switch; a cold `npx` fetch of Playwright MCP needs the npm
   registry (an offline host reports `inconclusive`, not a silent pass); vendoring it is the open
   follow-up.
 - Bad: an undocumented endpoint can change or start refusing tokens without notice, and **whether it

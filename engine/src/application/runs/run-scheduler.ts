@@ -15,7 +15,7 @@ export interface RunSchedulerDeps extends Omit<StartRunDeps, 'notifiers'> {
   readonly liveRuns: LiveRuns;
   /** The last claude probe; a run never starts while it says the login has expired. */
   readonly connections: Pick<ConnectionChecks, 'last'>;
-  /** ADR-0022: a dev server must not outlive the run that leased it. */
+  /** ADR-0014: a dev server must not outlive the run that leased it. */
   readonly devServers: Pick<DevServerManager, 'stop'>;
 }
 
@@ -122,7 +122,7 @@ export class RunScheduler implements RunCoordinator {
   }
 
   private async runEnded(run: LiveRun): Promise<void> {
-    // ADR-0022: whatever the run's outcome, its dev server stops with it (AC-13).
+    // ADR-0014: whatever the run's outcome, its dev server stops with it (AC-13).
     if (run.taskId !== null) {
       await this.deps.devServers.stop(run.taskId).catch((error: unknown) => {
         this.notifiers.logger.error('could not stop the dev server of a finished run', {

@@ -158,7 +158,7 @@ export class HandleCodeHostChange {
   }
 
   /** The tick's feedback, one entry per allowlisted comment or change request (CI-05). Comment
-   *  bodies are external text and enter the worker's prompt only as untrusted data (ADR-0026). */
+   *  bodies are external text and enter the worker's prompt only as untrusted data (ADR-0017). */
   private feedback(changes: readonly CodeHostChange[]): string[] {
     return changes.flatMap((change) => {
       if (change.type === 'comment')

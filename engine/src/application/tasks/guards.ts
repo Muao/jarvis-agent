@@ -3,7 +3,7 @@ import { ForbiddenError, NotFoundError } from '../errors.js';
 import type { Repositories } from '../ports/unit-of-work.js';
 import type { RunIdentity } from '../run-identity.js';
 
-/** Dispatcher tools are for dispatcher runs only (ADR-0005). */
+/** Dispatcher tools are for dispatcher runs only (ADR-0004). */
 export function requireDispatcher(identity: RunIdentity): void {
   if (identity.role !== 'dispatcher') {
     throw new ForbiddenError('this tool is only available to the dispatcher');

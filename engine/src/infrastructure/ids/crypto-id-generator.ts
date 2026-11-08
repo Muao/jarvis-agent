@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { IdGenerator } from '../../application/ports/id-generator.js';
 
-/** Random UUIDs for rows and 256-bit URL-safe tokens for runs (ADR-0005). Task ids come from the database. */
+/** Random UUIDs for rows and 256-bit URL-safe tokens for runs (ADR-0004). Task ids come from the database. */
 export class CryptoIdGenerator implements IdGenerator {
   threadId(): string {
     return randomUUID();

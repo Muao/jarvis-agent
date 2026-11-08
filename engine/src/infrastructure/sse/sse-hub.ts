@@ -4,7 +4,7 @@ import type { EventBus } from '../../application/ports/event-bus.js';
 export type StreamListener = (event: StreamEvent) => void;
 
 /**
- * Fan-out of live notifications to the connected `GET /api/stream` clients (ADR-0008).
+ * Fan-out of live notifications to the connected `GET /api/stream` clients (ADR-0006).
  * Presentation subscribes through the `StreamSource` shape; use cases publish through `EventBus`.
  */
 export class SseHub implements EventBus {

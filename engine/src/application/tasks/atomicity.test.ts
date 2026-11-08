@@ -115,7 +115,7 @@ const effectsOf = (app: TestApp) => ({
   runs: [...app.runs.calls],
 });
 
-describe('journal and state change share one transaction (ADR-0010)', () => {
+describe('journal and state change share one transaction (ADR-0008)', () => {
   it.each(CASES)('$name appends a journal row when it succeeds', async ({ arrange }) => {
     const app = buildTestApp();
     const act = await arrange(app);

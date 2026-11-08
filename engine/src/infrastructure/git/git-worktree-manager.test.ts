@@ -79,7 +79,7 @@ describe('GitWorktreeManager', () => {
     expect(existsSync(join(worktreesDir, 'T-4'))).toBe(false);
   });
 
-  describe('targetRepo (ADR-0019)', () => {
+  describe('targetRepo (ADR-0012)', () => {
     let targetBare: string;
     let reposRoot: string;
 

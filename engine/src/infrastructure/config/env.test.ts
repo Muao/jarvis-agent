@@ -62,7 +62,7 @@ describe('loadEnv', () => {
   it('refuses a non-loopback listen host outside the container', () => {
     const run = () => loadEnv({ DATABASE_URL: 'p', JARVIS_LISTEN_HOST: '0.0.0.0' });
     expect(run).toThrow(StartupError);
-    expect(run).toThrow(/Refusing to start.*JARVIS_LISTEN_HOST=0\.0\.0\.0.*ADR-0015.*Unset/s);
+    expect(run).toThrow(/Refusing to start.*JARVIS_LISTEN_HOST=0\.0\.0\.0.*ADR-0016.*Unset/s);
   });
 
   it('refuses a non-loopback listen host when the container flag is not exactly 1', () => {

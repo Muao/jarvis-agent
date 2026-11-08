@@ -15,16 +15,16 @@ function sameRepo(
 
 export interface SetTaskTargetRepoInput {
   readonly taskId: string;
-  /** `"owner/name"` (ADR-0019). */
+  /** `"owner/name"` (ADR-0012). */
   readonly repo: string;
 }
 
 /**
- * ADR-0019: names the repo a task's worktree is created in, besides the configured default.
+ * ADR-0012: names the repo a task's worktree is created in, besides the configured default.
  * Rejects with a clear reason (not a 500) when the repo is neither allow-listed nor owned by the
  * account `GITHUB_TOKEN` authenticates as, so the dispatcher can tell the owner why.
  *
- * A task's worktree is always created at `create_task` time (ADR-0019 follow-up), so by the time a
+ * A task's worktree is always created at `create_task` time (ADR-0012 follow-up), so by the time a
  * task id exists to call this with, the worktree is already fixed to whatever repo it was created
  * against. Changing to a *different* repo here can never take effect: it would silently no-op
  * against the real worktree manager (idempotent per task id), so this rejects instead of pretending

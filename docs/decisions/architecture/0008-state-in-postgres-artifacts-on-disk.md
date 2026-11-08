@@ -7,7 +7,7 @@ supersedes: []
 superseded-by: []
 ---
 
-# ADR-0010: Store Jarvis state and event journals in PostgreSQL (Docker), and SDD artifacts as files per task
+# ADR-0008: Store Jarvis state and event journals in PostgreSQL (Docker), and SDD artifacts as files per task
 
 ## Context and Problem Statement
 The first sketch kept state in `state.json` and chat context in `chats/*.md`. With a web admin that shows

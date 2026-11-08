@@ -1,7 +1,7 @@
 import type { ZodType } from 'zod';
 import { ApiErrorSchema } from '@jarvis/shared';
 
-/** The only module besides `stream.ts` that calls `fetch` (ADR-0012). */
+/** The only module besides `stream.ts` that calls `fetch` (ADR-0010). */
 const API_BASE = '/api';
 
 /** A non-2xx response (or an unreadable 2xx body) carrying the shared `{ code, message }`. */

@@ -3,16 +3,17 @@ status: accepted
 date: 2026-11-08
 decision-makers: ["Ivan Lapa"]  # owner: "secrets only in Infisical; env only as the local fallback; a real Postgres password, stored in Infisical" (2026-11-08); drafted by Claude
 scope: [".env.example", "compose.yaml", "scripts/with-secrets.sh", "deploy/systemd/**", "engine/src/infrastructure/config/**", "docs/architecture/deployment.md"]
-supersedes: ["0007", "0016"]
+supersedes: []  # consolidates the former 0007 and 0016 (pre-renumbering; see git history)
 superseded-by: []
 ---
 
-# ADR-0024: Secrets live only in Infisical; `~/.jarvis/.env` is the local fallback; no committed or deployed file carries a secret value
+# ADR-0015: Secrets live only in Infisical; `~/.jarvis/.env` is the local fallback; no committed or deployed file carries a secret value
 
 ## Context and Problem Statement
 
-ADR-0007 put secrets in a plaintext `~/.jarvis/.env` "temporarily"; ADR-0016 added Infisical so the
-laptop and the VPS read one source. Two gaps remained. First, `compose.yaml` shipped a literal Postgres
+The former record 0007 put secrets in a plaintext `~/.jarvis/.env` "temporarily"; the former 0016
+added Infisical so the laptop and the VPS read one source (both are consolidated here; their full
+option analyses live in git history). Two gaps remained. First, `compose.yaml` shipped a literal Postgres
 password (`jarvis`/`jarvis`) — the security audit (2026-11-08) rated it High, because any process on the
 host can connect to the published `127.0.0.1:5433` and rewrite Jarvis's state, permission decisions
 included. Second, `.env` was still a hand-maintained second source of truth that drifts from Infisical.
@@ -38,18 +39,18 @@ carries a secret value — compose and systemd reference variables, never litera
   from it) from the environment with `${…:?}` — it refuses to start without a value instead of falling
   back to a default. Compose is run as `scripts/with-secrets.sh docker compose …` or with
   `docker compose --env-file ~/.jarvis/.env …`. The systemd units carry no secret values either
-  (ADR-0025).
+  (ADR-0016).
 - **Postgres has a real password.** Generated (`openssl rand -base64 24`), stored in Infisical as
   `POSTGRES_PASSWORD` and inside `DATABASE_URL`/`DATABASE_URL_TEST`. Changing it on an existing volume
   is `ALTER USER jarvis PASSWORD '…'` (runbook in `docs/architecture/deployment.md`), not a volume
   rebuild.
-- **Token inventory** (unchanged from ADR-0007): the Claude subscription is the `claude` login, never
+- **Token inventory** (unchanged from the former 0007): the Claude subscription is the `claude` login, never
   an `ANTHROPIC_API_KEY`; `GITHUB_TOKEN` is the bot's fine-grained PAT scoped to the allowed repos;
   `NOTION_TOKEN` and the Google Drive OAuth triplet feed the connector MCP servers; `POSTGRES_PASSWORD`
   / `DATABASE_URL` / `DATABASE_URL_TEST` for the database; `HEARTBEAT_URL` and
-  `OTEL_EXPORTER_OTLP_HEADERS` for observability (ADR-0025); `SLACK_BOT_TOKEN` / `SLACK_APP_TOKEN` in
+  `OTEL_EXPORTER_OTLP_HEADERS` for observability (ADR-0016); `SLACK_BOT_TOKEN` / `SLACK_APP_TOKEN` in
   iteration 2.
-- **Child processes** keep ADR-0007's guarantees: secrets are read only in
+- **Child processes** keep the long-standing guarantees: secrets are read only in
   `engine/src/infrastructure/config/**`, redacted in logs, and children receive an allow-listed
   environment, never `process.env` — a worker gets `GH_TOKEN`, never the database URL or Slack tokens.
 
@@ -62,7 +63,7 @@ carries a secret value — compose and systemd reference variables, never litera
   `--env-file ~/.jarvis/.env`. README and deployment docs carry the exact commands.
 - Bad, because if Infisical is down at start-up the engine does not start (running processes are
   unaffected); the local fallback keeps the laptop workflow alive.
-- Known limit (accepted, unchanged from ADR-0016): a child `claude` runs as the same uid as the engine
+- Known limit (accepted, unchanged from the former 0016): a child `claude` runs as the same uid as the engine
   and can read `/proc/<engine-pid>/environ`; a separate uid for children is the real fix.
 
 ## Confirmation

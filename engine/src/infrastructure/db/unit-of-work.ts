@@ -26,7 +26,7 @@ export function createRepositories(db: Executor): Repositories {
 }
 
 /**
- * One `run` = one Postgres transaction on one pooled connection (ADR-0010): everything `work` writes
+ * One `run` = one Postgres transaction on one pooled connection (ADR-0008): everything `work` writes
  * commits together, or, if it throws, not at all.
  *
  * Nesting: calling `run` from inside `work` (on the same unit of work) throws. A second `run` would

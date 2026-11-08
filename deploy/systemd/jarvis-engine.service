@@ -7,7 +7,7 @@ Wants=network-online.target
 User=jarvis
 WorkingDirectory=/home/jarvis/jarvis
 Environment=NODE_ENV=production
-# ADR-0022: where the UI check's Chromium lives; harmless when it was never installed.
+# ADR-0014: where the UI check's Chromium lives; harmless when it was never installed.
 Environment=PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 EnvironmentFile=/etc/jarvis/infisical.env
 ExecStart=/home/jarvis/jarvis/scripts/with-secrets.sh pnpm --filter @jarvis/engine start

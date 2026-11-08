@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-/** Layout of `~/.jarvis` (ADR-0011). Pure path arithmetic; `ensureHome` is the only side effect. */
+/** Layout of `~/.jarvis` (ADR-0009). Pure path arithmetic; `ensureHome` is the only side effect. */
 export interface JarvisHome {
   readonly root: string;
   readonly userFile: string;

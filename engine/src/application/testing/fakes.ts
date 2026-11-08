@@ -84,6 +84,8 @@ export class FakeWorktreeManager implements WorktreeManager {
   readonly created: Worktree[] = [];
   /** `targetRepo` given to each `create` call, in order, for assertions. */
   readonly targetRepos: ({ owner: string; name: string } | null)[] = [];
+  /** ADR-0018: every `createForPullRequest` call, in order. */
+  readonly checkedOut: { taskId: string; prNumber: number }[] = [];
   private failure: Error | null = null;
 
   /** The next `create` rejects with `error` (and nothing is created). */
@@ -106,6 +108,28 @@ export class FakeWorktreeManager implements WorktreeManager {
         ? `/jarvis/worktrees/${taskId}`
         : `/jarvis/repos/${targetRepo.owner}/${targetRepo.name}/worktrees/${taskId}`;
     const worktree = { branch: `jarvis/${taskId}`, path };
+    this.created.push(worktree);
+    return worktree;
+  }
+
+  /** ADR-0018: records the PR it was asked to check out, on a `jarvis-check/*` branch. */
+  async createForPullRequest(
+    taskId: string,
+    targetRepo: { owner: string; name: string } | null,
+    prNumber: number,
+  ): Promise<Worktree> {
+    if (this.failure !== null) {
+      const error = this.failure;
+      this.failure = null;
+      throw error;
+    }
+    this.targetRepos.push(targetRepo);
+    this.checkedOut.push({ taskId, prNumber });
+    const path =
+      targetRepo === null
+        ? `/jarvis/worktrees/${taskId}`
+        : `/jarvis/repos/${targetRepo.owner}/${targetRepo.name}/worktrees/${taskId}`;
+    const worktree = { branch: `jarvis-check/${taskId}`, path };
     this.created.push(worktree);
     return worktree;
   }
@@ -190,7 +214,7 @@ export class InMemoryArtifactStore implements ArtifactStore {
   }
 }
 
-/** ADR-0022: records what the engine was asked to start, without starting anything. */
+/** ADR-0014: records what the engine was asked to start, without starting anything. */
 export class FakeDevServerManager implements DevServerManager {
   readonly started: { taskId: string; cwd: string }[] = [];
   readonly stopped: string[] = [];

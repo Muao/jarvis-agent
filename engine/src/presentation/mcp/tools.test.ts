@@ -48,7 +48,7 @@ const textOf = (result: Awaited<ReturnType<Client['callTool']>>): string => {
 
 describe.each(['dispatcher', 'worker'] as const)('Jarvis MCP server, %s', (role) => {
   it('registers exactly the tools of the role', async () => {
-    // contract: ADR-0005 role-scoped tool set
+    // contract: ADR-0004 role-scoped tool set
     const { transport } = fakeTransport(() => json(200, {}));
     const client = await connect(role, transport);
     const { tools } = await client.listTools();
@@ -57,7 +57,7 @@ describe.each(['dispatcher', 'worker'] as const)('Jarvis MCP server, %s', (role)
   });
 
   it('exposes no identity field in any input schema', async () => {
-    // contract: identity comes from the run token, never from arguments (ADR-0005)
+    // contract: identity comes from the run token, never from arguments (ADR-0004)
     const { transport } = fakeTransport(() => json(200, {}));
     const client = await connect(role, transport);
     const { tools } = await client.listTools();

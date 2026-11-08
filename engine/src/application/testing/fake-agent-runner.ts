@@ -55,7 +55,7 @@ export class FakeProcess implements RunHandle {
   }
 }
 
-/** Records the specs it is given instead of spawning anything (ADR-0013: no test runs `claude`). */
+/** Records the specs it is given instead of spawning anything (ADR-0011: no test runs `claude`). */
 export class FakeAgentRunner implements AgentRunner {
   readonly processes: FakeProcess[] = [];
   private failure: Error | null = null;

@@ -8,7 +8,7 @@ export interface UserPreferencesSource {
 
 /**
  * Inserts `fact` as a new bullet under a `## Learned` heading in `content`, touching no other
- * byte (ADR-0020). Creates the heading at end-of-file when it is missing; an empty `content`
+ * byte (ADR-0013). Creates the heading at end-of-file when it is missing; an empty `content`
  * produces a minimal file with just the heading and the fact.
  */
 export function insertLearnedBullet(content: string, fact: string): string {
@@ -46,7 +46,7 @@ export class FileProfileStore implements UserPreferencesSource {
     }
   }
 
-  /** ADR-0020: appends one bullet under `## Learned`; never rewrites any other byte of the file. */
+  /** ADR-0013: appends one bullet under `## Learned`; never rewrites any other byte of the file. */
   async appendLearned(fact: string): Promise<void> {
     let content: string;
     try {

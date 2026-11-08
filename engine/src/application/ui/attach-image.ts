@@ -25,7 +25,7 @@ export interface AttachImageDeps extends TaskDeps {
 }
 
 /**
- * ADR-0022: the worker's `attach_image`. Uploads one screenshot and returns the markdown to paste
+ * ADR-0014: the worker's `attach_image`. Uploads one screenshot and returns the markdown to paste
  * into the PR body. Every refusal — disabled, too many, too big, GitHub saying no — comes back as
  * `{ ok: false, reason }`, because the alternative is a PR full of broken images.
  */

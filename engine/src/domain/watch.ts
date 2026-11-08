@@ -130,7 +130,7 @@ function sameChecks(
 }
 
 /**
- * Pure and idempotent: feeding `next` back with the same snapshot yields no changes (CI-09, ADR-0009).
+ * Pure and idempotent: feeding `next` back with the same snapshot yields no changes (CI-09, ADR-0007).
  * CI is judged on the current head only; a new head resets the check state (CI-07).
  */
 export function diffPullRequest(

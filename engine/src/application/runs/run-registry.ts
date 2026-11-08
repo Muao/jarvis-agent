@@ -2,7 +2,7 @@ import { ForbiddenError } from '../errors.js';
 import type { IdGenerator } from '../ports/id-generator.js';
 import type { RunIdentity } from '../run-identity.js';
 
-/** Run token -> identity, for live runs only (ADR-0005). Nothing is persisted: a restart ends every run. */
+/** Run token -> identity, for live runs only (ADR-0004). Nothing is persisted: a restart ends every run. */
 export class RunRegistry {
   private readonly identities = new Map<string, RunIdentity>();
 

@@ -118,7 +118,7 @@ describe('agent tools: role and input', () => {
     expect(approve.statusCode).toBe(404);
   });
 
-  it('answers 400 for input that carries an identity or breaks the schema (ADR-0005)', async () => {
+  it('answers 400 for input that carries an identity or breaks the schema (ADR-0004)', async () => {
     const { http, token } = await workerRun();
 
     const identity = await call(http, 'log_note', token, { text: 'x', taskId: 'T-9' });
@@ -219,7 +219,7 @@ describe('agent tools: dispatcher', () => {
     expect(app.task('T-1').targetRepo).toBeNull();
   });
 
-  it('remember appends a fact through the profile store (ADR-0020)', async () => {
+  it('remember appends a fact through the profile store (ADR-0013)', async () => {
     const { http, app } = await dispatcherRun();
     const token = app.runner.processes[0]?.spec.runToken ?? '';
 

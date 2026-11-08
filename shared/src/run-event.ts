@@ -11,7 +11,7 @@ const common = {
 
 const Json = z.record(z.string(), z.unknown());
 
-/** A normalised stream-json line (ADR-0004). Stored in `run_events` and pushed over SSE. */
+/** A normalised stream-json line (ADR-0003). Stored in `run_events` and pushed over SSE. */
 export const RunEventSchema = z.discriminatedUnion('kind', [
   z.object({ ...common, kind: z.literal('text'), payload: z.object({ text: z.string() }) }),
   z.object({

@@ -8,7 +8,7 @@ is in [`../decisions/architecture/`](../decisions/architecture/README.md) (`acce
 
 ## System context
 
-Everything runs on one machine: the owner's laptop, or a VPS reached only over Tailscale (ADR-0025).
+Everything runs on one machine: the owner's laptop, or a VPS reached only over Tailscale (ADR-0016).
 The engine is one Node process; it spawns `claude` processes and talks to GitHub. Postgres runs in
 Docker. Slack arrives in iteration 2.
 
@@ -53,10 +53,10 @@ flowchart LR
 | Module | Path | Purpose |
 |---|---|---|
 | shared | `shared/` | Zod contracts: HTTP bodies, SSE events, MCP tool inputs, config schema, enums (stages, roles) |
-| engine | `engine/` | Onion: domain, application, infrastructure, presentation (ADR-0003) |
+| engine | `engine/` | Onion: domain, application, infrastructure, presentation (ADR-0002) |
 | web | `web/` | React SPA: chat + admin |
 
-Engine layers (ADR-0003):
+Engine layers (ADR-0002):
 
 | Layer | Main parts |
 |---|---|
@@ -99,7 +99,7 @@ sequenceDiagram
     E-->>W: final summary in thread
 ```
 
-## Process model (ADR-0004)
+## Process model (ADR-0003)
 
 - **Dispatcher run** per owner message: `claude -p --resume <thread-session> --output-format stream-json`, dispatcher prompt, only Jarvis dispatcher tools.
 - **Worker run** per task stage: `claude -p --input-format stream-json --output-format stream-json --verbose`, `cwd` = task worktree, `--max-turns`, `--max-budget-usd`, `--model`, `--mcp-config` (Jarvis tools + connectors), `--permission-prompt-tool mcp__jarvis__approve`, worker settings that deny pushes to the base branch, force-push and merge.
@@ -107,12 +107,12 @@ sequenceDiagram
 - Every stream-json event is stored in `run_events` and pushed over SSE — that is the admin "console".
 - The engine refuses to start with `ANTHROPIC_API_KEY` set and strips provider variables from child env.
 
-## Data (ADR-0010)
+## Data (ADR-0008)
 
 Postgres tables (indicative): `threads`, `messages`, `tasks`, `task_events`, `runs`, `run_events`,
 `permission_requests`, `watches`, `usage`. Artifacts: `<dataDir>/tasks/<task-id>/*.md`.
 
-## Where agent data lives (ADR-0011)
+## Where agent data lives (ADR-0009)
 
 | What | Where | In git |
 |---|---|---|
@@ -127,15 +127,15 @@ Runs use `--setting-sources project,local` so the owner's personal `~/.claude` p
 leak into the agent, and `--mcp-config ... --strict-mcp-config` so only Jarvis and connector servers load.
 Visual overview: [`overview.html`](overview.html), published at https://claude.ai/artifact/DwL6g8WNwwMThtbhqgZztn
 
-## Configuration and secrets (ADR-0006, ADR-0007)
+## Configuration and secrets (ADR-0005, ADR-0015)
 
 - `~/.jarvis/jarvis.config.json` (example committed): repo, limits, models per role, allowlists, connector scopes.
-- `~/.jarvis/.env` (example committed): `GITHUB_TOKEN` of the bot account, `NOTION_TOKEN`, Google OAuth credentials, `DATABASE_URL`, `POSTGRES_PASSWORD`; iteration 2 adds `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`.
+- Secrets live in Infisical (ADR-0015), with `~/.jarvis/.env` as the local fallback (example committed): `GITHUB_TOKEN` of the bot account, `NOTION_TOKEN`, Google OAuth credentials, `DATABASE_URL`, `POSTGRES_PASSWORD`; iteration 2 adds `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`.
 - Claude: the owner logs in with `claude` once; no key in Jarvis.
-- On a server, secrets come from Infisical (ADR-0016); see [`deployment.md`](deployment.md).
+- On a server, secrets come from Infisical (ADR-0015); see [`deployment.md`](deployment.md).
 - How connectors (Notion, Google Docs) authenticate without a browser on the server: [`connectors.md`](connectors.md).
 
-## Deployment (ADR-0015)
+## Deployment (ADR-0016)
 
 The laptop setup stays the default. For an always-on setup, Jarvis runs on a Hetzner VPS as systemd
 services, reachable only over Tailscale: [`deployment.md`](deployment.md).

@@ -20,7 +20,7 @@ export interface Repositories {
 
 /**
  * One database transaction. Everything `work` writes commits together or, if it throws, not at all.
- * Every task state change appends its `TaskEvent` through `tx.journal` inside the same `run` (ADR-0010).
+ * Every task state change appends its `TaskEvent` through `tx.journal` inside the same `run` (ADR-0008).
  * Notifications to the owner and the run coordinator happen after `run` resolves, never inside `work`.
  */
 export interface UnitOfWork {

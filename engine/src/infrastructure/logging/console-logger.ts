@@ -7,7 +7,7 @@ const SEVERITY: Readonly<Record<LogLevel, number>> = { error: 0, warn: 1, info: 
 type Write = (line: string) => void;
 
 export interface ConsoleLoggerOptions {
-  /** Masks secrets in every line (SEC-04, ADR-0007). */
+  /** Masks secrets in every line (SEC-04, ADR-0015). */
   readonly redact: (text: string) => string;
   /** Where lines go; stderr by default. */
   readonly write?: Write;

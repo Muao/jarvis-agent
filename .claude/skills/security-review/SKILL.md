@@ -10,7 +10,7 @@ Claude subscription login and every connected service (GitHub, Infisical, Notion
 secret here is not a localhost mistake — it's a public GitHub repo. This skill is the checklist to run before
 anything leaves the working tree: a commit, a push, or a deploy.
 
-This is a local project skill, not a generic one: the rules below are this repo's own (ADR-0007, ADR-0016,
+This is a local project skill, not a generic one: the rules below are this repo's own (ADR-0015, ADR-0015,
 `.gitignore`), not a generic secret-scanner's defaults. Keep it that way — add project-specific checks here
 rather than installing a third-party scanning skill that runs unreviewed shell commands over this code.
 
@@ -19,7 +19,7 @@ rather than installing a third-party scanning skill that runs unreviewed shell c
 1. **Diff review, not just `git add`.** After any broad `git add`, run `git status` and `git diff --cached` and
    read every new/untracked file before committing — a suspicious filename ("config.local.json", "notes.txt")
    deserves a content check even if it looks innocuous.
-2. **Grep staged changes for known secret shapes** (the same check ADR-0016's confirmation uses, run it on the
+2. **Grep staged changes for known secret shapes** (the same check ADR-0015's confirmation uses, run it on the
    diff, not the whole tree):
    ```sh
    git diff --cached | grep -nE "(ghp_|github_pat_|xox[bp]-|xapp-|AKIA[0-9A-Z]{16}|-----BEGIN (RSA|EC|OPENSSH|PGP) PRIVATE KEY-----|INFISICAL_CLIENT_SECRET=.+|ANTHROPIC_API_KEY=.+|ANTHROPIC_AUTH_TOKEN=.+)"
@@ -35,7 +35,7 @@ rather than installing a third-party scanning skill that runs unreviewed shell c
    ```
    If a file that should match comes back unignored, stop and fix `.gitignore` before committing anything.
 5. **No `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` anywhere** — not in code, not in a committed `.env.example`
-   value, not in a systemd unit, not in a doc's example command. ADR-0004: Jarvis only ever uses the `claude`
+   value, not in a systemd unit, not in a doc's example command. ADR-0003: Jarvis only ever uses the `claude`
    CLI's own subscription login. Their presence in a diff is a correctness bug, not just a leak risk.
 6. **Logs, fixtures, and test data use fake values.** A copy-pasted real token "for realism" in a test fixture
    or an example log line in a doc is still a leak. Use obviously-fake values (`ghp_xxx`, `sk-fake-...`) in
@@ -64,7 +64,7 @@ rather than installing a third-party scanning skill that runs unreviewed shell c
    never bundled into an unrelated deploy-script change. (This is exactly the state Jarvis is in right now:
    `jarvis-web` is installed but intentionally not enabled.)
 6. **Firewall stays tailnet-only unless someone explicitly decides otherwise.** `ss -tlnp` on the server should
-   show engine/web/Postgres on `127.0.0.1` only (ADR-0015's confirmation check); re-run it after any change to
+   show engine/web/Postgres on `127.0.0.1` only (ADR-0016's confirmation check); re-run it after any change to
    `JARVIS_LISTEN_HOST`, `compose.yaml` port mappings, or the Hetzner Cloud Firewall rules.
 
 ## If something was already committed

@@ -1,6 +1,6 @@
 # Deployment
 
-How to run Jarvis on a server (ADR-0015) with secrets from Infisical (ADR-0016). Unit files, the
+How to run Jarvis on a server (ADR-0016) with secrets from Infisical (ADR-0015). Unit files, the
 Infisical wrapper and the `vite preview` block are in [`deploy/`](../../deploy/README.md).
 
 ```mermaid
@@ -25,7 +25,7 @@ flowchart LR
 ```
 
 To try the Linux user, Node/pnpm and the headless `claude` login before the server exists, use the laptop
-rehearsal in the README ("Rehearse the server setup", ADR-0017). It does not cover systemd, journald, Tailscale or
+rehearsal in the README ("Rehearse the server setup", ADR-0016). It does not cover systemd, journald, Tailscale or
 the firewall.
 
 ## 1. Server
@@ -39,7 +39,7 @@ the firewall.
    curl -fsSL https://tailscale.com/install.sh | sh && tailscale up --ssh
    ```
 3. Once `tailscale ssh jarvis@<host>` works, remove SSH from the Hetzner firewall.
-4. Chromium for the UI check (ADR-0022), as root, into a path `jarvis` can read:
+4. Chromium for the UI check (ADR-0014), as root, into a path `jarvis` can read:
    ```sh
    export PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
    npx --yes playwright@1.64.1 install --with-deps chromium && chmod -R a+rX /ms-playwright
@@ -70,7 +70,7 @@ claude -p "ping"  # must answer without ANTHROPIC_API_KEY
 
    The file is `root:root 0600`: systemd reads `EnvironmentFile=` as root, and a child `claude` running as `jarvis` must not be able to read the long-lived client secret.
 4. Install the Infisical CLI on the server and on the laptop. Laptop: `infisical login && infisical run --env=dev -- pnpm dev`.
-5. Postgres password (ADR-0024): generate one (`openssl rand -base64 24`), store it in Infisical as
+5. Postgres password (ADR-0015): generate one (`openssl rand -base64 24`), store it in Infisical as
    `POSTGRES_PASSWORD` and inside `DATABASE_URL` / `DATABASE_URL_TEST`. `compose.yaml` carries no
    default and refuses to start without it. On a volume created with the old default:
    `docker compose exec postgres psql -U jarvis -c "ALTER USER jarvis PASSWORD '<new>'"`, then restart
@@ -88,7 +88,7 @@ preference and the one SSH-tunnel fallback are in [`connectors.md`](connectors.m
 tailscale ssh jarvis@<host>
 git clone https://github.com/burnjohn/jarvis-agent.git ~/jarvis && cd ~/jarvis
 mkdir -p ~/.jarvis && cp jarvis.config.example.json ~/.jarvis/jarvis.config.json   # set repo.path, limits
-docker compose --env-file ~/.jarvis/.env up -d   # POSTGRES_PASSWORD has no default (ADR-0024)
+docker compose --env-file ~/.jarvis/.env up -d   # POSTGRES_PASSWORD has no default (ADR-0015)
 pnpm install --frozen-lockfile && pnpm --filter @jarvis/web build
 ```
 

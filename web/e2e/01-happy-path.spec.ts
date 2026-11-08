@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-// The whole engine runs for real; only `claude` is the fake (ADR-0013). Specs 01..05 share one engine and
+// The whole engine runs for real; only `claude` is the fake (ADR-0011). Specs 01..05 share one engine and
 // database, so they run in file order and the first task is always T-1.
 test('message to draft PR: chat, approval, tasks, task detail', async ({ page }) => {
   await page.goto('/');

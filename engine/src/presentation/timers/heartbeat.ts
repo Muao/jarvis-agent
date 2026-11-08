@@ -1,4 +1,4 @@
-// Outbound liveness (ADR-0018): the one signal a dead process cannot send itself is a ping that stops arriving.
+// Outbound liveness (ADR-0016): the one signal a dead process cannot send itself is a ping that stops arriving.
 import type { GetHealth } from '../../application/queries/get-health.js';
 import type { Heartbeat } from '../../application/ports/heartbeat.js';
 import type { Logger } from '../../application/ports/logger.js';

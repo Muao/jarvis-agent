@@ -3,6 +3,8 @@ import type {
   AttachmentResult,
   AttachmentUpload,
   CodeHost,
+  CommentResult,
+  PullRequestDescription,
   RepoTarget,
 } from '../../application/ports/code-host.js';
 import type {
@@ -58,7 +60,7 @@ const ACTIONS_APP_SLUG = 'github-actions';
 const RERUNNABLE: readonly string[] = ['failure', 'timed_out'];
 const RUN_ID = /\/actions\/runs\/(\d+)/;
 /**
- * ADR-0022. GitHub documents no API for comment attachments; this is the endpoint its own web
+ * ADR-0014. GitHub documents no API for comment attachments; this is the endpoint its own web
  * UI posts to when an image is dropped into a PR body. It can change or start refusing tokens
  * without notice, which is why every failure here becomes `{ ok: false, reason }`.
  */
@@ -99,7 +101,7 @@ export class GitHubCodeHost implements CodeHost, ConnectionChecker {
   }
 
   /**
-   * ADR-0019: `target` names the repo this call is about. The default repo stands in only when the
+   * ADR-0012: `target` names the repo this call is about. The default repo stands in only when the
    * caller has no target — never as a fallback for one it failed to resolve, because a PR of the
    * same number in the default repo is a different pull request.
    */
@@ -120,6 +122,57 @@ export class GitHubCodeHost implements CodeHost, ConnectionChecker {
       ]);
       return { headSha, checks, reviews, comments };
     });
+  }
+
+  /** ADR-0018: the PR itself. `merged` is a state of its own here; GitHub reports it separately. */
+  async describePullRequest(
+    prNumber: number,
+    target?: RepoTarget,
+  ): Promise<PullRequestDescription> {
+    return this.guard(async () => {
+      const where = this.where(target);
+      const { data } = await this.octokit.pulls.get({ ...where, pull_number: prNumber });
+      const headRepo = {
+        owner: data.head.repo?.owner.login ?? where.owner,
+        name: data.head.repo?.name ?? where.repo,
+      };
+      return {
+        number: data.number,
+        title: data.title,
+        body: data.body ?? '',
+        author: data.user?.login ?? '',
+        state: data.merged_at === null ? data.state === 'closed' ? 'closed' : 'open' : 'merged',
+        headRef: data.head.ref,
+        headSha: data.head.sha,
+        headRepo,
+        fromFork:
+          headRepo.owner.toLowerCase() !== where.owner.toLowerCase() ||
+          headRepo.name.toLowerCase() !== where.repo.toLowerCase(),
+      };
+    });
+  }
+
+  /**
+   * ADR-0018: a PR comment, posted only after the owner approved it. Like the attachment upload, a
+   * refusal is a value: a check that walked the UI should not be lost because the comment bounced.
+   */
+  async postComment(prNumber: number, body: string, target?: RepoTarget): Promise<CommentResult> {
+    const where = this.where(target);
+    try {
+      const { data } = await this.octokit.issues.createComment({
+        ...where,
+        issue_number: prNumber,
+        body,
+      });
+      return { ok: true, url: data.html_url };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const status = statusOf(error);
+      return {
+        ok: false,
+        reason: `GitHub refused the comment on ${where.owner}/${where.repo}#${prNumber}${status === undefined ? '' : ` (${String(status)})`}: ${this.redact(message)}`,
+      };
+    }
   }
 
   async botLogin(): Promise<string> {
@@ -279,7 +332,7 @@ export class GitHubCodeHost implements CodeHost, ConnectionChecker {
   }
 
   /**
-   * ADR-0022. Uploads one image the way the GitHub web UI does and returns the
+   * ADR-0014. Uploads one image the way the GitHub web UI does and returns the
    * `github.com/user-attachments/assets/...` URL to embed in a PR body. Never throws: the caller
    * (and through it the agent) gets a reason and writes a plain line into the PR instead.
    */
@@ -319,7 +372,7 @@ export class GitHubCodeHost implements CodeHost, ConnectionChecker {
         ok: false,
         reason: this.redact(
           `GitHub refused the upload with ${response.status}${body === '' ? '' : `: ${body.slice(0, 200)}`}. ` +
-            'This endpoint is undocumented (ADR-0022); the token may not be accepted for it.',
+            'This endpoint is undocumented (ADR-0014); the token may not be accepted for it.',
         ),
       };
     }

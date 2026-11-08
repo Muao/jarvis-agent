@@ -1,6 +1,6 @@
 # engine
 
-Jarvis backend: Fastify 5 + Drizzle ORM + PostgreSQL, onion layers (ADR-0003). Root `AGENTS.md` still applies.
+Jarvis backend: Fastify 5 + Drizzle ORM + PostgreSQL, onion layers (ADR-0002). Root `AGENTS.md` still applies.
 
 ## Layers
 
@@ -15,7 +15,7 @@ Jarvis backend: Fastify 5 + Drizzle ORM + PostgreSQL, onion layers (ADR-0003). R
 - Child processes (`claude`, `git`, `gh`) are spawned only in `infrastructure/`.
 - Concrete adapters are instantiated only in `container.ts`.
 - Wire schemas live once in `shared/`; no `z.object` for request/response in `presentation/`.
-- Secrets come from `~/.jarvis/.env` via `--env-file`; never read or log them elsewhere (ADR-0007).
+- Secrets come from Infisical, or `~/.jarvis/.env` as the local fallback; never read or log them outside `infrastructure/config` (ADR-0015).
 
 ## Commands
 
@@ -26,9 +26,9 @@ Jarvis backend: Fastify 5 + Drizzle ORM + PostgreSQL, onion layers (ADR-0003). R
 | Integration only  | `pnpm --filter @jarvis/engine test:int`  |
 | Typecheck         | `pnpm --filter @jarvis/engine typecheck` |
 
-## Testing rules (ADR-0013)
+## Testing rules (ADR-0011)
 
-- **Docker must be up for `test:int`** (`docker compose --env-file ~/.jarvis/.env up -d`, ADR-0024): `*.int.test.ts` files use Postgres on 127.0.0.1:5433,
+- **Docker must be up for `test:int`** (`docker compose --env-file ~/.jarvis/.env up -d`, ADR-0015): `*.int.test.ts` files use Postgres on 127.0.0.1:5433,
   database `jarvis_test` (`DATABASE_URL_TEST`). Never run tests against `jarvis`.
 - Unit tests: `src/**/*.test.ts` excluding `*.int.test.ts`. The `int` project runs serially (forks, `maxWorkers: 1`).
 - No test runs the real `claude`; use the fake binary and fakes for ports.

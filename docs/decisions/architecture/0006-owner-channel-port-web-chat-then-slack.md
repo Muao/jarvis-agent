@@ -7,7 +7,7 @@ supersedes: []
 superseded-by: []
 ---
 
-# ADR-0008: Talk to the owner through an `OwnerChannel` port — web chat with threads in iteration 1, Slack threads via Socket Mode in iteration 2
+# ADR-0006: Talk to the owner through an `OwnerChannel` port — web chat with threads in iteration 1, Slack threads via Socket Mode in iteration 2
 
 ## Context and Problem Statement
 The owner wants to talk to Jarvis in the admin first and later in Slack, where each top-level message

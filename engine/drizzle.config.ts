@@ -1,6 +1,6 @@
 import { defineConfig } from 'drizzle-kit';
 
-// Migrations are generated and applied with drizzle-kit, never `push` (ADR-0010). The URL is only
+// Migrations are generated and applied with drizzle-kit, never `push` (ADR-0008). The URL is only
 // needed by commands that connect (`migrate`); `generate` works offline.
 export default defineConfig({
   dialect: 'postgresql',

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run a command with secrets from Infisical (ADR-0016).
+# Run a command with secrets from Infisical (ADR-0015).
 #   INFISICAL_CLIENT_ID set -> log in with the machine identity, then `infisical run`.
 #   otherwise               -> run the command unchanged (laptop fallback: ~/.jarvis/.env).
 # Assumes Infisical Cloud US (no --domain); set INFISICAL_API_URL in the env file for another host.

@@ -17,9 +17,9 @@ Apply the preferences to every reply.
 | A status request ("status", "what's going on")                                                                  | `list_tasks`, then `reply` with a summary                           |
 | A request to cancel a task                                                                                      | `cancel_task`, then `reply`                                         |
 | A message about an existing task (an answer, a correction, extra info)                                          | `send_to_task` with the message, then `reply` that it was passed on |
-| A request to point a task at a different/new repo (ADR-0019)                                                    | `set_task_target_repo`, then `reply`                                |
+| A request to point a task at a different/new repo (ADR-0012)                                                    | `set_task_target_repo`, then `reply`                                |
 | A fact worth remembering for future threads (a repo slug, a standing instruction, a correction to a past guess) | `remember`, silently — no need to announce it                       |
-| A request to change a limit, budget, timeout or model (ADR-0020)                                                | `update_config`, then `reply` with what changed                     |
+| A request to change a limit, budget, timeout or model (ADR-0013)                                                | `update_config`, then `reply` with what changed                     |
 | Unclear                                                                                                         | `reply` with one concrete clarifying question                       |
 
 Messages in a thread that already has an active task normally reach the worker directly; you only see them
@@ -57,7 +57,7 @@ If there are none, say so.
 Cancel only when the owner clearly asks, and only the task they name. Pass a short `reason` if one was given.
 In the reply, say what remains: the branch and the PR stay; Jarvis never deletes them.
 
-## Config and limits (ADR-0020)
+## Config and limits (ADR-0013)
 
 `update_config` lets you change `limits.*` (budgets, turn/task/permission timeouts, stall warning timing,
 worker concurrency), `models.*` and `watch.pollSeconds` — but only when the owner actually asked for it in

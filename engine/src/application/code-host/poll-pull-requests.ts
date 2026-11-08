@@ -13,7 +13,7 @@ interface Rerun {
   readonly taskId: string;
   readonly prNumber: number;
   readonly headSha: string;
-  /** The repo the PR lives in (ADR-0019); null means the default repo. */
+  /** The repo the PR lives in (ADR-0012); null means the default repo. */
   readonly repo: RepoTarget | null;
 }
 
@@ -67,7 +67,7 @@ export class PollPullRequests {
     const task = await uow.run((tx) => tx.tasks.get(watch.taskId));
     if (task === null || task.stage !== 'PR Open') return;
 
-    // ADR-0019: the PR lives in the task's target repo, which is not always the default one. Asking
+    // ADR-0012: the PR lives in the task's target repo, which is not always the default one. Asking
     // the default repo for the same number would read a different PR, or none at all.
     const repo = task.targetRepo;
     const snapshot = await codeHost.snapshot(watch.prNumber, repo ?? undefined);

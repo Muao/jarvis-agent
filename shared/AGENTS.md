@@ -1,6 +1,6 @@
 # shared
 
-Zod schemas and inferred TypeScript types that form the wire contract between `engine/` and `web/` (ADR-0003).
+Zod schemas and inferred TypeScript types that form the wire contract between `engine/` and `web/` (ADR-0002).
 
 ## Rules
 

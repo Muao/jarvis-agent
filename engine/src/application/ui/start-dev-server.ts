@@ -5,14 +5,17 @@ import type { RunIdentity } from '../run-identity.js';
 import type { TaskDeps } from '../tasks/deps.js';
 import { loadWorkerTask } from '../tasks/guards.js';
 import { transact } from '../transaction.js';
+import type { TrustPullRequestHead } from './trust-pull-request-head.js';
 
 export interface StartDevServerDeps extends TaskDeps {
   readonly devServers: DevServerManager;
   readonly worktrees: WorktreeManager;
+  /** ADR-0018: decides whether this pull request's code may run at all. */
+  readonly trustHead: TrustPullRequestHead;
 }
 
 /**
- * ADR-0022: the worker's `start_dev_server`. The engine runs `ui.devCommand` in the task's own
+ * ADR-0014: the worker's `start_dev_server`. The engine runs `ui.devCommand` in the task's own
  * worktree and holds the lease; the tool takes no arguments, so no model picks the command, the
  * URL or how long the server lives. Allowed in `Reviewing` only — that is where the UI check runs.
  */
@@ -27,9 +30,33 @@ export class StartDevServer {
           `the dev server is for the UI check in Reviewing; task ${found.id} is ${found.stage}`,
         );
       }
-      const worktree = await this.deps.worktrees.create(found.id, found.targetRepo);
+      const worktree =
+        found.kind === 'ui_check' && found.pr !== null
+          ? await this.deps.worktrees.createForPullRequest(
+              found.id,
+              found.targetRepo,
+              found.pr.number,
+            )
+          : await this.deps.worktrees.create(found.id, found.targetRepo);
       return { task: found, cwd: worktree.path };
     });
+
+    // ADR-0018: asked before anything of this pull request runs, and it can block on the owner.
+    const trust = await this.deps.trustHead.decide(identity, task);
+    if (!trust.trusted) {
+      const refused: DevServerResult = {
+        ok: false,
+        reason: 'untrusted_head',
+        detail: trust.detail,
+      };
+      await transact(this.deps, async (tx) => {
+        await this.deps.writer.note(tx, task.id, 'dev_server_refused', 'system', {
+          reason: refused.reason,
+          detail: refused.detail,
+        });
+      });
+      return refused;
+    }
 
     const result = await this.deps.devServers.start(task.id, cwd);
 

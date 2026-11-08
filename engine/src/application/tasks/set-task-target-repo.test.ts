@@ -4,7 +4,7 @@ import { buildTestApp } from '../testing/build-test-app.js';
 
 describe('SetTaskTargetRepo', () => {
   it('rejects redirecting a task whose worktree already exists for a different repo, and changes nothing', async () => {
-    // ADR-0019 follow-up: a task's worktree is fixed at create_task time, so a later call naming a
+    // ADR-0012 follow-up: a task's worktree is fixed at create_task time, so a later call naming a
     // *different* repo could never actually take effect; it must reject clearly instead of
     // silently no-op'ing against the already-created worktree.
     const app = buildTestApp();

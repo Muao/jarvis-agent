@@ -1,6 +1,6 @@
 # Deploy files
 
-Files for the Hetzner VPS (ADR-0015) with secrets from Infisical (ADR-0016). The full setup is in
+Files for the Hetzner VPS (ADR-0016) with secrets from Infisical (ADR-0015). The full setup is in
 [`docs/architecture/deployment.md`](../docs/architecture/deployment.md).
 
 | File                            | Purpose                                                                                                |
@@ -76,7 +76,7 @@ The sequence is in [`deployment.md` §5](../docs/architecture/deployment.md#5-up
 A child `claude` runs as `jarvis`, the same user as the engine, so it can read `/proc/<engine-pid>/environ` and every
 secret `infisical run` injected, including the short-lived `INFISICAL_TOKEN`. The allow-list in `child-env.ts` limits
 what a child inherits; it cannot stop a same-uid process reading a sibling's environment. Accepted for now on a
-single-owner box. The real fix is a separate uid for child `claude` processes (a task of its own: ADR-0007, worktree
+single-owner box. The real fix is a separate uid for child `claude` processes (a task of its own: ADR-0015, worktree
 permissions, `~/.claude`).
 
 ## Not verified yet

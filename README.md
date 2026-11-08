@@ -22,7 +22,7 @@ API key, or with a `claude` login that is not a subscription.
 mkdir -p ~/.jarvis
 cp .env.example ~/.jarvis/.env                              # set POSTGRES_PASSWORD (openssl rand -base64 24) and the DATABASE_URLs; add GITHUB_TOKEN of the bot account when you want PRs followed
 cp jarvis.config.example.json ~/.jarvis/jarvis.config.json  # set repo.path to your working repository, repo.remote to a remote name such as origin
-export COMPOSE_ENV_FILES=~/.jarvis/.env                     # compose has no default Postgres password (ADR-0024)
+export COMPOSE_ENV_FILES=~/.jarvis/.env                     # compose has no default Postgres password (ADR-0015)
 docker compose up -d                                        # Postgres 18 on 127.0.0.1:5433
 pnpm install
 pnpm dev                                                    # engine on http://127.0.0.1:4310, web on http://127.0.0.1:5180
@@ -41,7 +41,7 @@ The engine runs the binary named by `engine.claudeBinary` (default `claude`) and
 seconds. Two things break that on a managed laptop:
 
 - **A login in a non-default config directory.** Start the engine with `CLAUDE_CONFIG_DIR=$HOME/.claude-personal
-pnpm dev`; the variable is passed through to every child `claude` (ADR-0007).
+pnpm dev`; the variable is passed through to every child `claude` (ADR-0015).
 - **A `claude` on `PATH` that is a corporate wrapper.** Some managed machines shadow the real CLI with a wrapper
   that needs tens of seconds per call, so the probe times out and the engine exits. Point `engine.claudeBinary` at
   the binary the official installer wrote, or at a one-line shim that picks its newest version:
@@ -58,14 +58,14 @@ pnpm dev`; the variable is passed through to every child `claude` (ADR-0007).
 
 ## Rehearse the server setup
 
-The server will run Jarvis as a non-root Linux user with a headless `claude` login (ADR-0015). To try that
+The server will run Jarvis as a non-root Linux user with a headless `claude` login (ADR-0016). To try that
 on the laptop first, the `server` profile of `compose.yaml` builds a Linux image (`docker/runtime`: Ubuntu 24.04,
-Node 22, pnpm, git, gh, Claude Code, user `jarvis` uid 1000) and runs the engine and web in it (ADR-0017).
+Node 22, pnpm, git, gh, Claude Code, user `jarvis` uid 1000) and runs the engine and web in it (ADR-0016).
 Postgres is the same `postgres` service. The profile is off unless you pass `--profile server`.
 
 ```sh
 export TARGET_REPO=/absolute/path/to/your/working/repository   # mounted at /work/repo
-export COMPOSE_ENV_FILES=~/.jarvis/.env                        # POSTGRES_PASSWORD, as above (ADR-0024)
+export COMPOSE_ENV_FILES=~/.jarvis/.env                        # POSTGRES_PASSWORD, as above (ADR-0015)
 docker compose --profile server build
 docker compose --profile server run --rm engine sh -c \
   'sed "s#/absolute/path/to/your/working/repository#/work/repo#" jarvis.config.example.json > ~/.jarvis/jarvis.config.json'

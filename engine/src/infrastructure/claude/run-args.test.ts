@@ -7,7 +7,7 @@ const ctx = { agentDir: '/repo/agent', runDir: '/home/runs/R-1' };
 const valueOf = (args: string[], flag: string): string | undefined => args[args.indexOf(flag) + 1];
 
 describe('buildRunArgs', () => {
-  it('passes the fixed flags of every run (ADR-0004, ADR-0011)', () => {
+  it('passes the fixed flags of every run (ADR-0003, ADR-0009)', () => {
     const args = buildRunArgs(specOf(), ctx);
     expect(args.slice(0, 6)).toEqual([
       '-p',

@@ -80,7 +80,7 @@ describe('JarvisConfigSchema', () => {
     expect(config.limits.checkRetries).toBe(3);
   });
 
-  it('parses repos.allow entries and accepts allowOwnerRepos (ADR-0019)', () => {
+  it('parses repos.allow entries and accepts allowOwnerRepos (ADR-0012)', () => {
     const config = JarvisConfigSchema.parse({
       ...minimal,
       repos: { allow: ['owner/name', 'other-owner/other-repo'], allowOwnerRepos: true },

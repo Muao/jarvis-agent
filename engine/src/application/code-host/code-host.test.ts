@@ -434,7 +434,7 @@ describe('PollPullRequests: missed events and new commits', () => {
   });
 });
 
-describe('PollPullRequests: the task’s own repo (ADR-0019)', () => {
+describe('PollPullRequests: the task’s own repo (ADR-0012)', () => {
   const TARGET = { owner: 'burnjohn', name: 'quick-blog' };
 
   /** A task that opened its PR in a repo other than the default one. */

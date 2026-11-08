@@ -1,6 +1,6 @@
 # Agent definition
 
-The Claude Code plugin that defines who Jarvis is and how it works (ADR-0011). It contains no personal data:
+The Claude Code plugin that defines who Jarvis is and how it works (ADR-0009). It contains no personal data:
 `USER.md` lives only in `~/.jarvis` and is never committed.
 
 | Path                         | Purpose                                                                                   |

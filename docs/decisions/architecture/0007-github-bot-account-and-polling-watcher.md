@@ -7,7 +7,7 @@ supersedes: []
 superseded-by: []
 ---
 
-# ADR-0009: Act on GitHub as a separate bot account, and watch CI and reviews by polling the GitHub API
+# ADR-0007: Act on GitHub as a separate bot account, and watch CI and reviews by polling the GitHub API
 
 ## Context and Problem Statement
 Jarvis pushes branches, opens draft PRs, reads CI and reviews, and answers review comments. If it used
@@ -22,7 +22,7 @@ the owner's (CI-06, CI-08). The laptop has no public address, so GitHub webhooks
 
 ## Decision Outcome
 Chosen option: "Bot account, PAT, polling", because it separates identities with no extra
-infrastructure, and polling every `watch.pollSeconds` (ADR-0006) catches up after laptop sleep by
+infrastructure, and polling every `watch.pollSeconds` (ADR-0005) catches up after laptop sleep by
 comparing with the last stored state (CI-09).
 
 - Watcher state per PR: head SHA, per-check conclusion, review state, last processed comment id.

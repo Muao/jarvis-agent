@@ -74,7 +74,7 @@ function usageOf(value: unknown): TokenUsage {
 
 /**
  * `modelUsage` maps a model id to camelCase counters. The field names are NOT verified against a real
- * run (ADR-0013: tests never start `claude`); they follow the Agent SDK's `ModelUsage` type:
+ * run (ADR-0011: tests never start `claude`); they follow the Agent SDK's `ModelUsage` type:
  * `inputTokens`, `outputTokens`, `cacheReadInputTokens`, `cacheCreationInputTokens`, `costUSD`.
  * Anything else parses to zeros, and a missing or malformed key yields `{}`.
  */

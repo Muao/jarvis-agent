@@ -1,7 +1,7 @@
 # Alloy and the Grafana dashboard
 
-One Grafana Alloy agent on the VPS (ADR-0018). It reads the journald units `jarvis-engine.service` and
-`jarvis-web.service` and receives Claude Code's OTLP on `127.0.0.1:4318` (loopback only, ADR-0015), and forwards both to
+One Grafana Alloy agent on the VPS (ADR-0016). It reads the journald units `jarvis-engine.service` and
+`jarvis-web.service` and receives Claude Code's OTLP on `127.0.0.1:4318` (loopback only, ADR-0016), and forwards both to
 Grafana Cloud. Postgres, not Grafana, is the source of truth for cost and budgets.
 
 | File                              | Purpose             |
@@ -98,7 +98,7 @@ account, and no Claude Code run has ever exported OTLP.
 - Whether the engine's JSON lines really reach Loki with the `event`, `level` and `role` labels.
 - Claude Code's metric and log names. The dashboard uses `claude_code_token_usage_tokens_total`, a `tool_result` event with
   `success=false`, and a text match for rate limits. The names come from the CLI's "Monitoring usage" documentation
-  (ADR-0018 risk) and the OTLP-to-Prometheus name translation in Grafana Cloud is a guess. Check against the installed
+  (ADR-0016 risk) and the OTLP-to-Prometheus name translation in Grafana Cloud is a guess. Check against the installed
   CLI (2.1.318 on the laptop, and the server's version). The dashboard says so in its first panel.
 - The "engine up" panel is a proxy: the engine logs no heartbeat success, so it shows the age of the newest engine line.
   healthchecks.io is the liveness signal.

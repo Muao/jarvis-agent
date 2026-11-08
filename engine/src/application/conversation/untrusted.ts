@@ -1,5 +1,5 @@
 /**
- * SEC-03 / ADR-0026: externally-authored text the engine places into a prompt is wrapped as data,
+ * SEC-03 / ADR-0017: externally-authored text the engine places into a prompt is wrapped as data,
  * so the model sees an unambiguous marker between "what the outside author wrote" and "what the
  * engine asks". The body is defused first: a quoted `<untrusted-content>` or `</untrusted-content>`
  * inside it is rewritten so the quoted text cannot close the wrapper and smuggle the rest of itself

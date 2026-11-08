@@ -9,7 +9,7 @@ export interface StopDevServerDeps extends TaskDeps {
 }
 
 /**
- * ADR-0022: the worker's `stop_dev_server`. Courtesy only — the lease kills the server anyway —
+ * ADR-0014: the worker's `stop_dev_server`. Courtesy only — the lease kills the server anyway —
  * so a task without a lease is a no-op rather than an error.
  */
 export class StopDevServer {

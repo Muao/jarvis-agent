@@ -7,12 +7,12 @@ supersedes: []
 superseded-by: []
 ---
 
-# ADR-0013: Test with Vitest and RTL, integration tests on a real Postgres, end to end with Playwright, and a fake `claude` binary instead of the model
+# ADR-0011: Test with Vitest and RTL, integration tests on a real Postgres, end to end with Playwright, and a fake `claude` binary instead of the model
 
 ## Context and Problem Statement
 Most of Jarvis's risk is in orchestration: stage transitions, limits, resume after restart, the stream-json
 runner, the watcher diff. These must be testable without burning the owner's Claude subscription (CON-06)
-and without GitHub. Repository code must be tested against the same Postgres the engine uses (ADR-0010).
+and without GitHub. Repository code must be tested against the same Postgres the engine uses (ADR-0008).
 
 ## Considered Options
 - Vitest everywhere; in-memory fakes for application ports; real Postgres in Docker for `*.int.test.ts`; a scripted fake `claude` executable for runner and end-to-end tests; Playwright for the web; live `claude` only in manual smoke checks

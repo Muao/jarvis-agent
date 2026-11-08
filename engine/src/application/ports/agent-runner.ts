@@ -10,7 +10,7 @@ export type RunEventBody = RunEvent extends infer E
 
 /**
  * Everything one `claude` process needs to be started. The adapter (infrastructure) turns it into
- * argv, environment and run files; the application knows no flags (ADR-0004, ADR-0011).
+ * argv, environment and run files; the application knows no flags (ADR-0003, ADR-0009).
  */
 export interface RunSpec {
   readonly runId: string;
@@ -23,15 +23,15 @@ export interface RunSpec {
   readonly model: string;
   readonly maxTurns: number;
   readonly maxBudgetUsd: number;
-  /** Proves the run's identity to the MCP server (ADR-0005). */
+  /** Proves the run's identity to the MCP server (ADR-0004). */
   readonly runToken: string;
   /** Workers take owner input while they run, so their stdin stays open. */
   readonly keepStdinOpen: boolean;
   readonly taskId?: string;
-  /** ADR-0022: where Playwright MCP writes the UI check's screenshots; workers only. */
+  /** ADR-0014: where Playwright MCP writes the UI check's screenshots; workers only. */
   readonly screenshotsDir?: string;
   readonly threadId: string;
-  /** Jarvis's session row (not the CLI's id); labels the run's telemetry (ADR-0018). */
+  /** Jarvis's session row (not the CLI's id); labels the run's telemetry (ADR-0016). */
   readonly sessionId: string;
 }
 

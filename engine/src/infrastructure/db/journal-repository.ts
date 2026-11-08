@@ -20,7 +20,7 @@ const toDomain = (row: Row): TaskEvent => ({
 
 const toEntry = (row: Row): JournalEntry => ({ ...toDomain(row), seq: row.seq });
 
-/** Insert and select only: a trigger rejects UPDATE and DELETE on `task_events` (ADR-0010). */
+/** Insert and select only: a trigger rejects UPDATE and DELETE on `task_events` (ADR-0008). */
 export class PgJournalRepository implements JournalRepository {
   constructor(private readonly db: Executor) {}
 

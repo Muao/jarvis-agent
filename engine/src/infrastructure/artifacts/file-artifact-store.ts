@@ -11,7 +11,7 @@ import { InvalidInputError, NotFoundError } from '../../application/errors.js';
 
 const TASK_ID = /^T-\d+$/;
 
-/** ADR-0022: what GitHub renders inline in a PR body. */
+/** ADR-0014: what GitHub renders inline in a PR body. */
 const IMAGE_TYPES: Readonly<Record<string, string>> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -52,7 +52,7 @@ export class FileArtifactStore implements ArtifactStore {
   }
 
   /**
-   * ADR-0022. Containment is checked twice: on the joined path, and again on the path with
+   * ADR-0014. Containment is checked twice: on the joined path, and again on the path with
    * symlinks resolved, so a link planted inside the directory cannot reach outside it.
    */
   async readImage(taskId: string, relativePath: string): Promise<ArtifactBlob> {

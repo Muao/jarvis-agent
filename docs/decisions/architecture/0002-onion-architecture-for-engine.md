@@ -7,7 +7,7 @@ supersedes: []
 superseded-by: []
 ---
 
-# ADR-0003: Structure the engine as an onion (Domain, Application, Infrastructure, Presentation) with Zod contracts in shared
+# ADR-0002: Structure the engine as an onion (Domain, Application, Infrastructure, Presentation) with Zod contracts in shared
 
 ## Context and Problem Statement
 The engine holds every rule of Jarvis: the task stage machine, limits, retry and review rounds, the

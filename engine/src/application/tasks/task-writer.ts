@@ -13,7 +13,7 @@ import type { Repositories } from '../ports/unit-of-work.js';
 import type { StatusCard } from './status-card.js';
 
 /**
- * The one place a task is written: the task row, its journal event (ADR-0010) and its status card
+ * The one place a task is written: the task row, its journal event (ADR-0008) and its status card
  * always change together, inside the caller's transaction.
  */
 export class TaskWriter {

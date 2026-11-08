@@ -1,7 +1,7 @@
 import type { PullRequestSnapshot } from '../../domain/index.js';
 
 /**
- * ADR-0019: a task may target a repo other than the default one, so every call that names a PR
+ * ADR-0012: a task may target a repo other than the default one, so every call that names a PR
  * has to name the repo that PR lives in. Absent means the host's own (default) repo.
  */
 export interface RepoTarget {
@@ -9,27 +9,54 @@ export interface RepoTarget {
   readonly name: string;
 }
 
-/** One image the agent wants inline in a PR body (ADR-0022). */
+/** One image the agent wants inline in a PR body (ADR-0014). */
 export interface AttachmentUpload {
   readonly name: string;
   readonly contentType: string;
   readonly bytes: Uint8Array;
-  /** The repo the attachment belongs to; the host's own repo when absent (ADR-0019). */
+  /** The repo the attachment belongs to; the host's own repo when absent (ADR-0012). */
   readonly repo?: RepoTarget;
 }
 
 /**
- * ADR-0022: the upload goes through an endpoint GitHub does not document, so failure is an
+ * ADR-0014: the upload goes through an endpoint GitHub does not document, so failure is an
  * ordinary answer the agent can work around, not an exception.
  */
 export type AttachmentResult =
   { readonly ok: true; readonly url: string } | { readonly ok: false; readonly reason: string };
 
-/** The pull-request host (GitHub in ADR-0009). The watcher polls it; nothing here calls a model. */
+/**
+ * ADR-0018: posting a comment can fail for the same mundane reasons an upload can (no permission,
+ * a locked PR, the host having a bad day), and a failed comment must not throw away a check that
+ * otherwise worked. So it answers with a value, exactly as `uploadAttachment` does.
+ */
+export type CommentResult =
+  | { readonly ok: true; readonly url: string }
+  | { readonly ok: false; readonly reason: string };
+
+/**
+ * ADR-0018: who wrote a pull request, where its head lives and what it says about itself. The
+ * `title` and `body` are authored by whoever opened the PR, so they are untrusted content
+ * (ADR-0017) and only ever reach a prompt wrapped.
+ */
+export interface PullRequestDescription {
+  readonly number: number;
+  readonly title: string;
+  readonly body: string;
+  readonly author: string;
+  readonly state: 'open' | 'closed' | 'merged';
+  readonly headRef: string;
+  readonly headSha: string;
+  /** The repo the head branch lives in; differs from the base repo for a fork. */
+  readonly headRepo: RepoTarget;
+  readonly fromFork: boolean;
+}
+
+/** The pull-request host (GitHub in ADR-0007). The watcher polls it; nothing here calls a model. */
 export interface CodeHost {
   /**
    * The current state of one PR: checks of its head commit, reviews and comments. `repo` names
-   * the repo the PR lives in (ADR-0019); without it the PR is read from the default repo, where a
+   * the repo the PR lives in (ADR-0012); without it the PR is read from the default repo, where a
    * PR of the same number would be a different pull request entirely.
    */
   snapshot(prNumber: number, repo?: RepoTarget): Promise<PullRequestSnapshot>;
@@ -37,6 +64,17 @@ export interface CodeHost {
   botLogin(): Promise<string>;
   /** Ask the host to run the failed checks of `headSha` again (flaky CI, CI-04). */
   rerunFailedChecks(prNumber: number, headSha: string, repo?: RepoTarget): Promise<void>;
-  /** Uploads an image and returns the URL to embed in a PR body (ADR-0022). */
+  /** Uploads an image and returns the URL to embed in a PR body (ADR-0014). */
   uploadAttachment(upload: AttachmentUpload): Promise<AttachmentResult>;
+  /**
+   * ADR-0018: the PR itself — author, head, state and the text it carries. Needed before running a
+   * pull request's code (is this head trusted?) and to derive check scenarios when there is no
+   * `spec.md`.
+   */
+  describePullRequest(prNumber: number, repo?: RepoTarget): Promise<PullRequestDescription>;
+  /**
+   * ADR-0018: one comment on a PR. Only ever called after the owner approved it; the agent has no
+   * path to this that does not go through a permission card.
+   */
+  postComment(prNumber: number, body: string, repo?: RepoTarget): Promise<CommentResult>;
 }

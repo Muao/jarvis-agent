@@ -3,18 +3,18 @@ import { join } from 'node:path';
 import type { LogLevel } from '../logging/console-logger.js';
 import { StartupError } from './startup-error.js';
 
-/** The only environment the engine reads (ADR-0007). */
+/** The only environment the engine reads (ADR-0015). */
 export interface JarvisEnv {
   readonly jarvisHome: string;
   readonly databaseUrl: string;
-  /** Interface the API binds to; loopback unless the runtime image sets `JARVIS_LISTEN_HOST` (ADR-0017). */
+  /** Interface the API binds to; loopback unless the runtime image sets `JARVIS_LISTEN_HOST` (ADR-0016). */
   readonly listenHost: string;
   /**
    * Lowest severity of the application's own JSON lines (lifecycle events, warnings, errors); `JARVIS_LOG_LEVEL`,
-   * default `info` (ADR-0018). Fastify's request log is configured separately in main.ts.
+   * default `info` (ADR-0016). Fastify's request log is configured separately in main.ts.
    */
   readonly logLevel: LogLevel;
-  /** Healthchecks.io style ping URL; it carries a token, so it is a secret. Absent: no heartbeat (ADR-0018). */
+  /** Healthchecks.io style ping URL; it carries a token, so it is a secret. Absent: no heartbeat (ADR-0016). */
   readonly heartbeatUrl?: string;
   readonly githubToken?: string;
   readonly notionToken?: string;
@@ -70,9 +70,9 @@ export function loadEnv(source: EnvSource = process.env): JarvisEnv {
     throw new StartupError(
       `Refusing to start: JARVIS_LISTEN_HOST=${requestedHost} is not allowed here: it is either exposed beyond this machine or not reachable at 127.0.0.1. ` +
         'Allowed values are 127.0.0.1 and localhost, because the child claude reaches the API over 127.0.0.1. ' +
-        'Engine, web and Postgres must be reachable only over loopback and the tailnet (ADR-0015). ' +
+        'Engine, web and Postgres must be reachable only over loopback and the tailnet (ADR-0016). ' +
         'Unset JARVIS_LISTEN_HOST (check your shell profile and ~/.jarvis/.env) to bind 127.0.0.1; ' +
-        'only the runtime container sets it, together with JARVIS_INSIDE_CONTAINER=1 (ADR-0017).',
+        'only the runtime container sets it, together with JARVIS_INSIDE_CONTAINER=1 (ADR-0016).',
     );
   }
   const requestedLevel = nonEmpty(source['JARVIS_LOG_LEVEL']) ?? 'info';

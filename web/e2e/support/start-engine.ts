@@ -1,6 +1,6 @@
 // Entry point of the e2e engine (run by Playwright's webServer, under tsx). Playwright starts web servers
 // before globalSetup, so the fixtures the engine needs are built here, then the real engine entry is loaded:
-// a fresh `jarvis_e2e` database, a temp Jarvis Home and a temp git repo (ADR-0013).
+// a fresh `jarvis_e2e` database, a temp Jarvis Home and a temp git repo (ADR-0011).
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';

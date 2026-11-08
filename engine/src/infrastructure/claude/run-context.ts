@@ -5,7 +5,7 @@ import type { JarvisConfig } from '@jarvis/shared';
  * per run (config is re-read on change; a run keeps the values it started with).
  */
 export interface RunContext {
-  /** `<repo>/agent`: the plugin (ADR-0011). */
+  /** `<repo>/agent`: the plugin (ADR-0009). */
   readonly agentDir: string;
   /** `~/.jarvis/runs/<runId>`: holds `system.md`, `mcp.json`, `settings.json`. */
   readonly runDir: string;
@@ -16,6 +16,6 @@ export interface RunContext {
   readonly apiUrl: string;
   /** `~/.jarvis/mcp/servers.json`; connector servers are added for workers when it exists. */
   readonly connectorsFile?: string;
-  /** Values for `${VAR}` placeholders in the connectors file (ADR-0007). */
+  /** Values for `${VAR}` placeholders in the connectors file (ADR-0015). */
   readonly connectorSecrets: Readonly<Record<string, string | undefined>>;
 }

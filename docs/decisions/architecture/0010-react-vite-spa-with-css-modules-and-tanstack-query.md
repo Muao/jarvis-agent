@@ -7,12 +7,12 @@ supersedes: []
 superseded-by: []
 ---
 
-# ADR-0012: Build the web app as a React 19 + Vite SPA with react-router, CSS Modules and TanStack Query fed by SSE
+# ADR-0010: Build the web app as a React 19 + Vite SPA with react-router, CSS Modules and TanStack Query fed by SSE
 
 ## Context and Problem Statement
-The web app is both the chat with Jarvis and the admin (ADR-0008, `docs/specs/web-ui-design.md`). It runs
+The web app is both the chat with Jarvis and the admin (ADR-0006, `docs/specs/web-ui-design.md`). It runs
 only on the owner's laptop, talks to the engine over REST and one SSE stream, and must show run events in
-under a second (NFR-08). ADR-0002 reuses the Agent Ops Center stack but leaves the web details open.
+under a second (NFR-08). ADR-0001 reuses the Agent Ops Center stack but leaves the web details open.
 Agent messages and SDD artifacts are Markdown that may contain untrusted text (SEC-03).
 
 ## Considered Options
@@ -22,7 +22,7 @@ Agent messages and SDD artifacts are Markdown that may contain untrusted text (S
 
 ## Decision Outcome
 Chosen option: "React 19 + Vite SPA with CSS Modules and TanStack Query fed by SSE", because it is the
-proven Agent Ops Center setup (ADR-0002), needs no server rendering on a local app, and Query gives
+proven Agent Ops Center setup (ADR-0001), needs no server rendering on a local app, and Query gives
 loading/error states per block for free. `react-markdown` renders Markdown as React elements and ignores raw
 HTML by default, so untrusted text is never executed; `remark-gfm` adds the tables and task lists that SDD
 artifacts use (added 2026-10-26 during T15, before acceptance).

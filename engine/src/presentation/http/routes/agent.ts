@@ -27,7 +27,7 @@ function requireTool(identity: RunIdentity, tool: ToolName): void {
   }
 }
 
-/** Internal routes the Jarvis MCP server calls on behalf of a run (ADR-0005). */
+/** Internal routes the Jarvis MCP server calls on behalf of a run (ADR-0004). */
 export function agentRoutes(app: Application): FastifyPluginAsync {
   return async (http) => {
     http.post<{ Params: { tool: string } }>('/agent/tools/:tool', async (request) => {

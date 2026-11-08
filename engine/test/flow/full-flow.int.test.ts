@@ -1,4 +1,4 @@
-// The whole engine on real parts (ADR-0013): Postgres `jarvis_test`, the real ClaudeCliRunner pointed at
+// The whole engine on real parts (ADR-0011): Postgres `jarvis_test`, the real ClaudeCliRunner pointed at
 // the fake `claude`, real Fastify on an ephemeral port, a temp git repo and a temp Jarvis Home.
 // Nothing here runs the real `claude`.
 import { execFileSync } from 'node:child_process';

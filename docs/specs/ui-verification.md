@@ -69,7 +69,7 @@ server per `AGENTS.md`, open the page in a browser **if a browser tool is availa
 | Канал для сторонніх MCP-серверів воркеру | `buildMcpConfig` у `engine/src/infrastructure/claude/run-files.ts` — підмішує `mcpServers` з `~/.jarvis/mcp/servers.json` і підставляє `${VAR}` із секретів; лише для ролі `worker` |
 | Місце для скриншотів | `<artifactsDir>/screenshots/` — `artifacts.dirFor(task.id)`, уже передається у `workerFirstMessage` |
 | Шаблон субагента | `agent/agents/reviewer.md` — frontmatter `name/description/tools/model`, контракт Input → Check → Output |
-| Місце для інструментів агента | `shared/src/mcp.ts` (`toolInputSchemas`, `toolsByRole`) + `engine/src/presentation/mcp/server.ts` (ADR-0005) |
+| Місце для інструментів агента | `shared/src/mcp.ts` (`toolInputSchemas`, `toolsByRole`) + `engine/src/presentation/mcp/server.ts` (ADR-0004) |
 | Токен і доступ до GitHub | `GitHubCodeHost` (`@octokit/rest`) з `createRedactor` на токені |
 | Межа раундів виправлень | `limits.reviewRounds` + `TRANSITIONS['Reviewing'] → 'Implementing'` із причиною `rounds_exhausted` |
 | Одночасність | `limits.maxConcurrentWorkers: 1` — один воркер, отже один браузер |
@@ -351,13 +351,13 @@ community discussions роками, вкладення офіційно робл
 `baseUrl` обмежений тим самим правилом, що `telemetry.otlpEndpoint`: http(s) на `127.0.0.1` або
 `localhost`. Dev-сервер агента, доступний не з лупбека, — це не фіча, це дірка.
 
-`devCommand` **не** входить до `update_config`-дозволеного (ADR-0020 вже забороняє патчі в
+`devCommand` **не** входить до `update_config`-дозволеного (ADR-0013 вже забороняє патчі в
 `repo.*`, `engine.*`; додаємо `ui.devCommand`, `ui.noSandbox` і `ui.paths` до того ж списку).
 Диспетчер не має права змінити команду, яку енджин потім виконає.
 
 Усі значення — у `jarvis.config.example.json`.
 
-**Відома межа:** `ui.devCommand` глобальний, а задача може мати власний `targetRepo` (ADR-0019). Це та
+**Відома межа:** `ui.devCommand` глобальний, а задача може мати власний `targetRepo` (ADR-0012). Це та
 сама межа, що й у `allowlist.autoAllowedCommands`, і свідомо не закривається тут. Якщо цільовий
 репозиторій піднімається іншою командою — власник править конфіг.
 
@@ -479,7 +479,7 @@ community discussions роками, вкладення офіційно робл
    Для «чи поїхала верстка» цього може не вистачати. Рішення — після першого живого рану.
 3. **`npx -y` на кожен ран** тягне пакет із реєстру (або з кешу). У контейнері без мережі до npm це
    фейл. Варіант — зафіксувати `@playwright/mcp` як залежність репозиторію і запускати локальний
-   бінарник. Схиляюся до другого, але це рішення про залежність і потребує рядка в ADR-0022.
+   бінарник. Схиляюся до другого, але це рішення про залежність і потребує рядка в ADR-0014.
 
 ## 11. План реалізації
 
@@ -505,7 +505,7 @@ community discussions роками, вкладення офіційно робл
    (коли, кого кликати, що з вердиктом, що в PR); секція «UI verification» у шаблоні `pr-body`.
 8. **Контейнер.** Chromium із `--with-deps` у `docker/runtime/Dockerfile`, `PLAYWRIGHT_BROWSERS_PATH`,
    крок у `docs/architecture/deployment.md`.
-9. **ADR.** `0022-ui-verification-with-playwright-mcp.md` — один запис на все: інструмент, субагент,
+9. **ADR.** `0014-ui-verification-with-playwright-mcp.md` — один запис на все: інструмент, субагент,
    dev-сервер за лізингом, пін версії, а також скриншоти в PR (недокументована ручка, чому вона,
    фолбек, що робити, коли зламається).
 10. **e2e.** Сценарій у `web/e2e` на фейковому `claude`: задача доходить до PR Open, і в `result.md`
@@ -522,8 +522,8 @@ community discussions роками, вкладення офіційно робл
 - `engine/src/application/runs/run-prompt.ts` — блок «Run context»
 - `shared/src/config.ts`, `shared/src/mcp.ts` — конфіг і контракти інструментів
 - `engine/src/domain/task.ts` — `TRANSITIONS`, `reviewRounds`, `rounds_exhausted`
-- ADR-0004 (тільки CLI), ADR-0005 (інструменти як MCP-сервер енджина), ADR-0006 (ліміти в конфігу),
-  ADR-0011 (агент як плагін), ADR-0017 (рантайм-образ), ADR-0019 (per-task repo), ADR-0020 (межі
+- ADR-0003 (тільки CLI), ADR-0004 (інструменти як MCP-сервер енджина), ADR-0005 (ліміти в конфігу),
+  ADR-0009 (агент як плагін), ADR-0016 (рантайм-образ), ADR-0012 (per-task repo), ADR-0013 (межі
   `update_config`)
 - `npx @playwright/mcp@0.0.84 --help` і `tools/list`, перевірено локально 2026-11-08
 - [Programmatically upload attachments to GitHub Issues, Pull Requests, and Comments](https://island94.org/2026/08/programmatically-upload-attachments-to-github-issues-pull-requests-comments)

@@ -9,7 +9,7 @@ const DISPATCHER_DENIED_TOOLS = ['Edit', 'Write', 'Bash', 'NotebookEdit'];
 
 export const mcpToolName = (tool: string): string => `mcp__jarvis__${tool}`;
 
-/** The argv of one `claude` process (ADR-0004, ADR-0011). The prompt itself goes over stdin. */
+/** The argv of one `claude` process (ADR-0003, ADR-0009). The prompt itself goes over stdin. */
 export function buildRunArgs(
   spec: RunSpec,
   ctx: Pick<RunContext, 'agentDir' | 'runDir'>,

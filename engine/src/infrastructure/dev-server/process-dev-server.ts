@@ -18,7 +18,7 @@ const OUTPUT_TAIL_BYTES = 2048;
 type Spawn = typeof nodeSpawn;
 
 export interface ProcessDevServerOptions {
-  /** Read fresh on every call: the config is hot-reloaded (ADR-0006). */
+  /** Read fresh on every call: the config is hot-reloaded (ADR-0005). */
   ui(): JarvisConfig['ui'];
   readonly logger: Logger;
   /** `~/.jarvis/dev-server.json`: the pid of a server that outlived the engine (AC-14). */
@@ -53,7 +53,7 @@ const refuse = (reason: DevServerRefusal, detail: string): DevServerRefused => (
 });
 
 /**
- * ADR-0022. Runs `ui.devCommand` as a detached process group so the engine can kill the server
+ * ADR-0014. Runs `ui.devCommand` as a detached process group so the engine can kill the server
  * and everything it spawned (a dev server is usually a shell that forks a bundler). Holds at most
  * one lease engine-wide; the lease is the hard stop that makes a runaway UI check finite.
  */

@@ -1,4 +1,4 @@
-// Integration-test harness (ADR-0013): real Postgres on the `jarvis_test` database.
+// Integration-test harness (ADR-0011): real Postgres on the `jarvis_test` database.
 // Migrates once per test file and empties every table between tests. Refuses any database not named `*_test`.
 import { afterAll, afterEach, beforeAll } from 'vitest';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';

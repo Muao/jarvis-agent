@@ -3,7 +3,7 @@ import type { OwnerChannel } from '../../application/ports/owner-channel.js';
 import type { Message } from '../../domain/index.js';
 
 /**
- * The web chat as the owner's channel (ADR-0008): the message is already stored, so telling the
+ * The web chat as the owner's channel (ADR-0006): the message is already stored, so telling the
  * browser that the thread changed is all there is to do. The web refetches the thread.
  */
 export class WebOwnerChannel implements OwnerChannel {

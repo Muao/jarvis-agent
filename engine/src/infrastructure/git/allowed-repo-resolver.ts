@@ -15,7 +15,7 @@ export interface RepoAllowlistConfig {
   readonly allowOwnerRepos: boolean;
 }
 
-/** The subset of the GitHub adapter the resolver needs (ADR-0009's `CodeHost.botLogin`). */
+/** The subset of the GitHub adapter the resolver needs (ADR-0007's `CodeHost.botLogin`). */
 export interface GitHubAccountLookup {
   botLogin(): Promise<string>;
 }
@@ -38,7 +38,7 @@ function sameRepo(a: RepoRef, b: RepoRef): boolean {
 }
 
 /**
- * Resolves `owner/name` against `repos.allow` / `repos.allowOwnerRepos` (ADR-0019). Never resolves
+ * Resolves `owner/name` against `repos.allow` / `repos.allowOwnerRepos` (ADR-0012). Never resolves
  * Jarvis's own repository, whichever way it is asked for.
  */
 export class AllowedRepoResolver {

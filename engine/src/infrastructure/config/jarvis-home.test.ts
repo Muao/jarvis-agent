@@ -10,7 +10,7 @@ afterEach(async () => {
 });
 
 describe('jarvisHome', () => {
-  it('lays out paths per ADR-0011', () => {
+  it('lays out paths per ADR-0009', () => {
     const h = jarvisHome('/j');
     expect(h.userFile).toBe('/j/USER.md');
     expect(h.configFile).toBe('/j/jarvis.config.json');

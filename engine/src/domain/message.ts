@@ -7,7 +7,7 @@ export type MessageBody = Readonly<Record<string, unknown>>;
 
 export interface Message {
   readonly id: string;
-  /** Every message belongs to exactly one thread (ADR-0008). */
+  /** Every message belongs to exactly one thread (ADR-0006). */
   readonly threadId: string;
   readonly taskId: string | null;
   readonly kind: MessageKind;

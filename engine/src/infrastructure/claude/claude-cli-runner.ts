@@ -38,7 +38,7 @@ const userLine = (text: string): string =>
 
 const reason = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
-/** The only caller of a model (ADR-0004): one `claude -p` process per run. */
+/** The only caller of a model (ADR-0003): one `claude -p` process per run. */
 export class ClaudeCliRunner implements AgentRunner {
   constructor(private readonly options: ClaudeCliRunnerOptions) {}
 

@@ -11,7 +11,7 @@ export interface RememberInput {
 }
 
 /**
- * ADR-0020: dispatcher-only. Appends one learned fact as a bullet under `## Learned` in
+ * ADR-0013: dispatcher-only. Appends one learned fact as a bullet under `## Learned` in
  * `USER.md`, so it survives into new threads instead of being re-guessed or re-asked.
  */
 export class Remember {

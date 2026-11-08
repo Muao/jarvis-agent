@@ -41,7 +41,7 @@ function frameworkStatus(error: unknown): number | null {
   return typeof status === 'number' && status >= 400 && status < 500 ? status : null;
 }
 
-/** The one place where errors become HTTP (ADR-0003). */
+/** The one place where errors become HTTP (ADR-0002). */
 export function mapError(error: unknown, redact: (text: string) => string): MappedError {
   if (error instanceof RequestValidationError) {
     return {

@@ -16,7 +16,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** `patch` wins; nested objects merge key-by-key instead of replacing the whole object (ADR-0020). */
+/** `patch` wins; nested objects merge key-by-key instead of replacing the whole object (ADR-0013). */
 function deepMerge(
   base: Record<string, unknown>,
   patch: Record<string, unknown>,
@@ -62,7 +62,7 @@ function parseFile(path: string): Parsed {
 }
 
 /**
- * Config from `jarvis.config.json` (ADR-0006). `current()` is a frozen snapshot: a run captures it at start
+ * Config from `jarvis.config.json` (ADR-0005). `current()` is a frozen snapshot: a run captures it at start
  * and keeps it (LIM-05). A valid edit replaces it; an invalid edit keeps the last good one and records the error.
  */
 export class FileConfigProvider implements ConfigProvider {
@@ -100,7 +100,7 @@ export class FileConfigProvider implements ConfigProvider {
   }
 
   /**
-   * ADR-0020: merges `patch` into the raw on-disk config (not the in-memory defaulted one),
+   * ADR-0013: merges `patch` into the raw on-disk config (not the in-memory defaulted one),
    * validates the whole result, and writes only if it parses. The file watcher picks up this
    * write like any other edit; `this.config` is updated here too so the caller gets the fresh
    * value immediately instead of waiting for the debounced reload.

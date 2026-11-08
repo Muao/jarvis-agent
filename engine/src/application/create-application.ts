@@ -88,13 +88,13 @@ export interface ApplicationPorts extends Omit<Notifiers, 'runs'> {
   /** Read side of the Config and Connections screens. */
   readonly configStatus: ConfigStatus;
   readonly repoInfo: RepoInfo;
-  /** ADR-0019: checks a task's requested target repo against the allow-list / owner-account rule. */
+  /** ADR-0012: checks a task's requested target repo against the allow-list / owner-account rule. */
   readonly repos: RepoResolver;
   readonly profileFiles: ProfileFiles;
   readonly connections: ConnectionChecks;
   /** Is the database reachable (`GET /api/health`). */
   readonly database: DatabasePing;
-  /** ADR-0022: the engine-owned dev server the worker's UI check runs against. */
+  /** ADR-0014: the engine-owned dev server the worker's UI check runs against. */
   readonly devServers: DevServerManager;
   /** The engine's version, read once at start-up. */
   readonly version: string;
@@ -125,7 +125,7 @@ export interface Application {
   readonly setTaskTargetRepo: SetTaskTargetRepo;
   readonly remember: Remember;
   readonly updateConfig: UpdateConfig;
-  /** ADR-0022: the worker's UI check. */
+  /** ADR-0014: the worker's UI check. */
   readonly startDevServer: StartDevServer;
   readonly stopDevServer: StopDevServer;
   readonly attachImage: AttachImage;

@@ -1,4 +1,4 @@
-// Entry of the per-run Jarvis MCP server: `claude` starts it over stdio from the run's mcp.json (ADR-0005).
+// Entry of the per-run Jarvis MCP server: `claude` starts it over stdio from the run's mcp.json (ADR-0004).
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createApiClient } from './api-client.js';
 import { readMcpEnv } from './env.js';

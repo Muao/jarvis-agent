@@ -5,9 +5,9 @@ import type { RepoRef } from '../github/remote.js';
 import { GitError, runGit } from './run-git.js';
 
 export interface CloneOnDemandOptions {
-  /** `~/.jarvis/repos` (ADR-0019). */
+  /** `~/.jarvis/repos` (ADR-0012). */
   readonly reposRoot: string;
-  /** The existing bot `GITHUB_TOKEN` (ADR-0009); no new credential. */
+  /** The existing bot `GITHUB_TOKEN` (ADR-0007); no new credential. */
   readonly token: string;
   /** Builds the clone URL; defaults to GitHub over HTTPS. Overridable in tests only. */
   readonly cloneUrl?: (ref: RepoRef, token: string) => string;
@@ -22,7 +22,7 @@ const defaultCloneUrl = (ref: RepoRef): string => `https://github.com/${ref.owne
  * SEC-04: a token baked into `remote.origin.url` is written to `.git/config` in plain text and
  * stays there for the life of the clone, where every later `git remote -v`, bug report or backup
  * carries it. This helper is stored instead; it holds no secret, and reads the token out of the
- * environment each time git asks for one. `GH_TOKEN` is what a worker's child gets (ADR-0004),
+ * environment each time git asks for one. `GH_TOKEN` is what a worker's child gets (ADR-0003),
  * `GITHUB_TOKEN` what the engine's own process has.
  */
 const CREDENTIAL_HELPER =
@@ -33,7 +33,7 @@ const HELPER_KEY = 'credential.https://github.com.helper';
 /** `https://user:token@host/...` — an http(s) remote carrying credentials. An SSH remote is left alone. */
 const CREDENTIAL_IN_URL = /^https?:\/\/[^/]*@/;
 
-/** Clones `owner/name` into `<reposRoot>/<owner>/<name>` on first use; reuses the tree otherwise (ADR-0019). */
+/** Clones `owner/name` into `<reposRoot>/<owner>/<name>` on first use; reuses the tree otherwise (ADR-0012). */
 export async function cloneOnDemand(ref: RepoRef, options: CloneOnDemandOptions): Promise<string> {
   const ownerDir = join(options.reposRoot, ref.owner);
   const path = join(ownerDir, ref.repo);

@@ -1,6 +1,6 @@
 # fake-claude
 
-Stand-in for the `claude` binary in tests (ADR-0013). Plain Node, no dependencies; tests never run the real CLI.
+Stand-in for the `claude` binary in tests (ADR-0011). Plain Node, no dependencies; tests never run the real CLI.
 
 `JARVIS_FAKE_SCENARIO=<name>` picks the scenario next to the script. A scenario is `{ "steps": [...] }`, played after
 the first stdin message arrives. The file is the first that exists of `<name>.<role>.<stage>.json`,

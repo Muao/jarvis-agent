@@ -1,7 +1,7 @@
 // Architecture tests: a dependency-free import scan that enforces the ADR Confirmation rules.
-//   ADR-0003 layers (domain, application, presentation, infrastructure), child_process, z.object
-//   ADR-0008 owner channel (engine never imports web)   ADR-0009 @octokit only in infrastructure/github
-//   ADR-0010 drizzle-orm/pg only in infrastructure/db   ADR-0007 process.env only in infrastructure/config + main.ts
+//   ADR-0002 layers (domain, application, presentation, infrastructure), child_process, z.object
+//   ADR-0006 owner channel (engine never imports web)   ADR-0007 @octokit only in infrastructure/github
+//   ADR-0008 drizzle-orm/pg only in infrastructure/db   ADR-0015 process.env only in infrastructure/config + main.ts
 // Rules are written over layer names and path prefixes, so they apply to folders as they are added.
 // Violations are reported as `path:line message`.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -217,7 +217,7 @@ function checkChildProcess(files: SourceFile[]): Violation[] {
         .map((ref) => ({
           path: file.path,
           line: ref.line,
-          message: 'child processes are spawned only in infrastructure/ (ADR-0003)',
+          message: 'child processes are spawned only in infrastructure/ (ADR-0002)',
         })),
     );
 }
@@ -353,7 +353,7 @@ describe('architecture: the rules catch violations (synthetic samples)', () => {
       sample('engine/src/infrastructure/github/h.ts', "import { Octokit } from '@octokit/rest';"),
     ];
     expect(
-      checkPackageHome(files, ['@octokit'], [`${SRC}/infrastructure/github`], 'ADR-0009'),
+      checkPackageHome(files, ['@octokit'], [`${SRC}/infrastructure/github`], 'ADR-0007'),
     ).toHaveLength(1);
     expect(checkChildProcess(files)).toHaveLength(1);
   });
@@ -380,7 +380,7 @@ describe('architecture: the rules catch violations (synthetic samples)', () => {
   });
 });
 
-describe('architecture: ADR-0003 layers', () => {
+describe('architecture: ADR-0002 layers', () => {
   it('domain imports only domain files and `import type` from @jarvis/shared', () => {
     expect(fmt(checkLayer('domain', engineFiles))).toEqual([]);
   });
@@ -459,7 +459,7 @@ describe('architecture: ADR-0003 layers', () => {
   });
 });
 
-describe('architecture: ADR-0008 owner channel', () => {
+describe('architecture: ADR-0006 owner channel', () => {
   it('the engine never imports the web package', () => {
     const offenders = engineFiles.flatMap((file) =>
       extractImports(file.text)
@@ -492,17 +492,17 @@ describe('architecture: ADR-0008 owner channel', () => {
   });
 });
 
-describe('architecture: ADR-0009 code host', () => {
+describe('architecture: ADR-0007 code host', () => {
   it('@octokit is imported only in infrastructure/github', () => {
     expect(
       fmt(
-        checkPackageHome(engineFiles, ['@octokit'], [`${SRC}/infrastructure/github`], 'ADR-0009'),
+        checkPackageHome(engineFiles, ['@octokit'], [`${SRC}/infrastructure/github`], 'ADR-0007'),
       ),
     ).toEqual([]);
   });
 });
 
-describe('architecture: ADR-0010 persistence', () => {
+describe('architecture: ADR-0008 persistence', () => {
   it('drizzle-orm, drizzle-kit, pg and postgres are imported only in infrastructure/db', () => {
     expect(
       fmt(
@@ -510,7 +510,7 @@ describe('architecture: ADR-0010 persistence', () => {
           engineFiles,
           ['drizzle-orm', 'drizzle-kit', 'pg', 'postgres'],
           [`${SRC}/infrastructure/db`],
-          'ADR-0010',
+          'ADR-0008',
         ),
       ),
     ).toEqual([]);
@@ -529,7 +529,7 @@ describe('architecture: ADR-0010 persistence', () => {
   });
 });
 
-describe('architecture: ADR-0007 secrets', () => {
+describe('architecture: ADR-0015 secrets', () => {
   it('process.env is read only in infrastructure/config and main.ts', () => {
     expect(
       fmt(

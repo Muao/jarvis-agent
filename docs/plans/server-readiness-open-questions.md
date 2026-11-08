@@ -74,10 +74,10 @@ credential was traced for exposure through logs, argv, committed files, child pr
 ### Important 1 — `stopReason` is in the log contract but no producer writes it
 
 - `engine/src/application/ports/logger.ts:6` lists `stopReason` among the fixed context keys (the contract with
-  the log pipeline, ADR-0018), but `engine/src/application/runs/run-sink.ts:86-99` writes `run.finished` with
+  the log pipeline, ADR-0016), but `engine/src/application/runs/run-sink.ts:86-99` writes `run.finished` with
   `runId, sessionId, taskId, threadId, role, costUsd, turns, durationMs` and no `stopReason`. Task 4.1 added
   `runs.stop_reason` to the schema, the domain, the DTO and the Usage page, but did not close this seam.
-- **The producer should move, not the contract.** `stopReason` is the whole reason ADR-0018 wants structured logs
+- **The producer should move, not the contract.** `stopReason` is the whole reason ADR-0016 wants structured logs
   — "why did it go badly" without reading `run_events` — and the value is already on the `run` object in that
   exact line of code.
 - The fix, one line in `run-sink.ts`'s `run.finished` context:
@@ -97,7 +97,7 @@ credential was traced for exposure through logs, argv, committed files, child pr
 
 ### Important 2 — a Grafana credential the instructions create and nothing reads
 
-- `.env.example:27` asks the owner to fill in `OTEL_EXPORTER_OTLP_HEADERS`; ADR-0018:41 confirms it ("live in
+- `.env.example:27` asks the owner to fill in `OTEL_EXPORTER_OTLP_HEADERS`; ADR-0016:41 confirms it ("live in
   `~/.jarvis/.env` or Infisical"); `deployment.md` §3 says to put "variables as in `.env.example`" into Infisical
   `prod`. **Nothing reads it.** Alloy authenticates with `GRAFANA_LOKI_URL`, `GRAFANA_LOKI_USER`,
   `GRAFANA_OTLP_ENDPOINT`, `GRAFANA_OTLP_USER` and `GRAFANA_CLOUD_TOKEN` (`deploy/alloy/config.alloy:77-116`, and
@@ -107,7 +107,7 @@ credential was traced for exposure through logs, argv, committed files, child pr
   no purpose, where a child `claude` can read it through `/proc/<engine>/environ`. It is a **new instance** of the
   accepted `/proc` risk, and the only place in the branch that adds a path to a credential with no need for it.
 - Fix: remove the line from `.env.example` (or comment it out saying the credentials live only in
-  `/etc/jarvis/alloy.env` and that Alloy reads `GRAFANA_*`), and rewrite the ADR-0018:41 bullet to name the five
+  `/etc/jarvis/alloy.env` and that Alloy reads `GRAFANA_*`), and rewrite the ADR-0016:41 bullet to name the five
   real `GRAFANA_*` variables instead of `OTEL_EXPORTER_OTLP_HEADERS`.
 
 ### Important 3 — `ExecStartPost` contradicts the "Postgres down" invariant
@@ -133,7 +133,7 @@ credential was traced for exposure through logs, argv, committed files, child pr
   units and `../scripts/with-secrets.sh`, and mentions neither `alloy/` nor `grafana/`.
 - Why it matters: an operator who follows `deployment.md` from §1 to §6 — the only complete runbook — ends up with
   a server with no Alloy, no `HEARTBEAT_URL` and no telemetry, that is, without either of the two answers the
-  branch was built for. ADR-0018 is implemented in `deploy/` but not wired into the deployment process.
+  branch was built for. ADR-0016 is implemented in `deploy/` but not wired into the deployment process.
 - Fix (minimal sufficient): a §4a "Telemetry and liveness" in `deployment.md` — three or four lines pointing at
   `deploy/alloy/README.md` and naming `HEARTBEAT_URL` and `telemetry.enabled` — plus two rows in
   `deploy/README.md`'s table for `alloy/` and `grafana/`.
@@ -143,7 +143,7 @@ credential was traced for exposure through logs, argv, committed files, child pr
 Everything else it judged safe to carry.
 
 1. **Important 1** — `stopReason` on `run.finished`, plus removing the two "not logged yet" statements.
-2. **Important 2** — the dead `OTEL_EXPORTER_OTLP_HEADERS` line and the ADR-0018:41 sentence.
+2. **Important 2** — the dead `OTEL_EXPORTER_OTLP_HEADERS` line and the ADR-0016:41 sentence.
 3. **Important 4**, minimal scope — two rows in `deploy/README.md`'s table and a pointer from `deployment.md` to
    `deploy/alloy/README.md`.
 4. **Important 3** — the reviewer would have fixed it immediately with option (a), about five minutes' work, but
@@ -164,7 +164,7 @@ The remaining eight were all triaged **defer**, with these reasons:
 
 | Minor | Why it can wait |
 |---|---|
-| Unpinned `ubuntu:24.04`, `curl \| bash` installs, unused `gnupg` | The image is a rehearsal, not a deployment target (ADR-0017), and pinning by digest would break rebuilds when the base updates. |
+| Unpinned `ubuntu:24.04`, `curl \| bash` installs, unused `gnupg` | The image is a rehearsal, not a deployment target (ADR-0016), and pinning by digest would break rebuilds when the base updates. |
 | No test that `listen()` uses `env.listenHost` | The path was verified live in the container (`host_ip: 127.0.0.1` plus a working `/api/health`), and the type is held by typecheck. |
 | `JARVIS_INSIDE_CONTAINER=1` defeating the guard on a host | That is the brief's design, not a defect: the guard is against a mistake, not against the owner. |
 | The `INFISICAL_API_URL` comment, PATH only in `deploy/README.md`, the fallback stderr line | All three are covered by the "Not verified yet" section, and the Infisical path has to be walked by hand at first run anyway. |
@@ -228,8 +228,8 @@ merely cosmetic:
 
 1. **A child `claude` can read the engine's secrets through `/proc`.** It runs as the same user as the engine, so
    the `child-env.ts` allow-list protects inheritance but not a sibling read — including `INFISICAL_TOKEN` and
-   `GITHUB_TOKEN`. Accepted and documented (`deploy/README.md`, ADR-0016 Consequences). The real fix is running
-   child processes under a separate uid, which touches ADR-0007, the worktree permissions and `~/.claude`, and is
+   `GITHUB_TOKEN`. Accepted and documented (`deploy/README.md`, ADR-0015 Consequences). The real fix is running
+   child processes under a separate uid, which touches ADR-0015, the worktree permissions and `~/.claude`, and is
    its own task.
 2. **The Google token must be minted read-only on the laptop.** `GOOGLE_DRIVE_MCP_SCOPES` does nothing in
    external-token mode, and the server's defaults grant **write** access to Drive, Docs, Sheets, Slides and

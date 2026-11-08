@@ -5,6 +5,6 @@ export interface IdGenerator {
   sessionId(): string;
   runId(): string;
   permissionId(): string;
-  /** An unguessable run token (ADR-0005). */
+  /** An unguessable run token (ADR-0004). */
   token(): string;
 }

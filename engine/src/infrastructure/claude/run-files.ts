@@ -23,11 +23,11 @@ function ownToolRules(role: Role): string[] {
 
 const unique = (items: readonly string[]): string[] => [...new Set(items)];
 
-/** ADR-0022: pinned, because `@latest` in an agent runtime makes a run non-reproducible. */
+/** ADR-0014: pinned, because `@latest` in an agent runtime makes a run non-reproducible. */
 const PLAYWRIGHT_MCP = '@playwright/mcp@0.0.84';
 
 /**
- * ADR-0022: what the `ui-tester` subagent may do in the browser. Everything that drives the UI
+ * ADR-0014: what the `ui-tester` subagent may do in the browser. Everything that drives the UI
  * the way a person would, plus what it needs to read console and network.
  */
 const BROWSER_TOOLS = [
@@ -190,7 +190,7 @@ async function readConnectors(ctx: RunContext): Promise<Json> {
 
 export async function buildMcpConfig(spec: RunSpec, ctx: RunContext): Promise<Json> {
   const connectors = spec.role === 'worker' ? await readConnectors(ctx) : {};
-  // ADR-0022: the browser is a worker tool, and only when the owner turned the UI check on.
+  // ADR-0014: the browser is a worker tool, and only when the owner turned the UI check on.
   const playwright =
     spec.role === 'worker' && ctx.config.ui.enabled && spec.screenshotsDir !== undefined
       ? { playwright: playwrightServer(ctx, spec.screenshotsDir) }

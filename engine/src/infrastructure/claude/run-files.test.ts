@@ -89,7 +89,7 @@ describe('writeRunFiles', () => {
     expect(statSync(join(runDir, 'mcp.json')).mode & 0o077).toBe(0);
   });
 
-  describe('the UI check (ADR-0022)', () => {
+  describe('the UI check (ADR-0014)', () => {
     const uiOn = (overrides: Record<string, unknown> = {}) => {
       const base = ctxOf();
       return ctxOf({
@@ -206,7 +206,7 @@ describe('writeRunFiles', () => {
     expect(Object.keys(json('mcp.json')['mcpServers'] ?? {})).toEqual(['jarvis']);
   });
 
-  describe('worker settings (SEC-01, SEC-02, ADR-0009)', () => {
+  describe('worker settings (SEC-01, SEC-02, ADR-0007)', () => {
     it('appends the owner allow-list to the base allow rules', async () => {
       await writeRunFiles(runDir, specOf(), ctxOf());
       const { allow } = permissions();

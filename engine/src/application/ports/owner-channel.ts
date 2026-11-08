@@ -1,7 +1,7 @@
 import type { Message } from '../../domain/index.js';
 
 /**
- * How the owner sees the conversation (ADR-0008). Use cases persist messages through the unit of
+ * How the owner sees the conversation (ADR-0006). Use cases persist messages through the unit of
  * work, then call these after commit; the web adapter publishes SSE, the Slack adapter posts.
  */
 export interface OwnerChannel {

@@ -7,7 +7,7 @@ supersedes: []
 superseded-by: []
 ---
 
-# ADR-0011: Ship the agent definition as a Claude Code plugin in `agent/`, and keep personal and runtime data in `~/.jarvis`
+# ADR-0009: Ship the agent definition as a Claude Code plugin in `agent/`, and keep personal and runtime data in `~/.jarvis`
 
 ## Context and Problem Statement
 Jarvis has three kinds of data with different owners: the agent definition (who Jarvis is, prompts,

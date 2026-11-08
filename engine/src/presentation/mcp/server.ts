@@ -6,7 +6,7 @@ import { ApiCallError, type JarvisApi } from './api-client.js';
 /** Model-facing descriptions: what the tool does, when to use it, what it returns. */
 export const toolDescriptions: Readonly<Record<ToolName, string>> = {
   create_task:
-    'Create a new task from the owner\'s request and start work on it. Use it when the owner asks for a change that needs a worker; write a short title and a self-contained description. Optionally give a `repo` ("owner/name") besides the default one; it must be allow-listed or owned by the configured GitHub account, or creation is rejected with the reason. Returns the created task (id, title, stage).',
+    'Create a new task from the owner\'s request and start work on it. Use it when the owner asks for a change that needs a worker; write a short title and a self-contained description. Optionally give a `repo` ("owner/name") besides the default one; it must be allow-listed or owned by the configured GitHub account, or creation is rejected with the reason. For "check/test the UI of this pull request" pass `kind: "ui_check"` and `pr` (a PR URL, "owner/name#41", or a number together with `repo`): that task only looks at a pull request that already exists — it writes no code and opens no PR. Returns the created task (id, title, stage).',
   list_tasks:
     'List all tasks with their current stage. Use it to see what is already running before creating, cancelling or messaging a task. Returns an array of tasks.',
   cancel_task:
@@ -67,7 +67,7 @@ export interface JarvisMcpOptions {
   readonly api: JarvisApi;
 }
 
-/** An MCP server that exposes exactly the tools of the caller's role (ADR-0005). */
+/** An MCP server that exposes exactly the tools of the caller's role (ADR-0004). */
 export function createJarvisMcpServer({ role, api }: JarvisMcpOptions): McpServer {
   const server = new McpServer({ name: 'jarvis', version: '0.0.0' });
 

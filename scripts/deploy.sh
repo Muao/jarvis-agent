@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy Jarvis on the Hetzner VPS (ADR-0015), following the sequence documented in
+# Deploy Jarvis on the Hetzner VPS (ADR-0016), following the sequence documented in
 # docs/architecture/deployment.md §5 "Update". Run as `jarvis` from ~/jarvis:
 #   ~/jarvis/scripts/deploy.sh
 #
@@ -9,7 +9,7 @@
 #   3. build web            - fail here, not after the engine is already bounced.
 #   4. db:migrate            - runs against the OLD engine still serving traffic; Drizzle
 #                             migrations in this repo are additive/backward-compatible
-#                             (ADR-0010), so the old code keeps working against the new schema.
+#                             (ADR-0008), so the old code keeps working against the new schema.
 #   5. restart jarvis-engine - systemd's ExecStartPost hits /api/health and fails the unit
 #                             if the new engine doesn't come up healthy (deploy/systemd/jarvis-engine.service).
 #   6. restart jarvis-web    - only after the engine is confirmed healthy.

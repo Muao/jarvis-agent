@@ -26,7 +26,7 @@ async function reviewing(app: TestApp) {
   return task;
 }
 
-describe('start_dev_server (ADR-0022)', () => {
+describe('start_dev_server (ADR-0014)', () => {
   it('starts ui.devCommand in the task worktree and journals the lease (AC-8)', async () => {
     const app = buildTestApp();
     enableUi(app);
@@ -89,7 +89,7 @@ describe('start_dev_server (ADR-0022)', () => {
   });
 });
 
-describe('stop_dev_server (ADR-0022)', () => {
+describe('stop_dev_server (ADR-0014)', () => {
   it('stops the lease the task holds', async () => {
     const app = buildTestApp();
     enableUi(app);
@@ -109,7 +109,7 @@ describe('stop_dev_server (ADR-0022)', () => {
   });
 });
 
-describe('attach_image (ADR-0022)', () => {
+describe('attach_image (ADR-0014)', () => {
   const attach = (app: TestApp, task: { id: string; threadId: string }, path: string) =>
     app.attachImage.execute(app.identity.worker(task as never), { path, alt: 'the task card' });
 

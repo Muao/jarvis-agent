@@ -1,6 +1,6 @@
 # web
 
-React 19 SPA on Vite (ADR-0012): React Router, TanStack Query, CSS Modules. Types and schemas come from
+React 19 SPA on Vite (ADR-0010): React Router, TanStack Query, CSS Modules. Types and schemas come from
 `@jarvis/shared`. Root `AGENTS.md` still applies.
 
 ## Commands

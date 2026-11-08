@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// Real engine with a fake `claude` binary and real Postgres (ADR-0013). One worker keeps the
+// Real engine with a fake `claude` binary and real Postgres (ADR-0011). One worker keeps the
 // single-database state deterministic; spec files run in name order and share the engine.
 // The engine listens on 4310 because vite.config.ts proxies `/api` there; Playwright fails fast
 // if something (e.g. `pnpm dev`) already listens on 4310 or 5180.

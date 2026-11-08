@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { TaskIdSchema } from './common.js';
-import type { Role } from './enums.js';
+import { TaskKindSchema, type Role } from './enums.js';
 
 /**
- * Tool inputs (ADR-0005). The caller's identity (run, role, task, thread) comes from the
+ * Tool inputs (ADR-0004). The caller's identity (run, role, task, thread) comes from the
  * run token, never from arguments, so every schema is strict. `task` in `cancel_task` and
  * `send_to_task` names the *target* of a dispatcher action, not the caller.
  */
@@ -11,25 +11,35 @@ export const toolInputSchemas = {
   create_task: z.strictObject({
     title: z.string().min(1),
     description: z.string().min(1),
-    /** ADR-0019: the repo to create the task's worktree in, besides the configured default. */
+    /** ADR-0012: the repo to create the task's worktree in, besides the configured default. */
     repo: z
       .string()
       .regex(/^[^/\s]+\/[^/\s]+$/, 'must look like "owner/name"')
       .optional(),
+    /**
+     * ADR-0018: `ui_check` only looks at a pull request that already exists — it writes no code and
+     * opens no PR. It requires `pr`; `build` (the default) forbids it.
+     */
+    kind: TaskKindSchema.optional(),
+    /**
+     * ADR-0018: the pull request a `ui_check` task is about, as a full URL or `owner/name#number`.
+     * A bare number means the task's repo (`repo`, else the configured default).
+     */
+    pr: z.string().min(1).optional(),
   }),
   list_tasks: z.strictObject({}),
   cancel_task: z.strictObject({ task: TaskIdSchema, reason: z.string().min(1).optional() }),
   send_to_task: z.strictObject({ task: TaskIdSchema, message: z.string().min(1) }),
-  /** ADR-0019: names the repo (besides the configured default) a task's worktree is created in. */
+  /** ADR-0012: names the repo (besides the configured default) a task's worktree is created in. */
   set_task_target_repo: z.strictObject({
     task: TaskIdSchema,
     repo: z.string().regex(/^[^/\s]+\/[^/\s]+$/, 'must look like "owner/name"'),
   }),
   reply: z.strictObject({ text: z.string().min(1) }),
-  /** ADR-0020: appends one bullet to `## Learned` in USER.md so a fact survives into new threads. */
+  /** ADR-0013: appends one bullet to `## Learned` in USER.md so a fact survives into new threads. */
   remember: z.strictObject({ fact: z.string().min(1) }),
   /**
-   * ADR-0020: a partial update to `jarvis.config.json`, merged and validated against
+   * ADR-0013: a partial update to `jarvis.config.json`, merged and validated against
    * `JarvisConfigSchema` before writing. Patches to `repo.*`, `repos.allow`,
    * `repos.allowOwnerRepos`, `engine.*` are always rejected.
    */
@@ -50,13 +60,13 @@ export const toolInputSchemas = {
   post_update: z.strictObject({ text: z.string().min(1) }),
 
   /**
-   * ADR-0022. No arguments on purpose: the command, the URL and the lease come from
+   * ADR-0014. No arguments on purpose: the command, the URL and the lease come from
    * `ui.*` in the config, so a model can neither choose what the engine runs nor how long.
    */
   start_dev_server: z.strictObject({}),
   stop_dev_server: z.strictObject({}),
   /**
-   * ADR-0022. `path` is relative to the task's artifacts directory and may not leave it.
+   * ADR-0014. `path` is relative to the task's artifacts directory and may not leave it.
    */
   attach_image: z.strictObject({
     path: z.string().min(1),

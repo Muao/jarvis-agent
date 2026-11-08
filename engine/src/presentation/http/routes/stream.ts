@@ -14,7 +14,7 @@ export function frame(event: StreamEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;
 }
 
-/** `GET /api/stream` (ADR-0008): live notifications, `: ping` comments as heartbeat. */
+/** `GET /api/stream` (ADR-0006): live notifications, `: ping` comments as heartbeat. */
 export function streamRoutes(source: StreamSource, heartbeatMs: number): FastifyPluginAsync {
   return async (http) => {
     const open = new Set<ServerResponse>();

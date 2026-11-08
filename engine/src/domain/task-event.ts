@@ -3,7 +3,7 @@ import type { IsoTime } from './time.js';
 export type EventActor = 'system' | 'agent' | 'owner';
 
 /**
- * The single journal entry shape (ST-03, ADR-0010). Every use case that changes a task
+ * The single journal entry shape (ST-03, ADR-0008). Every use case that changes a task
  * produces one; the unit of work stores it in the same transaction as the change.
  */
 export interface TaskEvent {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { untrustedContent } from './untrusted.js';
 
-describe('untrustedContent (ADR-0026)', () => {
+describe('untrustedContent (ADR-0017)', () => {
   it('wraps the body with source and author', () => {
     expect(untrustedContent({ source: 'pr-comment', author: 'alice', body: 'Rename `foo`.' })).toBe(
       '<untrusted-content source="pr-comment" author="alice">\nRename `foo`.\n</untrusted-content>',

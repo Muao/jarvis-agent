@@ -7,7 +7,7 @@ supersedes: []
 superseded-by: []
 ---
 
-# ADR-0002: Build Jarvis as a TypeScript pnpm monorepo with engine, web and shared modules on the Agent Ops Center stack
+# ADR-0001: Build Jarvis as a TypeScript pnpm monorepo with engine, web and shared modules on the Agent Ops Center stack
 
 ## Context and Problem Statement
 Jarvis needs a long-running engine (orchestration, watcher, Claude CLI runs), a local web app that is

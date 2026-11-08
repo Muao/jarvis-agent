@@ -25,7 +25,7 @@ describe('FileProfileStore', () => {
   });
 });
 
-describe('FileProfileStore.appendLearned (ADR-0020)', () => {
+describe('FileProfileStore.appendLearned (ADR-0013)', () => {
   it('creates a minimal file with just the heading and the fact when USER.md does not exist', async () => {
     const file = join(dir, 'USER.md');
     const store = new FileProfileStore(file);

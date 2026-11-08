@@ -7,7 +7,7 @@ supersedes: []
 superseded-by: []
 ---
 
-# ADR-0019: Repo allow-list with clone-on-demand, instead of a single fixed `repo.path`
+# ADR-0012: Repo allow-list with clone-on-demand, instead of a single fixed `repo.path`
 
 ## Context and Problem Statement
 CON-04 (`docs/specs/abstract-project-spec.md:41`) fixes Jarvis to one working repository, given as an
@@ -33,14 +33,14 @@ repository; "fully open cloning" was rejected for that reason). Confirmed by the
 allow-list or repos owned by the owner's own GitHub account, nothing wider.
 
 - `jarvis.config.json` gains `repos: { allow: string[] /* "owner/name" */, allowOwnerRepos: boolean }`.
-  `repo.path` / `repo.remote` / `repo.baseBranch` (ADR-0006) stay as the *default* repo (`repos.allow[0]`
+  `repo.path` / `repo.remote` / `repo.baseBranch` (ADR-0005) stay as the *default* repo (`repos.allow[0]`
   equivalent) so existing single-repo configs keep working unchanged.
 - Resolving a task's target repo: reject if the repo is neither in `repos.allow` nor (when
   `allowOwnerRepos` is true) owned by the account `GITHUB_TOKEN` authenticates as. Ownership is checked via
   the GitHub API at resolution time, not cached, so removing a repo from the account takes effect
   immediately.
 - Clone destination: `~/.jarvis/repos/<owner>/<name>`, one working tree per repo, created lazily on first
-  use with `git clone` over the existing bot `GITHUB_TOKEN` (ADR-0009) — no new credential.
+  use with `git clone` over the existing bot `GITHUB_TOKEN` (ADR-0007) — no new credential.
 - The token is **never written into `remote.origin.url`** (SEC-04, owner decision 2026-11-08): a baked-in
   URL persists the PAT in plain text in `.git/config` for the life of the clone, where `git remote -v`, a
   pasted bug report or a backup carries it out. The remote stays clean and a `credential.https://github.com.helper`

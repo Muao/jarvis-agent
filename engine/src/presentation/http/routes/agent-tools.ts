@@ -18,7 +18,7 @@ function tool<T>(
 
 /**
  * What each Jarvis tool does and what the model gets back. Identity is always the run's, never an
- * argument (ADR-0005). `approve` is not here: it has its own long-polling route.
+ * argument (ADR-0004). `approve` is not here: it has its own long-polling route.
  */
 export const toolCalls: Readonly<Partial<Record<ToolName, Call>>> = {
   create_task: tool(schemas.create_task, (app, identity, input) =>

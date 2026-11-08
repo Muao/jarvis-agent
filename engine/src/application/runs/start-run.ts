@@ -258,7 +258,7 @@ export class StartRun {
         ? {}
         : {
             taskId: run.taskId,
-            // ADR-0022: Playwright MCP writes unnamed screenshots straight into the task's artifacts.
+            // ADR-0014: Playwright MCP writes unnamed screenshots straight into the task's artifacts.
             screenshotsDir: join(this.deps.artifacts.dirFor(run.taskId), 'screenshots'),
           }),
       threadId: run.threadId,

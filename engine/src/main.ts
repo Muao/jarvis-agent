@@ -1,4 +1,4 @@
-// Process entry point (ADR-0003 composition root): start the engine on the owner's laptop.
+// Process entry point (ADR-0002 composition root): start the engine on the owner's laptop.
 import { createContainer, type Container } from './container.js';
 import { assertSubscriptionOnly, loadEnv, StartupError } from './infrastructure/config/index.js';
 import type { LogLevel } from './infrastructure/logging/console-logger.js';

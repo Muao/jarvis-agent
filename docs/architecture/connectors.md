@@ -1,7 +1,7 @@
 # Connectors: how Jarvis authenticates to external services
 
 How the worker reaches Notion, Google Docs and other sources (CTX-02, CTX-03), and how that works on a
-headless server (ADR-0015) with secrets in Infisical (ADR-0016). Status: decision taken 2026-11-08, implementation
+headless server (ADR-0016) with secrets in Infisical (ADR-0015). Status: decision taken 2026-11-08, implementation
 planned in `../plans/server-readiness.md` (Task 2.6).
 
 ## How a connector is wired
@@ -72,7 +72,7 @@ Security of this way, and why it is only the fallback:
 - The callback listens on the server's `127.0.0.1`; only the one-time authorisation code crosses the SSH tunnel.
   The refresh token is fetched by the server over HTTPS. Nothing is exposed on a public interface.
 - The token sits in plaintext on the server disk, like the `claude` login in `~/.claude`. Anyone with SSH as
-  `jarvis` can use it: SSH stays key-only over Tailscale (ADR-0015).
+  `jarvis` can use it: SSH stays key-only over Tailscale (ADR-0016).
 - Hetzner snapshots include the file. Keep 2FA on the Hetzner account; after a suspected leak, revoke the app's
   access in the Google account, not just the file.
 - Rotation means repeating the procedure instead of changing a value in Infisical. Record the exact commands in
@@ -89,7 +89,7 @@ Tokens from `/mcp` live in `~/.claude` (Keychain on macOS, a file on Linux), exp
 |---|---|---|---|
 | Notion | internal integration token | `NOTION_TOKEN` | share only the root page (`connectors.notionRoot`) with the integration |
 | Google Docs | way 1: OAuth refresh token from env (see below) | `GOOGLE_DRIVE_MCP_REFRESH_TOKEN`, `GOOGLE_DRIVE_MCP_CLIENT_ID`, `GOOGLE_DRIVE_MCP_CLIENT_SECRET` | read-only scopes at authorisation; `connectors.googleFolder` points the worker at the folder |
-| GitHub | fine-grained PAT of the bot account | `GITHUB_TOKEN` | one repository |
+| GitHub | fine-grained PAT of the bot account | `GITHUB_TOKEN` | the allow-listed repositories (ADR-0012) |
 | Claude Design | manual handoff in iteration 1 | — | — |
 
 ### Google Docs: `@piotr-agier/google-drive-mcp@2.13.0`

@@ -7,7 +7,7 @@ supersedes: []
 superseded-by: []
 ---
 
-# ADR-0004: Run Claude only through the official `claude` CLI in print mode with stream-json, on the owner's subscription
+# ADR-0003: Run Claude only through the official `claude` CLI in print mode with stream-json, on the owner's subscription
 
 ## Context and Problem Statement
 Jarvis must run on the owner's Claude Max subscription, with no API billing (CON-01). The Agent SDK and
@@ -34,8 +34,8 @@ needs no research-preview flags, and every event (assistant text, tool call, too
 as JSON the engine can store, stream to the web console and use for limits.
 
 Process model:
-- **Dispatcher turn.** For each owner message in a thread the engine runs `claude -p --resume <thread-session>` with the dispatcher prompt and the Jarvis MCP tools (ADR-0005). The dispatcher never edits code (`--allowedTools` excludes Edit/Write/Bash outside its tools).
-- **Worker run.** For each task stage the engine starts `claude -p --input-format stream-json --output-format stream-json --verbose` in the task's git worktree, with the worker prompt, `--max-turns`, `--max-budget-usd` and the model from config (ADR-0006). Owner messages to a running worker are written to its stdin. A task waiting for CI, review or the owner has no process; the next run resumes the session by id.
+- **Dispatcher turn.** For each owner message in a thread the engine runs `claude -p --resume <thread-session>` with the dispatcher prompt and the Jarvis MCP tools (ADR-0004). The dispatcher never edits code (`--allowedTools` excludes Edit/Write/Bash outside its tools).
+- **Worker run.** For each task stage the engine starts `claude -p --input-format stream-json --output-format stream-json --verbose` in the task's git worktree, with the worker prompt, `--max-turns`, `--max-budget-usd` and the model from config (ADR-0005). Owner messages to a running worker are written to its stdin. A task waiting for CI, review or the owner has no process; the next run resumes the session by id.
 - **Permissions.** Runs use `--permission-prompt-tool mcp__jarvis__approve`; the engine shows the request in the web chat (Slack later) and returns the owner's verdict.
 - **Guard.** The engine refuses to start if `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` or a cloud-provider switch is set in its environment, and strips them from child environments.
 

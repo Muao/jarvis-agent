@@ -24,15 +24,15 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
   with slots and budget, permissions, recovery after restart, Postgres with an append-only journal, the
   Claude CLI runner and its MCP tool server, the GitHub code host and PR watcher, the HTTP API with SSE, and
   the eight-page SPA (chat, overview, tasks, task detail, session console, usage, config, connections).
-- **Server readiness, all fifteen tasks**: runtime rehearsal image (ADR-0017), systemd units,
-  `scripts/with-secrets.sh` (ADR-0016), telemetry and the Grafana dashboard (ADR-0018), the health route,
+- **Server readiness, all fifteen tasks**: runtime rehearsal image (ADR-0016), systemd units,
+  `scripts/with-secrets.sh` (ADR-0015), telemetry and the Grafana dashboard (ADR-0016), the health route,
   connection probes, the usage query and page.
 - **Checks in the working tree** (2026-11-08, after the fixes above): `pnpm typecheck` and `pnpm lint`
   clean; `pnpm test` green — 920 engine, 186 web, 69 shared; `test:int` green — 86. `pnpm format:check`
   flags 5 files that were already unformatted before this work and are left alone deliberately
   (`agent/prompts/dispatcher.md`, `set-task-target-repo.test.ts`, `allowed-repo-resolver.*`,
   `file-profile-store.test.ts`).
-- **UI check before the PR (ADR-0022)**, spec `docs/specs/ui-verification.md`: `ui` config
+- **UI check before the PR (ADR-0014)**, spec `docs/specs/ui-verification.md`: `ui` config
   block (off by default), an engine-leased dev server (`start_dev_server` / `stop_dev_server`, one
   lease engine-wide, killed on lease expiry, run exit, shutdown and on finding an orphan at start),
   Playwright MCP pinned at 0.0.84 in the worker's `mcp.json` with `browser_evaluate`,
@@ -48,14 +48,14 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
     deny list instead. Narrow `Bash(cmd:*)` prefixes could not work: Claude Code splits a compound
     command and every part must match, so one `&&` raised a card and the run stalled.
   - **The watcher polled the wrong repository.** `CodeHost.snapshot(prNumber)` carried no repo and
-    `GitHubCodeHost` bound one `owner`/`repo` at construction, so ADR-0019's per-task repos never reached
+    `GitHubCodeHost` bound one `owner`/`repo` at construction, so ADR-0012's per-task repos never reached
     it: T-3's PR #38 in `quick-blog` was looked up in `jarvis-agent` → endless `Not Found`, task stuck in
     `PR Open`. Worse silently: a same-numbered PR in the default repo would have been judged as the task's.
     `snapshot` / `rerunFailedChecks` now take the repo and the watcher passes `task.targetRepo`.
   - **The PAT no longer lands in `.git/config`** (SEC-04): clone-on-demand baked
     `https://x-access-token:<token>@…` into `remote.origin.url`, in plain text, for the life of the clone.
     The remote is clean now and a credential helper reads the token from the environment; old clones are
-    repaired on next use. See ADR-0019.
+    repaired on next use. See ADR-0012.
   - **The chat no longer looks dead.** `PostProgressUpdates` posts a mechanical heartbeat every
     `limits.progressUpdateMinutes` (default 2) for every running run that is not already stalled — the
     worker prompt's soft "post an update" instruction was simply not obeyed.
@@ -65,16 +65,21 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
 - **Limits and models** (2026-11-08): Opus for dispatcher, worker and reviewer; `maxTurnsPerRun 120`,
   `maxBudgetUsdPerRun 10`, `dailyBudgetUsd 50`, `taskTimeoutMinutes 120`, one worker slot, `checkRetries 3`,
   `ciFixRounds 2`, `reviewRounds 3`. On a Max subscription the budget is an estimate, not a bill — a brake
-  against runaway loops (ADR-0006).
+  against runaway loops (ADR-0005).
 
-- **Docs and secrets hardening (2026-11-08)**: ADRs consolidated — new 0024 (secrets only in Infisical)
-  and 0025 (server operations) supersede 0007/0015/0016/0017/0018; never-committed 0020+0021 merged into
-  0020 (dispatcher-writable owner data) and 0022+0023 into 0022 (UI verification). New ADR-0026: the
-  engine wraps PR review comments in `<untrusted-content>` tags (`application/conversation/untrusted.ts`,
-  used by the watcher's worker input), and worker/SOUL prompts now require report-and-ask on an
-  injection attempt. `compose.yaml` no longer carries a default Postgres password (`${POSTGRES_PASSWORD:?}`;
-  run compose with `--env-file ~/.jarvis/.env` or `with-secrets.sh`). Spec CON-03/04/10 and the
-  architecture README brought up to date with ADR-0019/0020/0024/0025.
+- **Docs and secrets hardening (2026-11-08)**: ADRs consolidated — secrets into one record (now
+  ADR-0015), server operations into one (now ADR-0016), the dispatcher-writable pair and the UI-check
+  pair each merged into single records (now ADR-0013, ADR-0014). New ADR-0017: the engine wraps PR
+  review comments in `<untrusted-content>` tags (`application/conversation/untrusted.ts`, used by the
+  watcher's worker input), and worker/SOUL prompts now require report-and-ask on an injection attempt.
+  `compose.yaml` no longer carries a default Postgres password (`${POSTGRES_PASSWORD:?}`; run compose
+  with `--env-file ~/.jarvis/.env` or `with-secrets.sh`); the real local password is set in
+  `~/.jarvis/.env` and in the running volume. Spec CON-03/04/10 and the architecture README brought up
+  to date with ADR-0012/0013/0015/0016.
+- **ADR renumbering (2026-11-08)**: superseded records deleted, the remaining 18 renumbered to a
+  gapless 0001–0018, every reference across the repo updated; the former numbering lives in git
+  history. AGENTS.md now requires specs and all documentation in English; the Ukrainian specs are being
+  translated.
 
 ## Next
 
@@ -82,7 +87,7 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
    (`POSTGRES_PASSWORD`, `DATABASE_URL`, `DATABASE_URL_TEST`) and mirror into `~/.jarvis/.env`; on every
    existing volume (laptop, rehearsal) run
    `docker compose exec postgres psql -U jarvis -c "ALTER USER jarvis PASSWORD '<new>'"`. Until then
-   `docker compose up` fails fast asking for the variable (ADR-0024).
+   `docker compose up` fails fast asking for the variable (ADR-0015).
 1. **Close the four Important findings** of the final review. `Important 3` — `ExecStartPost`'s `curl -f`
    treating an honest 503 as failure — **must land before the first `systemctl enable`**; it is the only
    item with a deadline.
@@ -94,7 +99,7 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
    `start_dev_server`, `attach_image` and `stop_dev_server`, so the run proves the UI-check tools are
    reachable and that their refusals (with `ui.enabled: false`) do not derail the task. It needs ports
    4310 and 5180 free: `docker compose stop` first if the rehearsal containers are up.
-4. **Verify the GitHub attachment endpoint** (ADR-0022, open question 1 of the UI spec): whether
+4. **Verify the GitHub attachment endpoint** (ADR-0014, open question 1 of the UI spec): whether
    `uploads.github.com/user-attachments/assets` accepts a fine-grained PAT is unknown and untested.
    One real PR in the sandbox repo answers it. If it refuses, the choice is a classic PAT or
    `ui.attachToPr: false`.
@@ -124,10 +129,10 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
 
 Decided, not forgotten.
 
-- **No messenger.** The only owner channel is the local web UI (ADR-0008 puts Slack in iteration 2). The
+- **No messenger.** The only owner channel is the local web UI (ADR-0006 puts Slack in iteration 2). The
   `OwnerChannel` port exists, so a channel is an adapter, not a rewrite. `tailscale serve` plus a phone is
   the cheap stand-in: it gives access, but no push — nobody tells you a card is waiting.
-- **Per-task target repo.** ADR-0019 lets a task carry a `targetRepo` (owner/name), checked against
+- **Per-task target repo.** ADR-0012 lets a task carry a `targetRepo` (owner/name), checked against
   `repos.allow` / `repos.allowOwnerRepos` and cloned on demand into `~/.jarvis/repos/<owner>/<name>`.
   `create_task` now takes an optional `repo` and validates + creates the worktree against it from the
   start, so the dispatcher no longer has to redirect an already-created worktree after the fact.

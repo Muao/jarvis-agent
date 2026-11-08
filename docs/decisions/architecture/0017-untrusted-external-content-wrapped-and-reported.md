@@ -7,7 +7,7 @@ supersedes: []
 superseded-by: []
 ---
 
-# ADR-0026: Externally-authored text enters prompts wrapped as untrusted content, and an injection attempt is reported to the owner before the agent continues
+# ADR-0017: Externally-authored text enters prompts wrapped as untrusted content, and an injection attempt is reported to the owner before the agent continues
 
 ## Context and Problem Statement
 

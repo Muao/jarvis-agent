@@ -53,7 +53,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**Do not trust this dashboard yet.** It was written without Alloy installed, without a Grafana Cloud account and without any Claude Code run having exported OTLP.\n\n- Metric names (`claude_code_token_usage_tokens_total`), CLI log events (`tool_result`, rate-limit) and their label names are taken from the CLI's \"Monitoring usage\" documentation and the plan, and the OTLP-to-Prometheus name translation is a guess. Check them in Explore against the installed CLI first.\n- Engine panels depend on the `event` / `role` labels produced by `deploy/alloy/config.alloy`, which has never been run.\n- `stopReason` is not logged yet (arrives in a later task); no panel here depends on it.\n- Postgres is the source of truth for cost and budgets (ADR-0018). Grafana numbers are for looking, never for deciding."
+        "content": "**Do not trust this dashboard yet.** It was written without Alloy installed, without a Grafana Cloud account and without any Claude Code run having exported OTLP.\n\n- Metric names (`claude_code_token_usage_tokens_total`), CLI log events (`tool_result`, rate-limit) and their label names are taken from the CLI's \"Monitoring usage\" documentation and the plan, and the OTLP-to-Prometheus name translation is a guess. Check them in Explore against the installed CLI first.\n- Engine panels depend on the `event` / `role` labels produced by `deploy/alloy/config.alloy`, which has never been run.\n- `stopReason` is not logged yet (arrives in a later task); no panel here depends on it.\n- Postgres is the source of truth for cost and budgets (ADR-0016). Grafana numbers are for looking, never for deciding."
       }
     },
     {
@@ -210,7 +210,7 @@
       "id": 6,
       "type": "timeseries",
       "title": "Cost per day vs dailyBudgetUsd",
-      "description": "Sum of `costUsd` over `run.finished` lines, rolling 24h. Postgres is the source of truth for cost and budgets (ADR-0018, LIM-04); this panel can disagree with it and never drives a budget decision. The budget line is the dashboard variable `dailyBudgetUsd`: keep it equal to `jarvis.config.json`.",
+      "description": "Sum of `costUsd` over `run.finished` lines, rolling 24h. Postgres is the source of truth for cost and budgets (ADR-0016, LIM-04); this panel can disagree with it and never drives a budget decision. The budget line is the dashboard variable `dailyBudgetUsd`: keep it equal to `jarvis.config.json`.",
       "gridPos": {
         "x": 12,
         "y": 10,

@@ -6,10 +6,10 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: jarvis
-      # ADR-0024: no literal credentials in committed files. Run compose through
+      # ADR-0015: no literal credentials in committed files. Run compose through
       # `scripts/with-secrets.sh docker compose ...` (Infisical) or
       # `docker compose --env-file ~/.jarvis/.env ...` (local fallback).
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in Infisical or ~/.jarvis/.env (ADR-0024)}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in Infisical or ~/.jarvis/.env (ADR-0015)}
       POSTGRES_DB: jarvis
     ports:
       - '127.0.0.1:5433:5432'
@@ -22,7 +22,7 @@ services:
       timeout: 3s
       retries: 10
 
-  # Server rehearsal (ADR-0017): `docker compose --profile server ...`. Not part of the laptop workflow.
+  # Server rehearsal (ADR-0016): `docker compose --profile server ...`. Not part of the laptop workflow.
   engine:
     profiles: [server]
     build: docker/runtime
@@ -32,10 +32,10 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://jarvis:${POSTGRES_PASSWORD:?set in Infisical or ~/.jarvis/.env (ADR-0024)}@postgres:5432/jarvis
+      DATABASE_URL: postgres://jarvis:${POSTGRES_PASSWORD:?set in Infisical or ~/.jarvis/.env (ADR-0015)}@postgres:5432/jarvis
       JARVIS_INSIDE_CONTAINER: '1'
       JARVIS_LISTEN_HOST: 0.0.0.0 # inside the container; the published port below is loopback only
-      # Infisical (ADR-0016): set these three in the shell (or ~/.jarvis/.env, loaded by `pnpm dev`'s
+      # Infisical (ADR-0015): set these three in the shell (or ~/.jarvis/.env, loaded by `pnpm dev`'s
       # own shell, not this container) to inject secrets; unset -> with-secrets.sh falls back to
       # ~/.jarvis/.env inside the container, unchanged from before.
       INFISICAL_CLIENT_ID: ${INFISICAL_CLIENT_ID:-}

@@ -5,7 +5,7 @@ export interface JournalEntry extends TaskEvent {
   readonly seq: number;
 }
 
-/** The append-only task journal (ST-03, ADR-0010). There is no update and no delete. */
+/** The append-only task journal (ST-03, ADR-0008). There is no update and no delete. */
 export interface JournalRepository {
   append(event: TaskEvent): Promise<void>;
   /** Events of one task, oldest first. */
