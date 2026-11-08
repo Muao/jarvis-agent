@@ -80,6 +80,22 @@ describe('UpdateConfig', () => {
     expect(app.messagesOf(thread.id)).toHaveLength(0);
   });
 
+  it('refuses to edit allowlist.githubReviewers from chat (ADR-0018)', async () => {
+    const app = buildTestApp();
+    const thread = await app.seed.thread();
+    const before = app.config.current();
+
+    await expect(
+      app.updateConfig.execute(app.identity.dispatcher(thread.id), {
+        patch: { allowlist: { githubReviewers: ['stranger'] } },
+      }),
+    ).rejects.toThrow(InvalidInputError);
+
+    // It decides whose pull request runs its code here without a permission card.
+    expect(app.config.current()).toEqual(before);
+    expect(app.messagesOf(thread.id)).toHaveLength(0);
+  });
+
   it('refuses to edit ui.devCommand, ui.noSandbox or ui.paths from chat (AC-3)', async () => {
     const app = buildTestApp();
     const thread = await app.seed.thread();

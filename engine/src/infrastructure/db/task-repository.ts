@@ -1,5 +1,5 @@
 import { asc, eq, notInArray, and, sql } from 'drizzle-orm';
-import type { TaskStage } from '@jarvis/shared';
+import type { TaskKind, TaskStage } from '@jarvis/shared';
 import type { TaskRepository } from '../../application/ports/task-repository.js';
 import { TERMINAL, type Task } from '../../domain/index.js';
 import type { Executor } from './client.js';
@@ -12,6 +12,7 @@ const toDomain = (row: Row): Task => ({
   id: row.id,
   threadId: row.threadId,
   title: row.title,
+  kind: row.kind as TaskKind,
   stage: row.stage as TaskStage,
   resumeStage: row.resumeStage as TaskStage | null,
   branch: row.branch,
@@ -36,6 +37,7 @@ const toValues = (task: Task): Omit<typeof tasks.$inferInsert, 'ord'> => ({
   id: task.id,
   threadId: task.threadId,
   title: task.title,
+  kind: task.kind,
   stage: task.stage,
   resumeStage: task.resumeStage,
   branch: task.branch,

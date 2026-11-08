@@ -25,7 +25,12 @@ describe('CreateTask', () => {
       expect.objectContaining({
         taskId: 'T-1',
         type: 'task_created',
-        data: { title: input.title, description: input.description, branch: 'jarvis/T-1' },
+        data: {
+          title: input.title,
+          description: input.description,
+          branch: 'jarvis/T-1',
+          kind: 'build',
+        },
       }),
     ]);
     const status = app.messagesOf(thread.id).filter((m) => m.kind === 'status');
@@ -75,7 +80,7 @@ describe('CreateTask', () => {
     expect(created.taskId).not.toBe(task.id);
   });
 
-  it('is closed to workers (ADR-0005: identity decides, not input)', async () => {
+  it('is closed to workers (ADR-0004: identity decides, not input)', async () => {
     const app = buildTestApp();
     const { task } = await app.seed.task();
 
@@ -84,7 +89,7 @@ describe('CreateTask', () => {
     );
   });
 
-  it('creates the worktree against an allow-listed repo and sets Task.targetRepo (ADR-0019)', async () => {
+  it('creates the worktree against an allow-listed repo and sets Task.targetRepo (ADR-0012)', async () => {
     const app = buildTestApp();
     app.repos.allow('owner/name');
     const thread = await app.seed.thread();
@@ -129,5 +134,137 @@ describe('CreateTask', () => {
     expect(app.owner.delivered).toEqual([]);
     expect(app.runs.calls).toEqual([]);
     expect(app.events.published).toEqual([]);
+  });
+});
+describe('CreateTask: ui_check tasks (ADR-0018)', () => {
+  const pr = { title: 'Check PR 41', description: 'Walk the UI of pull request 41' };
+
+  it("stands the task on the pull request's head and records the PR (AC-41, AC-43)", async () => {
+    const app = buildTestApp();
+    const thread = await app.seed.thread();
+    app.repos.allow('burnjohn/jarvis-sandbox');
+
+    const created = await app.createTask.execute(app.identity.dispatcher(thread.id), {
+      ...pr,
+      kind: 'ui_check',
+      pr: 'https://github.com/burnjohn/jarvis-sandbox/pull/41',
+    });
+
+    expect(created.branch).toBe('jarvis-check/T-1');
+    expect(app.task('T-1')).toMatchObject({
+      kind: 'ui_check',
+      stage: 'Intake',
+      pr: { number: 41, url: 'https://github.com/burnjohn/jarvis-sandbox/pull/41' },
+      targetRepo: { owner: 'burnjohn', name: 'jarvis-sandbox' },
+    });
+    expect(app.worktrees.checkedOut).toEqual([{ taskId: 'T-1', prNumber: 41 }]);
+  });
+
+  it('takes the repo from the reference, so "owner/name#41" needs no `repo` (AC-41)', async () => {
+    const app = buildTestApp();
+    const thread = await app.seed.thread();
+    app.repos.allow('burnjohn/jarvis-sandbox');
+
+    await app.createTask.execute(app.identity.dispatcher(thread.id), {
+      ...pr,
+      kind: 'ui_check',
+      pr: 'burnjohn/jarvis-sandbox#41',
+    });
+
+    expect(app.task('T-1')).toMatchObject({
+      pr: { number: 41, url: 'https://github.com/burnjohn/jarvis-sandbox/pull/41' },
+    });
+  });
+
+  it('builds the URL for a bare number given with `repo` (AC-41)', async () => {
+    const app = buildTestApp();
+    const thread = await app.seed.thread();
+    app.repos.allow('burnjohn/jarvis-sandbox');
+
+    await app.createTask.execute(app.identity.dispatcher(thread.id), {
+      ...pr,
+      kind: 'ui_check',
+      pr: '41',
+      repo: 'burnjohn/jarvis-sandbox',
+    });
+
+    expect(app.task('T-1')).toMatchObject({
+      pr: { number: 41, url: 'https://github.com/burnjohn/jarvis-sandbox/pull/41' },
+    });
+  });
+
+  it('refuses a repo outside the allow-list, and creates nothing (AC-40)', async () => {
+    const app = buildTestApp();
+    const thread = await app.seed.thread();
+
+    await expect(
+      app.createTask.execute(app.identity.dispatcher(thread.id), {
+        ...pr,
+        kind: 'ui_check',
+        pr: 'https://github.com/someone/else/pull/41',
+      }),
+    ).rejects.toThrowError(InvalidInputError);
+    expect(app.db.tables.tasks.size).toBe(0);
+    expect(app.worktrees.checkedOut).toEqual([]);
+  });
+
+  it('refuses a bare number that names no repo, saying how to name one', async () => {
+    const app = buildTestApp();
+    const thread = await app.seed.thread();
+
+    await expect(
+      app.createTask.execute(app.identity.dispatcher(thread.id), {
+        ...pr,
+        kind: 'ui_check',
+        pr: '41',
+      }),
+    ).rejects.toThrowError(/does not say which repo/);
+    expect(app.db.tables.tasks.size).toBe(0);
+  });
+
+  it('refuses a ui_check task with no pull request at all', async () => {
+    const app = buildTestApp();
+    const thread = await app.seed.thread();
+
+    await expect(
+      app.createTask.execute(app.identity.dispatcher(thread.id), { ...pr, kind: 'ui_check' }),
+    ).rejects.toThrowError(/needs `pr`/);
+  });
+
+  it('refuses `pr` on a build task: a build task earns its own PR', async () => {
+    const app = buildTestApp();
+    const thread = await app.seed.thread();
+
+    await expect(
+      app.createTask.execute(app.identity.dispatcher(thread.id), {
+        ...input,
+        pr: 'burnjohn/jarvis-sandbox#41',
+      }),
+    ).rejects.toThrowError(/needs kind "ui_check"/);
+  });
+
+  it('turns a head that cannot be fetched into an input error, not a crash', async () => {
+    const app = buildTestApp();
+    const thread = await app.seed.thread();
+    app.repos.allow('burnjohn/jarvis-sandbox');
+    app.worktrees.failNext(new Error("couldn't find remote ref pull/41/head"));
+
+    await expect(
+      app.createTask.execute(app.identity.dispatcher(thread.id), {
+        ...pr,
+        kind: 'ui_check',
+        pr: 'burnjohn/jarvis-sandbox#41',
+      }),
+    ).rejects.toThrowError(/cannot check out pull request 41: .*pull\/41\/head/);
+    expect(app.db.tables.tasks.size).toBe(0);
+  });
+
+  it('keeps a plain task a build task, with no PR (AC-36)', async () => {
+    const app = buildTestApp();
+    const thread = await app.seed.thread();
+
+    await app.createTask.execute(app.identity.dispatcher(thread.id), input);
+
+    expect(app.task('T-1')).toMatchObject({ kind: 'build', pr: null, branch: 'jarvis/T-1' });
   });
 });

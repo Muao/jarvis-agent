@@ -28,6 +28,9 @@ const FORBIDDEN_PATHS = [
   'ui.devCommand',
   'ui.noSandbox',
   'ui.paths',
+  // ADR-0018: this list decides whose pull request may run its code here without asking the owner.
+  // A trust boundary is not a setting to be talked into.
+  'allowlist.githubReviewers',
 ] as const;
 
 function forbiddenPathIn(patch: Record<string, unknown>): string | null {

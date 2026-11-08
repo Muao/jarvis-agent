@@ -1,4 +1,4 @@
-import type { JarvisConfig, TaskStage } from '@jarvis/shared';
+import type { JarvisConfig, TaskKind, TaskStage } from '@jarvis/shared';
 import { DomainError } from './errors.js';
 import { taskEvent, type EventActor, type TaskEvent } from './task-event.js';
 import type { IsoTime } from './time.js';
@@ -14,7 +14,7 @@ export interface TaskCounters {
   readonly reviewRounds: number;
 }
 
-/** A repo besides the configured default, named `owner/name` (ADR-0019). */
+/** A repo besides the configured default, named `owner/name` (ADR-0012). */
 export interface TargetRepo {
   readonly owner: string;
   readonly name: string;
@@ -24,6 +24,8 @@ export interface Task {
   readonly id: string;
   readonly threadId: string;
   readonly title: string;
+  /** ADR-0018: what the task is for; it decides which transitions are legal. */
+  readonly kind: TaskKind;
   readonly stage: TaskStage;
   /** Set only while `Blocked`: the stage the task returns to when the owner answers. */
   readonly resumeStage: TaskStage | null;
@@ -52,7 +54,7 @@ export function isActive(task: Pick<Task, 'stage'>): boolean {
 const EXITS = ['Blocked', 'Failed', 'Cancelled'] as const satisfies readonly TaskStage[];
 
 /**
- * Legal moves (plan "Task stages"). `Blocked` is special: it may only return to the stage stored in
+ * Legal moves of a `build` task (plan "Task stages"). `Blocked` is special: it may only return to the stage stored in
  * `resumeStage` (or be cancelled), see `canTransition`. `Failed` stores the stage it failed in and returns there only on `owner_retry`. `Done` and `Cancelled` accept nothing.
  */
 export const TRANSITIONS: Readonly<Record<TaskStage, readonly TaskStage[]>> = {
@@ -69,6 +71,31 @@ export const TRANSITIONS: Readonly<Record<TaskStage, readonly TaskStage[]>> = {
   Failed: [],
   Cancelled: [],
 };
+
+/**
+ * ADR-0018: a `ui_check` task looks at a pull request that already exists. It never writes code, so
+ * it has no `Spec Review` (nothing to approve) and no `Implementing`; it never opens a PR, so it has
+ * no `PR Open` and no `Fixing`. `Reviewing` is where the UI check runs, exactly as for a `build`
+ * task, which is why `start_dev_server`'s guard does not move.
+ */
+export const UI_CHECK_TRANSITIONS: Readonly<Record<TaskStage, readonly TaskStage[]>> = {
+  Intake: ['Context', ...EXITS],
+  Context: ['Reviewing', ...EXITS],
+  'Spec Review': [...EXITS],
+  Implementing: [...EXITS],
+  Verifying: [...EXITS],
+  Reviewing: ['Done', ...EXITS],
+  'PR Open': [...EXITS],
+  Fixing: [...EXITS],
+  Blocked: ['Cancelled'],
+  Done: [],
+  Failed: [],
+  Cancelled: [],
+};
+
+export function transitionsOf(kind: TaskKind): Readonly<Record<TaskStage, readonly TaskStage[]>> {
+  return kind === 'ui_check' ? UI_CHECK_TRANSITIONS : TRANSITIONS;
+}
 
 export type TransitionCause =
   | 'worker_started'
@@ -131,8 +158,12 @@ export interface NewTask {
   readonly title: string;
   readonly branch: string;
   readonly at: IsoTime;
-  /** ADR-0019: the repo the worktree was created against, besides the configured default. */
+  /** ADR-0012: the repo the worktree was created against, besides the configured default. */
   readonly targetRepo?: TargetRepo | null;
+  /** ADR-0018: `build` unless the task only checks a PR that already exists. */
+  readonly kind?: TaskKind;
+  /** ADR-0018: a `ui_check` task knows its pull request from the start; a `build` task earns one. */
+  readonly pr?: PullRequestRef | null;
 }
 
 const ZERO_COUNTERS: TaskCounters = { checkRetries: 0, ciFixRounds: 0, reviewRounds: 0 };
@@ -142,10 +173,11 @@ export function createTask(input: NewTask): Task {
     id: input.id,
     threadId: input.threadId,
     title: input.title,
+    kind: input.kind ?? 'build',
     stage: 'Intake',
     resumeStage: null,
     branch: input.branch,
-    pr: null,
+    pr: input.pr ?? null,
     counters: ZERO_COUNTERS,
     workerSessionId: null,
     startedAt: input.at,
@@ -155,11 +187,14 @@ export function createTask(input: NewTask): Task {
   };
 }
 
-export function canTransition(task: Pick<Task, 'stage' | 'resumeStage'>, to: TaskStage): boolean {
+export function canTransition(
+  task: Pick<Task, 'stage' | 'resumeStage' | 'kind'>,
+  to: TaskStage,
+): boolean {
   if (task.stage === 'Blocked') return to === task.resumeStage || to === 'Cancelled';
   // Failed is final for automation; only the owner's retry (checked in `transition`) leaves it.
   if (task.stage === 'Failed') return to === task.resumeStage;
-  return TRANSITIONS[task.stage].includes(to);
+  return transitionsOf(task.kind)[task.stage].includes(to);
 }
 
 const REASON_STAGES: readonly TaskStage[] = ['Blocked', 'Failed', 'Cancelled'];
@@ -203,7 +238,7 @@ export function assignWorkerSession(task: Task, sessionId: string, at: IsoTime):
   return { ...task, workerSessionId: sessionId, updatedAt: at };
 }
 
-/** ADR-0019: names the repo this task's worktree is created in, besides the configured default. */
+/** ADR-0012: names the repo this task's worktree is created in, besides the configured default. */
 export function setTargetRepo(task: Task, targetRepo: TargetRepo, at: IsoTime): Task {
   return { ...task, targetRepo, updatedAt: at };
 }

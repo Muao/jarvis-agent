@@ -18,7 +18,7 @@ function tool<T>(
 
 /**
  * What each Jarvis tool does and what the model gets back. Identity is always the run's, never an
- * argument (ADR-0005). `approve` is not here: it has its own long-polling route.
+ * argument (ADR-0004). `approve` is not here: it has its own long-polling route.
  */
 export const toolCalls: Readonly<Partial<Record<ToolName, Call>>> = {
   create_task: tool(schemas.create_task, (app, identity, input) =>
@@ -83,5 +83,8 @@ export const toolCalls: Readonly<Partial<Record<ToolName, Call>>> = {
   ),
   attach_image: tool(schemas.attach_image, (app, identity, input) =>
     app.attachImage.execute(identity, input),
+  ),
+  comment_on_pr: tool(schemas.comment_on_pr, (app, identity, input) =>
+    app.commentOnPr.execute(identity, input),
   ),
 };

@@ -3,6 +3,7 @@ import {
   ROLES,
   RunStatusSchema,
   StopReasonSchema,
+  TASK_KINDS,
   TASK_STAGES,
   type ModelUsage,
 } from '@jarvis/shared';
@@ -50,6 +51,8 @@ export const tasks = pgTable(
       .notNull()
       .references(() => threads.id),
     title: text('title').notNull(),
+    /** ADR-0018: `build` or `ui_check`; decides which stage transitions are legal. */
+    kind: text('kind').notNull().default('build'),
     stage: text('stage').notNull(),
     resumeStage: text('resume_stage'),
     branch: text('branch').notNull(),
@@ -63,11 +66,12 @@ export const tasks = pgTable(
     startedAt: time('started_at').notNull(),
     updatedAt: time('updated_at').notNull(),
     reason: text('reason'),
-    /** ADR-0019: the repo this task's worktree is created in, besides the configured default. */
+    /** ADR-0012: the repo this task's worktree is created in, besides the configured default. */
     targetRepoOwner: text('target_repo_owner'),
     targetRepoName: text('target_repo_name'),
   },
   (t) => [
+    check('tasks_kind_check', oneOf('kind', TASK_KINDS)),
     check('tasks_stage_check', oneOf('stage', TASK_STAGES)),
     check(
       'tasks_resume_stage_check',
@@ -101,7 +105,7 @@ export const messages = pgTable(
   ],
 );
 
-/** The append-only task journal (ADR-0010). A trigger rejects UPDATE and DELETE (see the hand-written migration). */
+/** The append-only task journal (ADR-0008). A trigger rejects UPDATE and DELETE (see the hand-written migration). */
 export const taskEvents = pgTable(
   'task_events',
   {
@@ -179,7 +183,7 @@ export const runs = pgTable(
   ],
 );
 
-/** Normalised stream-json events of a run (ADR-0004). Append-only, like the journal. */
+/** Normalised stream-json events of a run (ADR-0003). Append-only, like the journal. */
 export const runEvents = pgTable(
   'run_events',
   {

@@ -362,3 +362,70 @@ describe('counters', () => {
     expect(base.counters.reviewRounds).toBe(0);
   });
 });
+
+describe('ui_check tasks (ADR-0018)', () => {
+  const check = createTask({
+    id: 'T-9',
+    threadId: 'th-9',
+    title: 'Check the UI of PR 41',
+    branch: 'jarvis-check/T-9',
+    at: T0,
+    kind: 'ui_check',
+    pr: { number: 41, url: 'https://github.com/o/r/pull/41' },
+  });
+  const checkAt = (stage: TaskStage, extra: Partial<Task> = {}): Task => ({
+    ...check,
+    stage,
+    ...extra,
+  });
+
+  it('defaults to build, so an existing task keeps every transition it had (AC-36)', () => {
+    expect(base.kind).toBe('build');
+    for (const from of TASK_STAGES) {
+      for (const to of TASK_STAGES) {
+        if (from === 'Blocked' || from === 'Failed') continue;
+        expect(canTransition(at(from), to), `build ${from} -> ${to}`).toBe(
+          TRANSITIONS[from].includes(to),
+        );
+      }
+    }
+  });
+
+  it('knows its pull request from the start, unlike a build task', () => {
+    expect(check.pr).toEqual({ number: 41, url: 'https://github.com/o/r/pull/41' });
+    expect(base.pr).toBeNull();
+  });
+
+  it('goes Context -> Reviewing, which a build task may not (AC-37, AC-38)', () => {
+    expect(canTransition(checkAt('Context'), 'Reviewing')).toBe(true);
+    expect(canTransition(at('Context'), 'Reviewing')).toBe(false);
+    expect(move(checkAt('Context'), 'Reviewing').task.stage).toBe('Reviewing');
+  });
+
+  it('has no Spec Review and no Implementing (AC-37)', () => {
+    expect(canTransition(checkAt('Context'), 'Spec Review')).toBe(false);
+    expect(canTransition(checkAt('Context'), 'Implementing')).toBe(false);
+    expect(() => move(checkAt('Context'), 'Spec Review')).toThrowError(DomainError);
+  });
+
+  it('finishes from Reviewing and never opens a PR (AC-39)', () => {
+    expect(canTransition(checkAt('Reviewing'), 'Done')).toBe(true);
+    expect(canTransition(checkAt('Reviewing'), 'PR Open')).toBe(false);
+    expect(canTransition(checkAt('Reviewing'), 'Implementing')).toBe(false);
+  });
+
+  it('can still be blocked, failed or cancelled from its own stages', () => {
+    for (const stage of ['Intake', 'Context', 'Reviewing'] as const) {
+      for (const exit of ['Blocked', 'Failed', 'Cancelled'] as const) {
+        expect(canTransition(checkAt(stage), exit), `${stage} -> ${exit}`).toBe(true);
+      }
+    }
+  });
+
+  it('returns from Blocked to the stage it came from, as any task does', () => {
+    const blocked = move(checkAt('Reviewing'), 'Blocked', 'ask_owner').task;
+    expect(blocked.resumeStage).toBe('Reviewing');
+    expect(canTransition(blocked, 'Reviewing')).toBe(true);
+    expect(canTransition(blocked, 'Context')).toBe(false);
+  });
+});

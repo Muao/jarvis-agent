@@ -17,6 +17,15 @@ export const TaskStageSchema = z.enum([
 export type TaskStage = z.infer<typeof TaskStageSchema>;
 export const TASK_STAGES = TaskStageSchema.options;
 
+/**
+ * ADR-0018: what a task is for. `build` writes code and opens a PR; `ui_check` only looks at a PR
+ * that already exists. The kind decides which stage transitions are legal, so a `build` task can
+ * never skip `Spec Review` through the short path a check needs.
+ */
+export const TaskKindSchema = z.enum(['build', 'ui_check']);
+export type TaskKind = z.infer<typeof TaskKindSchema>;
+export const TASK_KINDS = TaskKindSchema.options;
+
 export const TERMINAL_STAGES = [
   'Done',
   'Failed',
