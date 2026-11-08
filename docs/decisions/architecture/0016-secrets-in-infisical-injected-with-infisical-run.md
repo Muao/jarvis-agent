@@ -28,7 +28,7 @@ VPS if the hosted service stops fitting.
 
 - **Project** `jarvis` with environments `dev` (laptop) and `prod` (VPS). Variables exactly as in `.env.example`.
 - **Laptop.** `infisical login` (owner's account), `infisical run --env=dev -- pnpm dev`.
-- **Server.** A machine identity with Universal Auth, read-only on `prod`. Its client id and secret are the only secrets on disk: `/etc/jarvis/infisical.env`, `root:jarvis`, mode `0640`, loaded by the systemd units, which run `infisical run --env=prod -- pnpm …`.
+- **Server.** A machine identity with Universal Auth, read-only on `prod`. Its client id and secret are the only secrets on disk: `/etc/jarvis/infisical.env`, `root:root`, mode `0600` (systemd reads `EnvironmentFile=` as root, and the engine's user also runs `claude`, so a group-readable file would let a run read the client secret), loaded by the systemd units, which run `infisical run --env=prod -- pnpm …`.
 - **Fallback.** Without Infisical the engine still reads `~/.jarvis/.env` (`--env-file-if-exists`); webinar participants keep the ADR-0007 path.
 - **Rotation.** Change the value in Infisical, `systemctl restart jarvis-engine`.
 
@@ -36,9 +36,10 @@ VPS if the hosted service stops fitting.
 - Good, because no plaintext secrets on the server except the read-only machine identity.
 - Good, because ADR-0007's guarantees hold: secrets are read in `infrastructure/config`, redacted in logs, allow-listed into child envs.
 - Bad, because one more account and CLI; if Infisical is down at start-up the engine does not start (running processes are unaffected).
+- Bad, because a child `claude` runs as the same uid as the engine and can read `/proc/<engine-pid>/environ`, so the injected secrets are not hidden from it; the child-env allow-list limits inheritance only. Accepted for a single-owner server; a separate uid for child processes is the real fix.
 
 ### Confirmation
 - RULE: No secret values in the repo; `.env.example` lists names only.
   CHECK: `git grep -nE "(ghp_|github_pat_|xox[bp]-|secret_)"` (expect none)
-- RULE: On the server the only secret file is `/etc/jarvis/infisical.env`, mode `0640`; there is no `~/.jarvis/.env`.
-  CHECK: `stat -c '%a %U:%G' /etc/jarvis/infisical.env && test ! -e ~jarvis/.jarvis/.env`
+- RULE: On the server the only secret file is `/etc/jarvis/infisical.env`, `root:root`, mode `0600`; there is no `~/.jarvis/.env`.
+  CHECK: `test "$(stat -c '%a %U:%G' /etc/jarvis/infisical.env)" = '600 root:root' && test ! -e ~jarvis/.jarvis/.env`

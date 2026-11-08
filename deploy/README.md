@@ -13,6 +13,10 @@ The engine unit's `ExecStartPost` calls `GET /api/health`, so the engine must be
 
 ## Install
 
+The units run `pnpm` and `node` from systemd's default PATH (`/usr/bin:/bin`, plus `/usr/local/bin`). Install Node
+system-wide (NodeSource, `corepack enable` into `/usr/bin` or `/usr/local/bin`); an nvm install is not on that PATH.
+We document this rather than hard-code `Environment=PATH=`, because the right directories depend on how Node was installed.
+
 ```sh
 sudo cp deploy/systemd/jarvis-*.service /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -21,7 +25,7 @@ tailscale serve --bg 5180
 ```
 
 `/etc/jarvis/infisical.env` (`INFISICAL_CLIENT_ID`, `INFISICAL_CLIENT_SECRET`, `INFISICAL_PROJECT_ID`) must exist
-first (deployment.md §3). `JARVIS_ENV` selects the Infisical environment (default `prod`).
+first (deployment.md §3), owned `root:root`, mode `0600` (systemd reads it as root; `jarvis` and a child `claude` must not). `JARVIS_ENV` selects the Infisical environment (default `prod`).
 
 ## Rebuild after losing the server
 
@@ -33,8 +37,37 @@ first (deployment.md §3). `JARVIS_ENV` selects the Infisical environment (defau
 
 ## Update
 
+The sequence is in [`deployment.md` §5](../docs/architecture/deployment.md#5-update); it is kept in one place only.
+
+## Notes
+
+- `After=docker.service` does not mean Postgres accepts connections; `Restart=on-failure` covers that gap.
+- `with-secrets.sh` passes no `--domain`, so it assumes Infisical Cloud US.
+
+## Residual risk
+
+A child `claude` runs as `jarvis`, the same user as the engine, so it can read `/proc/<engine-pid>/environ` and every
+secret `infisical run` injected, including the short-lived `INFISICAL_TOKEN`. The allow-list in `child-env.ts` limits
+what a child inherits; it cannot stop a same-uid process reading a sibling's environment. Accepted for now on a
+single-owner box. The real fix is a separate uid for child `claude` processes (a task of its own: ADR-0007, worktree
+permissions, `~/.claude`).
+
+## Not verified yet
+
+Nothing here has been executed on a server:
+
+- the Infisical branch of `scripts/with-secrets.sh` (the CLI is not installed locally and no project exists yet);
+- the systemd units (never loaded by systemd);
+- the `ExecStartPost` health curl (`/api/health` lands in a later task).
+
+Smoke test on the server. It prints names and counts, never values. The env file is `0600 root`, so check it as root:
+
 ```sh
-cd ~/jarvis && git pull && pnpm install --frozen-lockfile && pnpm --filter @jarvis/web build \
-  && scripts/with-secrets.sh pnpm --filter @jarvis/engine db:migrate \
-  && sudo systemctl restart jarvis-engine jarvis-web
+sudo sh -c 'for v in INFISICAL_CLIENT_ID INFISICAL_CLIENT_SECRET INFISICAL_PROJECT_ID; do grep -q "^$v=." /etc/jarvis/infisical.env && echo "$v set" || echo "$v MISSING"; done'
+```
+
+Then, as `jarvis`, load the file through systemd's view of it (for example `sudo systemd-run --uid=jarvis -p EnvironmentFile=/etc/jarvis/infisical.env -P /home/jarvis/jarvis/scripts/with-secrets.sh sh -c 'env | cut -d= -f1 | grep -c "^GITHUB_TOKEN$"'`; `1` means injected), and finally:
+
+```sh
+sudo systemctl status jarvis-engine --no-pager | head -5
 ```

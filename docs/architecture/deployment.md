@@ -54,10 +54,12 @@ claude -p "ping"  # must answer without ANTHROPIC_API_KEY
 2. Organization → Machine identities → `jarvis-vps`, Universal Auth, read-only role on `prod`.
 3. On the server, as root:
    ```sh
-   install -d -m 0750 -o root -g jarvis /etc/jarvis
+   install -d -m 0755 -o root -g root /etc/jarvis
+   install -m 0600 -o root -g root /dev/null /etc/jarvis/infisical.env
    printf 'INFISICAL_CLIENT_ID=...\nINFISICAL_CLIENT_SECRET=...\nINFISICAL_PROJECT_ID=...\n' > /etc/jarvis/infisical.env
-   chown root:jarvis /etc/jarvis/infisical.env && chmod 0640 /etc/jarvis/infisical.env
    ```
+
+   The file is `root:root 0600`: systemd reads `EnvironmentFile=` as root, and a child `claude` running as `jarvis` must not be able to read the long-lived client secret.
 4. Install the Infisical CLI on the server and on the laptop. Laptop: `infisical login && infisical run --env=dev -- pnpm dev`.
 
 ## 3a. Connectors
@@ -82,6 +84,8 @@ The units are `deploy/systemd/jarvis-engine.service` and `jarvis-web.service`; t
 ```sh
 sudo cp deploy/systemd/jarvis-*.service /etc/systemd/system/ && sudo systemctl daemon-reload
 ```
+
+`After=docker.service` does not mean Postgres accepts connections; the `Restart=on-failure` cycle covers that gap.
 
 Then `systemctl enable --now jarvis-engine jarvis-web` and `tailscale serve --bg 5180`. Open
 `https://<host>.<tailnet>.ts.net` from any device in your tailnet.
