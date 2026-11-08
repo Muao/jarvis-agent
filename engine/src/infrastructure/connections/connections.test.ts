@@ -275,7 +275,8 @@ describe('Notion, Google Docs, Claude Design and Slack', () => {
     });
     expect(await connections.check('google_docs')).toMatchObject({
       status: 'not_configured',
-      summary: 'Not configured: connectors.googleFolder.',
+      summary:
+        'Not configured: GOOGLE_DRIVE_MCP_REFRESH_TOKEN, GOOGLE_DRIVE_MCP_CLIENT_ID, GOOGLE_DRIVE_MCP_CLIENT_SECRET, connectors.googleFolder.',
     });
     expect(await connections.check('claude_design')).toMatchObject({ status: 'not_configured' });
     expect(await connections.check('slack')).toEqual({
@@ -297,9 +298,50 @@ describe('Notion, Google Docs, Claude Design and Slack', () => {
       details: [{ label: 'Root page', value: 'https://notion.so/root' }],
     });
     expect(JSON.stringify(notion)).not.toContain('ntn_secret');
-    expect(await connections.check('google_docs')).toMatchObject({
-      status: 'ok',
-      details: [{ label: 'Folder', value: 'folder-1' }],
+  });
+
+  describe('Google Docs credential', () => {
+    const google = {
+      GOOGLE_DRIVE_MCP_REFRESH_TOKEN: 'rt_secret',
+      GOOGLE_DRIVE_MCP_CLIENT_ID: 'client-id',
+      GOOGLE_DRIVE_MCP_CLIENT_SECRET: 'cs_secret',
+    };
+
+    it('is configured with all three variables and a folder, naming the mode and hiding secrets', async () => {
+      const result = await checks({
+        env: google,
+        config: withConnectors({ googleFolder: 'folder-1' }),
+      }).check('google_docs');
+
+      expect(result).toMatchObject({
+        status: 'ok',
+        details: [
+          { label: 'Mode', value: 'OAuth refresh token from environment' },
+          { label: 'Folder', value: 'folder-1' },
+        ],
+      });
+      expect(JSON.stringify(result)).not.toMatch(/rt_secret|cs_secret/);
+    });
+
+    it('names the variables that are missing', async () => {
+      const result = await checks({
+        env: { GOOGLE_DRIVE_MCP_CLIENT_ID: 'client-id', GOOGLE_DRIVE_MCP_CLIENT_SECRET: '' },
+        config: withConnectors({ googleFolder: 'folder-1' }),
+      }).check('google_docs');
+
+      expect(result).toMatchObject({
+        status: 'not_configured',
+        summary: 'Not configured: GOOGLE_DRIVE_MCP_REFRESH_TOKEN, GOOGLE_DRIVE_MCP_CLIENT_SECRET.',
+      });
+    });
+
+    it('names the folder when the credential is complete but the folder is not set', async () => {
+      const result = await checks({ env: google }).check('google_docs');
+
+      expect(result).toMatchObject({
+        status: 'not_configured',
+        summary: 'Not configured: connectors.googleFolder.',
+      });
     });
   });
 

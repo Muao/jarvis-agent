@@ -27,6 +27,22 @@ tailscale serve --bg 5180
 `/etc/jarvis/infisical.env` (`INFISICAL_CLIENT_ID`, `INFISICAL_CLIENT_SECRET`, `INFISICAL_PROJECT_ID`) must exist
 first (deployment.md §3), owned `root:root`, mode `0600` (systemd reads it as root; `jarvis` and a child `claude` must not). `JARVIS_ENV` selects the Infisical environment (default `prod`).
 
+## Connectors
+
+The Google Docs connector needs nothing on the server: its refresh token comes from Infisical as environment
+variables (`docs/architecture/connectors.md`, way 1). The steps below are **only if the chosen server cannot read
+its token from env**. The Google Docs server can, so this is a fallback for a future connector, not for this one.
+
+```sh
+ssh -L <port>:127.0.0.1:<port> jarvis@<host>     # <port> = the callback port the MCP server prints
+# on the server, as jarvis:
+<mcp server's auth command>                      # prints an https://accounts.google.com/... URL
+# open that URL in the laptop's browser, grant access; the redirect to localhost:<port> goes through the tunnel
+chmod 600 <token file>
+```
+
+The token then sits in plaintext on the server disk; see "Way 2" in the connectors doc for the risks and rotation.
+
 ## Rebuild after losing the server
 
 1. Restore the Hetzner snapshot (it holds Postgres, `~/.jarvis` and `~/.claude`).

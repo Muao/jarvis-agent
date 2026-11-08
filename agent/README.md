@@ -34,3 +34,28 @@ prompt because the CLI fixes the system prompt for the life of a session; the fi
 each run, so profile edits apply from the next run.
 
 The `deny` rules in `settings/worker.json` implement SEC-01 and SEC-02 and must stay: deny wins over allow.
+
+## Connectors (`~/.jarvis/mcp/servers.json`)
+
+Connector MCP servers are not part of the plugin; the owner lists them in `~/.jarvis/mcp/servers.json`, and the
+engine substitutes `${VAR}` from its environment into each run's `mcp.json`. Google Docs (decision and setup:
+`docs/architecture/connectors.md`):
+
+```json
+{
+  "mcpServers": {
+    "google-drive": {
+      "command": "npx",
+      "args": ["-y", "@piotr-agier/google-drive-mcp@2.13.0"],
+      "env": {
+        "GOOGLE_DRIVE_MCP_REFRESH_TOKEN": "${GOOGLE_DRIVE_MCP_REFRESH_TOKEN}",
+        "GOOGLE_DRIVE_MCP_CLIENT_ID": "${GOOGLE_DRIVE_MCP_CLIENT_ID}",
+        "GOOGLE_DRIVE_MCP_CLIENT_SECRET": "${GOOGLE_DRIVE_MCP_CLIENT_SECRET}"
+      }
+    }
+  }
+}
+```
+
+The version is pinned on purpose. `GOOGLE_DRIVE_MCP_SCOPES` is deliberately absent: in this mode it does nothing,
+the token's rights are fixed when it is authorised.

@@ -23,6 +23,13 @@ export interface ConnectionChecksOptions {
 
 const present = (value: string | undefined): boolean => value !== undefined && value !== '';
 
+/** The variables the Google Drive MCP server reads in external-token mode (docs/architecture/connectors.md). */
+const GOOGLE_VARS = [
+  'GOOGLE_DRIVE_MCP_REFRESH_TOKEN',
+  'GOOGLE_DRIVE_MCP_CLIENT_ID',
+  'GOOGLE_DRIVE_MCP_CLIENT_SECRET',
+] as const;
+
 /** The Connections screen's probes (CTX-01…CTX-05, SEC-04, SEC-05) behind the `ConnectionChecks` port. */
 export function createConnectionChecks(options: ConnectionChecksOptions): ConnectionChecks {
   const { config, env } = options;
@@ -50,9 +57,17 @@ export function createConnectionChecks(options: ConnectionChecksOptions): Connec
       }),
       google_docs: connectorProbe(() => {
         const folder = config.current().connectors.googleFolder;
+        // Credential (env) and target (config folder) are reported together, so a half-configured
+        // connector names the half that is missing.
         return {
-          missing: folder === undefined ? ['connectors.googleFolder'] : [],
-          details: folder === undefined ? [] : [detail('Folder', folder)],
+          missing: [
+            ...GOOGLE_VARS.filter((name) => !present(env[name])),
+            ...(folder === undefined ? ['connectors.googleFolder'] : []),
+          ],
+          details: [
+            detail('Mode', 'OAuth refresh token from environment'),
+            ...(folder === undefined ? [] : [detail('Folder', folder)]),
+          ],
         };
       }),
       claude_design: fixedProbe('not_configured', 'Design handoff is manual in iteration 1.'),
