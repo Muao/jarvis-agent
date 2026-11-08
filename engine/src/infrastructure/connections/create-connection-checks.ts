@@ -31,7 +31,12 @@ export function createConnectionChecks(options: ConnectionChecksOptions): Connec
     billingEnvDetected: () => billingVarsIn(env).length > 0,
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
     probes: {
-      claude: claudeCliProbe({ binary: () => config.current().engine.claudeBinary, exec, env, clock: options.clock }),
+      claude: claudeCliProbe({
+        binary: () => config.current().engine.claudeBinary,
+        exec,
+        env,
+        clock: options.clock,
+      }),
       github: githubProbe(options.github),
       notion: connectorProbe(() => {
         const root = config.current().connectors.notionRoot;
