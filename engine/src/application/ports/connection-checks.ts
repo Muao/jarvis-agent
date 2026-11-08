@@ -2,7 +2,7 @@ import type { ConnectionId } from '@jarvis/shared';
 
 /** The outcome of probing one connection. `details` never carries a token (SEC-04). */
 export interface ConnectionOutcome {
-  readonly status: 'ok' | 'failed' | 'not_configured' | 'disabled';
+  readonly status: 'ok' | 'warning' | 'failed' | 'not_configured' | 'disabled';
   readonly summary: string;
   /** Claude only: logged in with the subscription (`true`) or another way (`false`); absent or `null` when unknown. */
   readonly subscription?: boolean | null;

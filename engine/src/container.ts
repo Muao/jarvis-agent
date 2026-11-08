@@ -199,10 +199,11 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
     void hub.publish({ type: 'overview' });
   });
 
+  const clock = new SystemClock();
   const app = createApplication({
     uow: new PgUnitOfWork(createDatabase(pool)),
     ids: new CryptoIdGenerator(),
-    clock: new SystemClock(),
+    clock,
     logger,
     config: provider,
     worktrees: new GitWorktreeManager({
@@ -221,7 +222,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
       soul: join(AGENT_DIR, 'SOUL.md'),
       user: home.userFile,
     }),
-    connections: createConnectionChecks({ config: provider, env: options.env, github }),
+    connections: createConnectionChecks({ config: provider, env: options.env, github, clock }),
     owner: new WebOwnerChannel(hub),
     events: hub,
   });

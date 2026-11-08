@@ -1,6 +1,6 @@
 import { ConnectionIdSchema, type ConnectionId } from '@jarvis/shared';
 import { describe, expect, it, vi } from 'vitest';
-import { StaticConfigProvider } from '../../application/testing/index.js';
+import { FakeClock, StaticConfigProvider } from '../../application/testing/index.js';
 import type { ConnectionChecker, GitHubConnectionStatus } from '../github/index.js';
 import { createConnectionChecks } from './create-connection-checks.js';
 import type { Exec, ExecResult } from './exec.js';
@@ -27,6 +27,20 @@ const LOGGED_IN = JSON.stringify({
   subscriptionType: 'max',
 });
 
+const SENSITIVE = {
+  email: 'owner@example.com',
+  orgId: 'org-SENSITIVE-ID',
+  orgName: 'SENSITIVE Org Name',
+} as const;
+
+/** SEC-04: none of the account fields appears anywhere in the outcome; one assertion per field. */
+function expectNoAccountData(outcome: unknown): void {
+  const text = JSON.stringify(outcome);
+  expect(text, 'email leaked').not.toContain(SENSITIVE.email);
+  expect(text, 'orgId leaked').not.toContain(SENSITIVE.orgId);
+  expect(text, 'orgName leaked').not.toContain(SENSITIVE.orgName);
+}
+
 function checks(
   options: {
     exec?: Exec;
@@ -34,12 +48,14 @@ function checks(
     github?: ConnectionChecker | null;
     config?: StaticConfigProvider;
     timeoutMs?: number;
+    now?: string;
   } = {},
 ) {
   return createConnectionChecks({
     config: options.config ?? new StaticConfigProvider(),
     env: options.env ?? {},
     github: options.github ?? null,
+    clock: new FakeClock(options.now),
     exec: options.exec ?? fakeClaude({ version: VERSION, auth: LOGGED_IN }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
   });
@@ -86,6 +102,68 @@ describe('Claude CLI check', () => {
     expect(outcome).toMatchObject({
       status: 'failed',
       summary: 'Not logged in. Run `claude auth login`.',
+    });
+  });
+
+  describe('login expiry', () => {
+    const NOW = '2026-11-01T00:00:00.000Z';
+    const at = (iso: string) =>
+      checks({
+        now: NOW,
+        exec: fakeClaude({
+          version: VERSION,
+          auth: JSON.stringify({
+            loggedIn: true,
+            authMethod: 'claude.ai',
+            ...SENSITIVE,
+            subscriptionType: 'max',
+            loginExpiresAt: iso,
+          }),
+        }),
+      }).check('claude');
+
+    it('fails with the login hint once the login has expired', async () => {
+      const outcome = await at('2026-10-31T23:59:59.000Z');
+
+      expect(outcome.status).toBe('failed');
+      expect(outcome.summary).toBe('Login expired on 2026-10-31. Run `claude` and /login.');
+      expectNoAccountData(outcome);
+    });
+
+    it('fails at the exact expiry instant', async () => {
+      expect((await at(NOW)).status).toBe('failed');
+    });
+
+    it('warns just under 7 days before the expiry', async () => {
+      const outcome = await at('2026-11-07T23:59:59.000Z');
+
+      expect(outcome).toMatchObject({ status: 'warning', summary: 'Login expires in 6 days' });
+      expectNoAccountData(outcome);
+    });
+
+    it('is ok from 7 days before the expiry and shows the date', async () => {
+      const outcome = await at('2026-11-08T00:00:00.000Z');
+
+      expect(outcome.status).toBe('ok');
+      expect(outcome.summary).toBe('Logged in · Max');
+      expect(outcome.details).toContainEqual({ label: 'Expires', value: '2026-11-08' });
+    });
+
+    it('stays ok with a comfortable expiry and leaks no account data', async () => {
+      const outcome = await at('2027-03-01T00:00:00.000Z');
+
+      expect(outcome.status).toBe('ok');
+      expectNoAccountData(outcome);
+    });
+
+    it('says 1 day when less than two days remain', async () => {
+      expect((await at('2026-11-01T12:00:00.000Z')).summary).toBe('Login expires in 1 day');
+    });
+
+    it.each(['not a date', '', 42])('stays ok when the expiry is unusable (%s)', async (value) => {
+      const outcome = await at(value as string);
+
+      expect(outcome.status).toBe('ok');
     });
   });
 

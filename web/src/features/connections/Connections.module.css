@@ -49,6 +49,10 @@
   color: var(--color-success);
 }
 
+.warning {
+  color: var(--color-warning);
+}
+
 .failed {
   color: var(--color-danger);
 }

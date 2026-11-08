@@ -13,7 +13,7 @@ export type ConnectionId = z.infer<typeof ConnectionIdSchema>;
 
 export const ConnectionDtoSchema = z.object({
   id: ConnectionIdSchema,
-  status: z.enum(['ok', 'failed', 'checking', 'not_configured', 'disabled']),
+  status: z.enum(['ok', 'warning', 'failed', 'checking', 'not_configured', 'disabled']),
   summary: z.string(),
   /** Display pairs such as `Account: jarvis-bot`; never a token (SEC-04). */
   details: z.array(z.object({ label: z.string(), value: z.string() })),

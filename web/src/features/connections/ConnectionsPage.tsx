@@ -16,6 +16,7 @@ const NAMES: Record<ConnectionId, string> = {
 
 const STATUS_LABEL: Record<ConnectionDto['status'], string> = {
   ok: 'Connected',
+  warning: 'Warning',
   failed: 'Error',
   checking: 'Checking…',
   not_configured: 'Not configured',
@@ -52,9 +53,15 @@ function ConnectionRow({
           <>
             <p>
               <span
-                className={`${styles.status} ${connection.status === 'ok' ? styles.ok : ''} ${connection.status === 'failed' ? styles.failed : ''}`}
+                className={`${styles.status} ${connection.status === 'ok' ? styles.ok : ''} ${connection.status === 'warning' ? styles.warning : ''} ${connection.status === 'failed' ? styles.failed : ''}`}
               >
-                {connection.status === 'ok' ? '✓ ' : connection.status === 'failed' ? '✕ ' : ''}
+                {connection.status === 'ok'
+                  ? '✓ '
+                  : connection.status === 'warning'
+                    ? '⚠ '
+                    : connection.status === 'failed'
+                      ? '✕ '
+                      : ''}
                 {STATUS_LABEL[status]}
               </span>
               {connection.summary ? ` — ${connection.summary}` : null}

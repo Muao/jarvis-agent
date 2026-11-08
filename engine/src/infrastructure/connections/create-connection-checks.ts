@@ -1,3 +1,4 @@
+import type { Clock } from '../../application/ports/clock.js';
 import type { ConfigProvider } from '../../application/ports/config-provider.js';
 import type { ConnectionChecks } from '../../application/ports/connection-checks.js';
 import { buildChildEnv } from '../claude/child-env.js';
@@ -15,6 +16,7 @@ export interface ConnectionChecksOptions {
   readonly env: EnvSource;
   /** The GitHub code host; null when `GITHUB_TOKEN` is not set. */
   readonly github: ConnectionChecker | null;
+  readonly clock: Clock;
   readonly exec?: Exec;
   readonly timeoutMs?: number;
 }
@@ -29,7 +31,7 @@ export function createConnectionChecks(options: ConnectionChecksOptions): Connec
     billingEnvDetected: () => billingVarsIn(env).length > 0,
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
     probes: {
-      claude: claudeCliProbe({ binary: () => config.current().engine.claudeBinary, exec, env }),
+      claude: claudeCliProbe({ binary: () => config.current().engine.claudeBinary, exec, env, clock: options.clock }),
       github: githubProbe(options.github),
       notion: connectorProbe(() => {
         const root = config.current().connectors.notionRoot;
