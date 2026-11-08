@@ -9,6 +9,7 @@ import {
   TaskDtoSchema,
   ThreadDetailDtoSchema,
   ThreadDtoSchema,
+  UsageReportSchema,
 } from '@jarvis/shared';
 import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -486,5 +487,49 @@ describe('GET /api/health', () => {
     expect(res.statusCode).toBe(code);
     expect(res.json()).toMatchObject({ status, claude });
     expect(app.connections.checked).toEqual([]);
+  });
+});
+
+describe('usage', () => {
+  it('GET /api/usage reports the last seven days by default, grouped by day', async () => {
+    const { http, app } = start();
+
+    const res = await http.inject({ method: 'GET', url: '/api/usage' });
+
+    expect(res.statusCode).toBe(200);
+    const report = UsageReportSchema.parse(res.json());
+    expect(report.groupBy).toBe('day');
+    expect(report.to).toBe(app.clock.now());
+    expect(Date.parse(report.to) - Date.parse(report.from)).toBe(7 * 86_400_000);
+    expect(report.total.runs).toBe(0);
+  });
+
+  it('GET /api/usage accepts every grouping and an explicit window', async () => {
+    const { http } = start();
+    for (const groupBy of ['day', 'session', 'task', 'model']) {
+      const res = await http.inject({
+        method: 'GET',
+        url: `/api/usage?from=2026-01-01T00:00:00Z&to=2026-01-08T00:00:00Z&groupBy=${groupBy}`,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(UsageReportSchema.parse(res.json()).groupBy).toBe(groupBy);
+    }
+  });
+
+  it.each([
+    ['from after to', 'from=2026-01-08T00:00:00Z&to=2026-01-01T00:00:00Z'],
+    ['a window over 366 days', 'from=2020-01-01T00:00:00Z&to=2026-01-01T00:00:00Z'],
+    ['a malformed date', 'from=yesterday'],
+    ['an unknown groupBy', 'groupBy=week'],
+    ['an unknown parameter', 'limit=5'],
+  ])('GET /api/usage rejects %s with 400', async (_name, query) => {
+    const { http } = start();
+
+    const res = await http.inject({ method: 'GET', url: `/api/usage?${query}` });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({
+      code: expect.stringMatching(/^(validation_failed|invalid_input)$/),
+    });
   });
 });

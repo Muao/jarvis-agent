@@ -1,10 +1,22 @@
-import { ROLES, type Role, type RunEvent, type RunStatus, type StopReason } from '@jarvis/shared';
+import {
+  ROLES,
+  type Role,
+  type RunEvent,
+  type RunStatus,
+  type StopReason,
+  type TaskStage,
+  type UsageGroupBy,
+} from '@jarvis/shared';
 import { and, asc, desc, eq, gt, gte, isNotNull, sql } from 'drizzle-orm';
 import type { RunEventBody } from '../../application/ports/agent-runner.js';
 import type {
   RunRepository,
   RunTotals,
+  UsageAggregate,
   UsageBreakdown,
+  UsageFigures,
+  UsageGroup,
+  UsageWindow,
 } from '../../application/ports/run-repository.js';
 import type { IsoTime, Run } from '../../domain/index.js';
 import type { Executor } from './client.js';
@@ -12,6 +24,123 @@ import { runEvents, runs } from './schema.js';
 import { toDate, toDateOrNull, toIso, toIsoOrNull } from './time.js';
 
 type Row = typeof runs.$inferSelect;
+
+/** Replaced by the bound window predicate (see `usageReport`); values never enter the SQL text. */
+const IN_WINDOW = '__WINDOW__';
+
+/** One row per run (or per run and model) with the columns every grouping shares; `r` is `runs`. */
+const RUN_COLUMNS = `
+  r.cost_usd as cost, r.turns as turns,
+  r.tokens_input as t_in, r.tokens_output as t_out,
+  r.tokens_cache_read as t_cr, r.tokens_cache_write as t_cw,
+  case when r.finished_at is null then 0
+       else extract(epoch from (r.finished_at - r.started_at)) * 1000 end as dur,
+  case when r.status = 'running' then 'running' else coalesce(r.stop_reason, 'unknown') end as reason`;
+
+const NO_META = `null::text as role, null::text as thread_id, null::text as task_id, null::text as stage`;
+
+/**
+ * The per-run source of a report. `model` unnests the `model_usage` jsonb with `jsonb_each` (a lateral
+ * join): one row per run and model, with that model's own tokens and cost. Turns and duration are
+ * per run, not per model, so those rows carry 0 rather than a figure counted once per model.
+ */
+function usageSource(groupBy: UsageGroupBy | 'total'): string {
+  switch (groupBy) {
+    case 'total':
+      return `select '' as key, ${NO_META}, ${RUN_COLUMNS} from runs r where ${IN_WINDOW}`;
+    case 'day':
+      return `select to_char(r.started_at at time zone 'UTC', 'YYYY-MM-DD') as key, ${NO_META}, ${RUN_COLUMNS}
+        from runs r where ${IN_WINDOW}`;
+    case 'session':
+      return `select r.session_id as key, r.role as role, r.thread_id as thread_id, r.task_id as task_id,
+        null::text as stage, ${RUN_COLUMNS} from runs r where ${IN_WINDOW}`;
+    case 'task':
+      return `select r.task_id as key, null::text as role, null::text as thread_id, null::text as task_id,
+        t.stage as stage, ${RUN_COLUMNS} from runs r join tasks t on t.id = r.task_id where ${IN_WINDOW}`;
+    case 'model':
+      return `select m.key as key, ${NO_META},
+        (m.value->>'costUsd')::float8 as cost, 0 as turns,
+        (m.value->>'input')::bigint as t_in, (m.value->>'output')::bigint as t_out,
+        (m.value->>'cacheRead')::bigint as t_cr, (m.value->>'cacheWrite')::bigint as t_cw,
+        0 as dur,
+        case when r.status = 'running' then 'running' else coalesce(r.stop_reason, 'unknown') end as reason
+        from runs r cross join lateral jsonb_each(r.model_usage) as m(key, value) where ${IN_WINDOW}`;
+  }
+}
+
+/** Groups by (key, reason) first so the reasons fold into one jsonb object per key. */
+const AGGREGATE = (source: string, order: string): string => `
+  with src as (${source}),
+  by_reason as (
+    select key, reason, max(role) as role, max(thread_id) as thread_id, max(task_id) as task_id,
+      max(stage) as stage, count(*) as n, sum(cost) as cost, sum(turns) as turns,
+      sum(t_in) as t_in, sum(t_out) as t_out, sum(t_cr) as t_cr, sum(t_cw) as t_cw, sum(dur) as dur
+    from src group by key, reason
+  )
+  select key, max(role) as role, max(thread_id) as thread_id, max(task_id) as task_id, max(stage) as stage,
+    sum(n)::int as runs, coalesce(sum(cost), 0)::float8 as cost_usd, coalesce(sum(turns), 0)::int as turns,
+    coalesce(sum(t_in), 0)::float8 as t_in, coalesce(sum(t_out), 0)::float8 as t_out,
+    coalesce(sum(t_cr), 0)::float8 as t_cr, coalesce(sum(t_cw), 0)::float8 as t_cw,
+    coalesce(sum(dur), 0)::float8 as dur,
+    jsonb_object_agg(reason, n) as stop_reasons
+  from by_reason group by key ${order}`;
+
+type AggregateRow = {
+  readonly key: string;
+  readonly role: string | null;
+  readonly thread_id: string | null;
+  readonly task_id: string | null;
+  readonly stage: string | null;
+  readonly runs: number;
+  readonly cost_usd: number;
+  readonly turns: number;
+  readonly t_in: number;
+  readonly t_out: number;
+  readonly t_cr: number;
+  readonly t_cw: number;
+  readonly dur: number;
+  readonly stop_reasons: Record<string, number>;
+};
+
+const figuresOf = (row: AggregateRow): UsageFigures => ({
+  runs: row.runs,
+  costUsd: row.cost_usd,
+  turns: row.turns,
+  tokens: { input: row.t_in, output: row.t_out, cacheRead: row.t_cr, cacheWrite: row.t_cw },
+  stopReasons: row.stop_reasons,
+  durationMs: Math.round(row.dur),
+});
+
+const ORDER_BY: Record<UsageGroupBy, string> = {
+  day: 'order by key asc',
+  session: 'order by cost_usd desc, key asc',
+  task: 'order by cost_usd desc, key asc',
+  model: 'order by cost_usd desc, key asc',
+};
+
+const groupOf = (groupBy: UsageGroupBy, row: AggregateRow): UsageGroup => {
+  const figures = figuresOf(row);
+  if (groupBy === 'session') {
+    return {
+      key: row.key,
+      ...figures,
+      role: row.role as Role,
+      threadId: row.thread_id ?? '',
+      taskId: row.task_id,
+    };
+  }
+  if (groupBy === 'task') return { key: row.key, ...figures, stage: row.stage as TaskStage };
+  return { key: row.key, ...figures };
+};
+
+const EMPTY_FIGURES: UsageFigures = {
+  runs: 0,
+  costUsd: 0,
+  turns: 0,
+  tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+  stopReasons: {},
+  durationMs: 0,
+};
 
 const toDomain = (row: Row): Run => ({
   id: row.id,
@@ -170,6 +299,26 @@ export class PgRunRepository implements RunRepository {
       byTask: taskRows.flatMap(({ taskId, costUsd }) =>
         taskId === null ? [] : [{ taskId, costUsd }],
       ),
+    };
+  }
+
+  async usageReport(window: UsageWindow, groupBy: UsageGroupBy): Promise<UsageAggregate> {
+    const inWindow = sql`r.started_at >= ${toDate(window.from)} and r.started_at < ${toDate(window.to)}`;
+    const query = (text: string) =>
+      this.db.execute<AggregateRow>(
+        sql.join(
+          text.split(IN_WINDOW).map((chunk) => sql.raw(chunk)),
+          inWindow,
+        ),
+      );
+    const [grouped, total] = await Promise.all([
+      query(AGGREGATE(usageSource(groupBy), ORDER_BY[groupBy])),
+      query(AGGREGATE(usageSource('total'), '')),
+    ]);
+    const [totalRow] = total.rows;
+    return {
+      rows: grouped.rows.map((row) => groupOf(groupBy, row)),
+      total: totalRow === undefined ? EMPTY_FIGURES : figuresOf(totalRow),
     };
   }
 

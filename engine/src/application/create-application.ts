@@ -12,6 +12,7 @@ import { GetConfig } from './queries/get-config.js';
 import { GetConnections } from './queries/get-connections.js';
 import { GetHealth } from './queries/get-health.js';
 import { GetOverview } from './queries/get-overview.js';
+import { GetUsage } from './queries/get-usage.js';
 import { GetRunEvents } from './queries/get-run-events.js';
 import { GetSession } from './queries/get-session.js';
 import { GetTask } from './queries/get-task.js';
@@ -131,6 +132,7 @@ export interface Application {
   readonly getConfig: GetConfig;
   readonly getConnections: GetConnections;
   readonly getHealth: GetHealth;
+  readonly getUsage: GetUsage;
 }
 
 /** Wires the use cases of conversation/, tasks/, runs/, permissions/, code-host/, supervision/ and recovery/ over the given ports. */
@@ -244,6 +246,7 @@ export function createApplication(ports: ApplicationPorts): Application {
       profile: ports.profileFiles,
     }),
     getConnections: new GetConnections({ checks: ports.connections, clock }),
+    getUsage: new GetUsage({ uow, clock }),
     getHealth: new GetHealth({
       database: ports.database,
       checks: ports.connections,

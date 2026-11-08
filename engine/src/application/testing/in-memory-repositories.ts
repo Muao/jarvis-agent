@@ -1,7 +1,21 @@
-import { ROLES, type Role, type RunEvent } from '@jarvis/shared';
-import { isActive, isAnswered, isCard, type Message, type Task } from '../../domain/index.js';
+import { ROLES, type Role, type RunEvent, type TaskStage, type UsageGroupBy } from '@jarvis/shared';
+import {
+  isActive,
+  isAnswered,
+  isCard,
+  type Message,
+  type Run,
+  type Task,
+} from '../../domain/index.js';
 import type { RunEventBody } from '../ports/agent-runner.js';
-import type { RunTotals, UsageBreakdown } from '../ports/run-repository.js';
+import type {
+  RunTotals,
+  UsageAggregate,
+  UsageBreakdown,
+  UsageFigures,
+  UsageGroup,
+  UsageWindow,
+} from '../ports/run-repository.js';
 import type { JournalEntry, JournalRepository } from '../ports/journal-repository.js';
 import type { MessageRepository } from '../ports/message-repository.js';
 import type { PermissionRepository } from '../ports/permission-repository.js';
@@ -179,6 +193,91 @@ class InMemoryRunRepository implements RunRepository {
         .map(([taskId, costUsd]) => ({ taskId, costUsd }))
         .sort((a, b) => b.costUsd - a.costUsd || a.taskId.localeCompare(b.taskId)),
     };
+  };
+  usageReport = async (window: UsageWindow, groupBy: UsageGroupBy): Promise<UsageAggregate> => {
+    // The same grouping the SQL does, written the obvious way so the contract test compares the two.
+    interface Part {
+      readonly key: string;
+      readonly run: Run;
+      readonly tokens: Run['usage'];
+      readonly costUsd: number;
+      readonly turns: number;
+      readonly durationMs: number;
+    }
+    const start = Date.parse(window.from);
+    const end = Date.parse(window.to);
+    const inWindow = [...this.db.tables.runs.values()].filter((r) => {
+      const at = Date.parse(r.startedAt);
+      return at >= start && at < end;
+    });
+    const wholeRun = (run: Run, key: string): Part => ({
+      key,
+      run,
+      tokens: run.usage,
+      costUsd: run.costUsd,
+      turns: run.turns,
+      durationMs:
+        run.finishedAt === null ? 0 : Date.parse(run.finishedAt) - Date.parse(run.startedAt),
+    });
+    const figures = (parts: readonly Part[]): UsageFigures => {
+      const stopReasons: Record<string, number> = {};
+      const tokens = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+      for (const part of parts) {
+        const reason =
+          part.run.status === 'running' ? 'running' : (part.run.stopReason ?? 'unknown');
+        stopReasons[reason] = (stopReasons[reason] ?? 0) + 1;
+        tokens.input += part.tokens.input;
+        tokens.output += part.tokens.output;
+        tokens.cacheRead += part.tokens.cacheRead;
+        tokens.cacheWrite += part.tokens.cacheWrite;
+      }
+      return {
+        runs: parts.length,
+        costUsd: parts.reduce((sum, p) => sum + p.costUsd, 0),
+        turns: parts.reduce((sum, p) => sum + p.turns, 0),
+        tokens,
+        stopReasons,
+        durationMs: parts.reduce((sum, p) => sum + p.durationMs, 0),
+      };
+    };
+    const parts: Part[] = inWindow.flatMap((run): Part[] => {
+      switch (groupBy) {
+        case 'day':
+          return [wholeRun(run, run.startedAt.slice(0, 10))];
+        case 'session':
+          return [wholeRun(run, run.sessionId)];
+        case 'task':
+          return run.taskId === null ? [] : [wholeRun(run, run.taskId)];
+        case 'model':
+          return Object.entries(run.modelUsage).map(([model, usage]) => ({
+            key: model,
+            run,
+            tokens: usage,
+            costUsd: usage.costUsd,
+            turns: 0,
+            durationMs: 0,
+          }));
+      }
+    });
+    const byKey = new Map<string, Part[]>();
+    for (const part of parts) byKey.set(part.key, [...(byKey.get(part.key) ?? []), part]);
+    const rows = [...byKey.entries()].map(([key, group]): UsageGroup => {
+      const first = group[0]!.run;
+      const base = { key, ...figures(group) };
+      if (groupBy === 'session') {
+        return { ...base, role: first.role, threadId: first.threadId, taskId: first.taskId };
+      }
+      if (groupBy === 'task') {
+        return { ...base, stage: this.db.tables.tasks.get(key)!.stage as TaskStage };
+      }
+      return base;
+    });
+    rows.sort((a, b) =>
+      groupBy === 'day'
+        ? a.key.localeCompare(b.key)
+        : b.costUsd - a.costUsd || a.key.localeCompare(b.key),
+    );
+    return { rows, total: figures(inWindow.map((run) => wholeRun(run, ''))) };
   };
   lastEvent = async (runId: string) => this.db.tables.runEvents.get(runId)?.at(-1) ?? null;
   events = async (runId: string, afterSeq = -1) =>

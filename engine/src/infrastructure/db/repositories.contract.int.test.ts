@@ -530,6 +530,168 @@ function contract(name: string, make: () => Repositories): void {
         });
       });
 
+      describe('usage report', () => {
+        const usage = (input: number) => ({
+          input,
+          output: input * 2,
+          cacheRead: 3,
+          cacheWrite: 4,
+        });
+        const WINDOW = { from: '2026-01-01T00:00:00.000Z', to: '2026-01-03T00:00:00.000Z' };
+
+        async function seedReportRuns(repos: Repositories): Promise<void> {
+          await seedThread(repos);
+          await seedTask(repos, 'T-1');
+          await seedTask(repos, 'T-2', { stage: 'Done' });
+          for (const id of ['s-a', 's-b']) {
+            await repos.sessions.save({
+              id,
+              role: 'worker',
+              threadId: THREAD,
+              taskId: null,
+              claudeSessionId: null,
+            });
+          }
+          const opus = { 'claude-opus': { ...usage(10), costUsd: 1 } };
+          const mixed = {
+            'claude-opus': { ...usage(1), costUsd: 0.5 },
+            'claude-haiku': { ...usage(2), costUsd: 0.25 },
+          };
+          // Two sessions, three runs; r-3 starts after UTC midnight and is still running.
+          await seedRun(repos, 'r-1', {
+            sessionId: 's-a',
+            taskId: 'T-1',
+            startedAt: '2026-01-01T23:30:00.000Z',
+            finishedAt: '2026-01-01T23:31:00.000Z',
+            status: 'completed',
+            stopReason: 'success',
+            costUsd: 1,
+            turns: 3,
+            usage: usage(10),
+            modelUsage: opus,
+          });
+          await seedRun(repos, 'r-2', {
+            sessionId: 's-a',
+            taskId: 'T-1',
+            startedAt: '2026-01-02T00:30:00.000Z',
+            finishedAt: '2026-01-02T00:30:30.000Z',
+            status: 'failed',
+            stopReason: 'error',
+            costUsd: 0.75,
+            turns: 2,
+            usage: usage(3),
+            modelUsage: mixed,
+          });
+          await seedRun(repos, 'r-3', {
+            sessionId: 's-b',
+            taskId: 'T-2',
+            startedAt: '2026-01-02T12:00:00.000Z',
+            costUsd: 0.5,
+            turns: 1,
+            usage: usage(5),
+          });
+          // Outside the window: before `from`, and exactly at `to` (excluded).
+          await seedRun(repos, 'r-old', { startedAt: '2025-12-31T23:59:59.000Z', costUsd: 100 });
+          await seedRun(repos, 'r-edge', { startedAt: WINDOW.to, costUsd: 100 });
+        }
+
+        it('groups by session with summed tokens, role, thread and task', async () => {
+          const repos = make();
+          await seedReportRuns(repos);
+
+          const { rows, total } = await repos.runs.usageReport(WINDOW, 'session');
+
+          expect(rows).toEqual([
+            {
+              key: 's-a',
+              role: 'worker',
+              threadId: THREAD,
+              taskId: 'T-1',
+              runs: 2,
+              costUsd: 1.75,
+              turns: 5,
+              tokens: { input: 13, output: 26, cacheRead: 6, cacheWrite: 8 },
+              stopReasons: { success: 1, error: 1 },
+              durationMs: 90_000,
+            },
+            {
+              key: 's-b',
+              role: 'worker',
+              threadId: THREAD,
+              taskId: 'T-2',
+              runs: 1,
+              costUsd: 0.5,
+              turns: 1,
+              tokens: { input: 5, output: 10, cacheRead: 3, cacheWrite: 4 },
+              stopReasons: { running: 1 },
+              durationMs: 0,
+            },
+          ]);
+          expect(total).toEqual({
+            runs: 3,
+            costUsd: 2.25,
+            turns: 6,
+            tokens: { input: 18, output: 36, cacheRead: 9, cacheWrite: 12 },
+            stopReasons: { success: 1, error: 1, running: 1 },
+            durationMs: 90_000,
+          });
+        });
+
+        it('buckets by the UTC day of started_at, oldest day first', async () => {
+          const repos = make();
+          await seedReportRuns(repos);
+
+          const { rows } = await repos.runs.usageReport(WINDOW, 'day');
+
+          expect(rows.map((r) => [r.key, r.runs, r.costUsd])).toEqual([
+            ['2026-01-01', 1, 1],
+            ['2026-01-02', 2, 1.25],
+          ]);
+        });
+
+        it('groups by task with its stage, leaving task-less runs to the total', async () => {
+          const repos = make();
+          await seedReportRuns(repos);
+          await seedRun(repos, 'r-none', { startedAt: '2026-01-02T01:00:00.000Z', costUsd: 7 });
+
+          const { rows, total } = await repos.runs.usageReport(WINDOW, 'task');
+
+          expect(rows.map((r) => [r.key, r.stage, r.costUsd])).toEqual([
+            ['T-1', 'Intake', 1.75],
+            ['T-2', 'Done', 0.5],
+          ]);
+          expect(total.runs).toBe(4);
+          expect(total.costUsd).toBeCloseTo(9.25);
+        });
+
+        it('groups by model from the per-run model_usage, and counts a run once in the total', async () => {
+          const repos = make();
+          await seedReportRuns(repos);
+
+          const { rows, total } = await repos.runs.usageReport(WINDOW, 'model');
+
+          expect(rows.map((r) => [r.key, r.runs, r.costUsd, r.tokens.input, r.turns])).toEqual([
+            ['claude-opus', 2, 1.5, 11, 0],
+            ['claude-haiku', 1, 0.25, 2, 0],
+          ]);
+          expect(rows[0]?.stopReasons).toEqual({ success: 1, error: 1 });
+          expect(total.runs).toBe(3);
+        });
+
+        it('returns no rows and a zero total for an empty window', async () => {
+          const repos = make();
+          await seedReportRuns(repos);
+
+          const empty = { from: '2030-01-01T00:00:00.000Z', to: '2030-01-02T00:00:00.000Z' };
+          for (const groupBy of ['day', 'session', 'task', 'model'] as const) {
+            const { rows, total } = await repos.runs.usageReport(empty, groupBy);
+            expect(rows).toEqual([]);
+            expect(total.runs).toBe(0);
+            expect(total.stopReasons).toEqual({});
+          }
+        });
+      });
+
       it('sums the cost of runs started at or after a moment', async () => {
         const repos = make();
         await seedThread(repos);

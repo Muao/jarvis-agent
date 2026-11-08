@@ -26,6 +26,7 @@ export { GetTask } from './queries/get-task.js';
 export { GetTasks } from './queries/get-tasks.js';
 export { GetThread } from './queries/get-thread.js';
 export { GetThreads } from './queries/get-threads.js';
+export { GetUsage } from './queries/get-usage.js';
 
 export { AnswerPermission } from './permissions/answer-permission.js';
 export { AwaitPermission } from './permissions/await-permission.js';

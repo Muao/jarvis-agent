@@ -9,6 +9,7 @@ import { HEARTBEAT_MS, streamRoutes, type StreamSource } from './routes/stream.j
 import { statusRoutes } from './routes/status.js';
 import { taskRoutes } from './routes/tasks.js';
 import { threadRoutes } from './routes/threads.js';
+import { usageRoutes } from './routes/usage.js';
 
 /** Loopback address the child `claude` uses to reach the API (ADM-07); the listen host itself is `env.listenHost`. */
 export const LOOPBACK_HOST = '127.0.0.1';
@@ -42,6 +43,7 @@ export function buildServer(app: Application, options: ServerOptions): FastifyIn
     sessionRoutes(app),
     statusRoutes(app),
     healthRoutes(app),
+    usageRoutes(app),
     streamRoutes(options.stream, options.heartbeatMs ?? HEARTBEAT_MS),
     agentRoutes(app),
   ];

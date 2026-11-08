@@ -1,4 +1,4 @@
-import type { Role, RunEvent } from '@jarvis/shared';
+import type { Role, RunEvent, TaskStage, TokenUsage, UsageGroupBy } from '@jarvis/shared';
 import type { IsoTime, Run } from '../../domain/index.js';
 import type { RunEventBody } from './agent-runner.js';
 
@@ -13,6 +13,39 @@ export interface UsageBreakdown {
   readonly byRole: Readonly<Record<Role, number>>;
   /** Most expensive first; runs without a task are not listed. */
   readonly byTask: readonly { readonly taskId: string; readonly costUsd: number }[];
+}
+
+/** The half-open window `[from, to)` on `started_at`. */
+export interface UsageWindow {
+  readonly from: IsoTime;
+  readonly to: IsoTime;
+}
+
+/** What a set of runs consumed. */
+export interface UsageFigures {
+  readonly runs: number;
+  readonly costUsd: number;
+  readonly turns: number;
+  readonly tokens: TokenUsage;
+  /** Runs per ending; a run still going is counted under `running`. */
+  readonly stopReasons: Readonly<Record<string, number>>;
+  /** Finished runs only. */
+  readonly durationMs: number;
+}
+
+/** One group of a usage report. `session` rows carry role/thread/task, `task` rows the stage. */
+export interface UsageGroup extends UsageFigures {
+  readonly key: string;
+  readonly role?: Role;
+  readonly threadId?: string;
+  readonly taskId?: string | null;
+  readonly stage?: TaskStage;
+}
+
+export interface UsageAggregate {
+  readonly rows: readonly UsageGroup[];
+  /** Over every run in the window, whatever the grouping. */
+  readonly total: UsageFigures;
 }
 
 export interface RunRepository {
@@ -34,6 +67,11 @@ export interface RunRepository {
   costSince(since: IsoTime): Promise<number>;
   /** The same cost split by role and task. */
   usageSince(since: IsoTime): Promise<UsageBreakdown>;
+  /**
+   * Runs started in the window, aggregated in the database by UTC day of `started_at`, session, task or
+   * model (unnesting `model_usage`). Day rows are oldest first, the others most expensive first.
+   */
+  usageReport(window: UsageWindow, groupBy: UsageGroupBy): Promise<UsageAggregate>;
   /** The newest event of the run, if it produced any (stall detection, DSP-09). */
   lastEvent(runId: string): Promise<RunEvent | null>;
   /** Events of the run with `seq` greater than `afterSeq` (all when omitted), in `seq` order. */
