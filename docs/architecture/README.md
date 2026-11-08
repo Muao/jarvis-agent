@@ -131,6 +131,7 @@ Visual overview: [`overview.html`](overview.html), published at https://claude.a
 - `~/.jarvis/.env` (example committed): `GITHUB_TOKEN` of the bot account, `NOTION_TOKEN`, Google OAuth credentials, `DATABASE_URL`, `POSTGRES_PASSWORD`; iteration 2 adds `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`.
 - Claude: the owner logs in with `claude` once; no key in Jarvis.
 - On a server, secrets come from Infisical (ADR-0016); see [`deployment.md`](deployment.md).
+- How connectors (Notion, Google Docs) authenticate without a browser on the server: [`connectors.md`](connectors.md).
 
 ## Deployment (ADR-0015)
 

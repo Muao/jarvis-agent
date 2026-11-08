@@ -56,6 +56,11 @@ claude -p "ping"  # must answer without ANTHROPIC_API_KEY
    ```
 4. Install the Infisical CLI on the server and on the laptop. Laptop: `infisical login && infisical run --env=dev -- pnpm dev`.
 
+## 3a. Connectors
+
+Notion and Google credentials are Infisical variables, never an interactive login on the server; the order of
+preference and the one SSH-tunnel fallback are in [`connectors.md`](connectors.md).
+
 ## 4. App
 
 ```sh
