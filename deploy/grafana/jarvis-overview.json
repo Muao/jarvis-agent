@@ -1,0 +1,367 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_LOKI",
+      "label": "Loki (Grafana Cloud logs)",
+      "type": "datasource",
+      "pluginId": "loki",
+      "pluginName": "Loki"
+    },
+    {
+      "name": "DS_PROM",
+      "label": "Prometheus (Grafana Cloud metrics)",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "title": "Jarvis overview (UNVERIFIED until Gate 3)",
+  "uid": "jarvis-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["jarvis"],
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "dailyBudgetUsd",
+        "label": "dailyBudgetUsd",
+        "type": "constant",
+        "query": "20",
+        "hide": 0,
+        "current": {
+          "value": "20",
+          "text": "20"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "UNVERIFIED until Gate 3",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 5
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Do not trust this dashboard yet.** It was written without Alloy installed, without a Grafana Cloud account and without any Claude Code run having exported OTLP.\n\n- Metric names (`claude_code_token_usage_tokens_total`), CLI log events (`tool_result`, rate-limit) and their label names are taken from the CLI's \"Monitoring usage\" documentation and the plan, and the OTLP-to-Prometheus name translation is a guess. Check them in Explore against the installed CLI first.\n- Engine panels depend on the `event` / `role` labels produced by `deploy/alloy/config.alloy`, which has never been run.\n- `stopReason` is not logged yet (arrives in a later task); no panel here depends on it.\n- Postgres is the source of truth for cost and budgets (ADR-0018). Grafana numbers are for looking, never for deciding."
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Engine: seconds since last log line",
+      "description": "There is no heartbeat-success log line (the heartbeat pings healthchecks.io). This is the age of the newest engine journald line of any kind, so a quiet but healthy engine also grows. healthchecks.io is the real liveness signal; this panel only corroborates it.",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 8,
+        "h": 5
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOKI}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "time() - max(timestamp(last_over_time({unit=\"jarvis-engine.service\"}[1h])))",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 900
+              },
+              {
+                "color": "red",
+                "value": 3600
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "heartbeat.failed (last 24h)",
+      "description": "Count of `heartbeat.failed` lines.",
+      "gridPos": {
+        "x": 8,
+        "y": 5,
+        "w": 4,
+        "h": 5
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOKI}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "sum(count_over_time({unit=\"jarvis-engine.service\", event=\"heartbeat.failed\"}[24h]))",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Runs started per hour, by role",
+      "description": "`run.started` lines.",
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 5
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOKI}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "sum by (role) (count_over_time({unit=\"jarvis-engine.service\", event=\"run.started\"}[1h]))",
+          "legendFormat": "{{role}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Runs finished per hour, by role",
+      "description": "`run.finished` lines.",
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOKI}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "sum by (role) (count_over_time({unit=\"jarvis-engine.service\", event=\"run.finished\"}[1h]))",
+          "legendFormat": "{{role}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Cost per day vs dailyBudgetUsd",
+      "description": "Sum of `costUsd` over `run.finished` lines, rolling 24h. Postgres is the source of truth for cost and budgets (ADR-0018, LIM-04); this panel can disagree with it and never drives a budget decision. The budget line is the dashboard variable `dailyBudgetUsd`: keep it equal to `jarvis.config.json`.",
+      "gridPos": {
+        "x": 12,
+        "y": 10,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOKI}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "sum(sum_over_time({unit=\"jarvis-engine.service\", event=\"run.finished\"} | json | unwrap costUsd [24h]))",
+          "legendFormat": "cost, last 24h"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "vector($dailyBudgetUsd)",
+          "legendFormat": "dailyBudgetUsd"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Tokens by model and type",
+      "description": "`claude_code.token.usage` from the CLI, by `type` (input, output, cacheRead, cacheCreation). Name translation unverified.",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROM}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROM}"
+          },
+          "expr": "sum by (model, type) (increase(claude_code_token_usage_tokens_total{service_name=\"jarvis-claude\"}[1h]))",
+          "legendFormat": "{{model}} {{type}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Tool errors",
+      "description": "CLI `tool_result` log events with `success=false`, via OTLP. Label and attribute names unverified.",
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOKI}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "sum(count_over_time({service_name=\"jarvis-claude\"} |= \"tool_result\" |= \"false\" [1h]))",
+          "legendFormat": "tool errors"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Rate-limit events",
+      "description": "CLI log events mentioning a rate limit or HTTP 429. Free-text match; unverified.",
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 12,
+        "h": 6
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOKI}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "sum(count_over_time({service_name=\"jarvis-claude\"} |~ \"(?i)rate.?limit|429\" [1h]))",
+          "legendFormat": "rate-limit"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "logs",
+      "title": "Last 50 lifecycle lines",
+      "description": "Engine lines that carry an `event` key.",
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 24,
+        "h": 10
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "${DS_LOKI}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
+          },
+          "expr": "{unit=\"jarvis-engine.service\", event=~\".+\"}",
+          "queryType": "range",
+          "maxLines": 50
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      }
+    }
+  ]
+}

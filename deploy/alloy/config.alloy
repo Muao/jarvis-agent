@@ -1,0 +1,119 @@
+// Jarvis host agent (ADR-0018). One Alloy process does two jobs:
+//   1. reads the engine's and web's journald units and ships them to Grafana Cloud Loki;
+//   2. receives Claude Code's OTLP on loopback and ships it to the Grafana Cloud OTLP gateway.
+// Credentials come from the environment (/etc/jarvis/alloy.env, root:alloy 0640), never from this file.
+// NOT VALIDATED: this file has never been run through `alloy fmt` or `alloy validate`. See README.md.
+
+// ---------------------------------------------------------------- logs: journald -> Loki
+
+// Both units go through the same relabel rules. `unit` and `host` are the only labels taken from journald.
+loki.relabel "journal" {
+  forward_to = []
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+
+  rule {
+    target_label = "host"
+    replacement  = constants.hostname
+  }
+}
+
+loki.source.journal "engine" {
+  matches       = "_SYSTEMD_UNIT=jarvis-engine.service"
+  relabel_rules = loki.relabel.journal.rules
+  forward_to    = [loki.process.engine.receiver]
+}
+
+// The web unit is plain `vite preview` output, not JSON: it is shipped as it is.
+loki.source.journal "web" {
+  matches       = "_SYSTEMD_UNIT=jarvis-web.service"
+  relabel_rules = loki.relabel.journal.rules
+  forward_to    = [loki.write.grafana.receiver]
+}
+
+// The engine writes one JSON object per line on stderr (ConsoleLogger):
+//   {"time":"...","level":"info","message":"...","event":"run.finished","runId":"...","taskId":"...", ...}
+// Low-cardinality keys become labels; per-run ids become structured metadata, so they are queryable
+// (`| runId="..."`) without multiplying streams. Numbers (costUsd, turns, durationMs) stay in the line
+// and are read at query time with `| json | unwrap`.
+loki.process "engine" {
+  forward_to = [loki.write.grafana.receiver]
+
+  stage.json {
+    expressions = {
+      level     = "level",
+      event     = "event",
+      role      = "role",
+      model     = "model",
+      runId     = "runId",
+      taskId    = "taskId",
+      sessionId = "sessionId",
+    }
+  }
+
+  stage.labels {
+    values = {
+      level = "",
+      event = "",
+      role  = "",
+    }
+  }
+
+  stage.structured_metadata {
+    values = {
+      runId     = "",
+      taskId    = "",
+      sessionId = "",
+      model     = "",
+    }
+  }
+}
+
+loki.write "grafana" {
+  endpoint {
+    url = sys.env("GRAFANA_LOKI_URL")
+
+    basic_auth {
+      username = sys.env("GRAFANA_LOKI_USER")
+      password = sys.env("GRAFANA_CLOUD_TOKEN")
+    }
+  }
+}
+
+// ---------------------------------------------------------------- metrics and logs: Claude Code OTLP
+
+// Loopback only (ADR-0015, and `telemetry.otlpEndpoint` is validated to be a loopback URL).
+// HTTP only, matching the default `protocol`; a `grpc` block is deliberately absent because
+// declaring it would open :4317.
+otelcol.receiver.otlp "claude" {
+  http {
+    endpoint = "127.0.0.1:4318"
+  }
+
+  output {
+    metrics = [otelcol.processor.batch.claude.input]
+    logs    = [otelcol.processor.batch.claude.input]
+  }
+}
+
+otelcol.processor.batch "claude" {
+  output {
+    metrics = [otelcol.exporter.otlphttp.grafana.input]
+    logs    = [otelcol.exporter.otlphttp.grafana.input]
+  }
+}
+
+otelcol.auth.basic "grafana" {
+  username = sys.env("GRAFANA_OTLP_USER")
+  password = sys.env("GRAFANA_CLOUD_TOKEN")
+}
+
+otelcol.exporter.otlphttp "grafana" {
+  client {
+    endpoint = sys.env("GRAFANA_OTLP_ENDPOINT")
+    auth     = otelcol.auth.basic.grafana.handler
+  }
+}

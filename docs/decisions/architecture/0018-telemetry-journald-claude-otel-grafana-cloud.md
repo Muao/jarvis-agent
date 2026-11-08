@@ -38,7 +38,7 @@ doing", Postgres answers "what did it cost".
 Constraints:
 - **Off by default.** `jarvis.config.json` gets a `telemetry` block (`enabled`, `otlpEndpoint`, `protocol`) with `enabled: false`. When it is off, a child `claude` receives no `OTEL_*` variable and no `CLAUDE_CODE_ENABLE_TELEMETRY`, not even set to `0`.
 - **No prompt text leaves the host.** `OTEL_LOG_USER_PROMPTS=0` is set whenever telemetry is on; it is not configurable.
-- **Credentials are secrets.** Grafana Cloud credentials (including `OTEL_EXPORTER_OTLP_HEADERS`) live in `~/.jarvis/.env` or Infisical (ADR-0016), never in `jarvis.config.json`. Alloy's own credentials live in `/etc/jarvis/alloy.env`, `root:jarvis`, mode `0640`. `HEARTBEAT_URL` is handled the same way.
+- **Credentials are secrets.** Grafana Cloud credentials (including `OTEL_EXPORTER_OTLP_HEADERS`) live in `~/.jarvis/.env` or Infisical (ADR-0016), never in `jarvis.config.json`. Alloy's own credentials live in `/etc/jarvis/alloy.env`, `root:alloy`, mode `0640`: the group is Alloy's service user, never `jarvis`, which also runs `claude`. `HEARTBEAT_URL` is handled the same way.
 - **No credentials in the child.** A child `claude` never receives `OTEL_EXPORTER_OTLP_HEADERS` or any other Grafana Cloud credential. It exports only to the local Alloy endpoint (`otlpEndpoint`, loopback); Alloy alone authenticates to Grafana Cloud.
 - **Allow-list.** Every new child variable is added to the allow-list in `engine/src/infrastructure/claude/child-env.ts` explicitly and tested (ADR-0007). The engine's own secrets stay out of the child.
 
@@ -66,5 +66,5 @@ Not done, and why:
   CHECK: `grep -c OTEL_EXPORTER_OTLP_HEADERS engine/src/infrastructure/claude/child-env.ts` → `0`, and `engine/src/infrastructure/claude/env.test.ts` asserts the key is absent from the child env when telemetry is enabled
 - RULE: `jarvis.config.example.json` ships `telemetry.enabled: false`, and no Grafana or heartbeat credential is in any committed file.
   CHECK: `grep -n '"enabled": false' jarvis.config.example.json` + `git grep -nE "(glc_|OTEL_EXPORTER_OTLP_HEADERS=.+|hc-ping\.com/[0-9a-f-]{36})"` (expect none)
-- RULE: On the server the Alloy credential file is `/etc/jarvis/alloy.env`, mode `0640`.
-  CHECK: `stat -c '%a %U:%G' /etc/jarvis/alloy.env`
+- RULE: On the server the Alloy credential file is `/etc/jarvis/alloy.env`, `root:alloy`, mode `0640`, and `jarvis` is not in group `alloy`.
+  CHECK: `stat -c '%a %U:%G' /etc/jarvis/alloy.env` → `640 root:alloy`, and `id -nG jarvis | grep -wc alloy` → `0`
