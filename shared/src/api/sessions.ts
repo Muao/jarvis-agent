@@ -1,6 +1,12 @@
 import { z } from 'zod';
-import { IsoDateSchema, TaskIdSchema, TextBodySchema, TokenUsageSchema } from '../common.js';
-import { RoleSchema, RunStatusSchema, TaskStageSchema } from '../enums.js';
+import {
+  IsoDateSchema,
+  ModelUsageSchema,
+  TaskIdSchema,
+  TextBodySchema,
+  TokenUsageSchema,
+} from '../common.js';
+import { RoleSchema, RunStatusSchema, StopReasonSchema, TaskStageSchema } from '../enums.js';
 import { RunEventSchema } from '../run-event.js';
 
 export const SessionStatusSchema = z.enum([
@@ -27,6 +33,8 @@ export const RunDtoSchema = z.object({
   costUsd: z.number().min(0),
   turns: z.number().int().min(0),
   maxTurns: z.number().int().min(1),
+  stopReason: StopReasonSchema.nullable(),
+  modelUsage: ModelUsageSchema,
   exitCode: z.number().int().nullable(),
   error: z.string().nullable(),
 });

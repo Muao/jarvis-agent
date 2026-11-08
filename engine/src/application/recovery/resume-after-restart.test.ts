@@ -26,6 +26,7 @@ describe('ResumeAfterRestart', () => {
 
     expect(app.db.tables.runs.get('r-lost')).toMatchObject({
       status: 'interrupted',
+      stopReason: 'killed',
       finishedAt: app.clock.now(),
     });
     expect(app.db.tables.permissions.get('p-1')?.status).toBe('timeout');

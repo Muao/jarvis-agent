@@ -1,4 +1,11 @@
-import { MessageKindSchema, ROLES, RunStatusSchema, TASK_STAGES } from '@jarvis/shared';
+import {
+  MessageKindSchema,
+  ROLES,
+  RunStatusSchema,
+  StopReasonSchema,
+  TASK_STAGES,
+  type ModelUsage,
+} from '@jarvis/shared';
 import { sql, type SQL } from 'drizzle-orm';
 import {
   bigint,
@@ -149,12 +156,19 @@ export const runs = pgTable(
     tokensOutput: bigint('tokens_output', { mode: 'number' }).notNull().default(0),
     tokensCacheRead: bigint('tokens_cache_read', { mode: 'number' }).notNull().default(0),
     tokensCacheWrite: bigint('tokens_cache_write', { mode: 'number' }).notNull().default(0),
+    // Jarvis's run-level ending (see `Run.stopReason`); unrelated to the CLI's `stop_reason` (model-level).
+    stopReason: text('stop_reason'),
+    modelUsage: jsonb('model_usage').$type<ModelUsage>().notNull().default({}),
     exitCode: integer('exit_code'),
     error: text('error'),
   },
   (t) => [
     check('runs_role_check', oneOf('role', ROLES)),
     check('runs_status_check', oneOf('status', RunStatusSchema.options)),
+    check(
+      'runs_stop_reason_check',
+      sql`${t.stopReason} is null or ${oneOf('stop_reason', StopReasonSchema.options)}`,
+    ),
     index('runs_task_idx').on(t.taskId),
     index('runs_status_idx').on(t.status),
     index('runs_started_at_idx').on(t.startedAt),

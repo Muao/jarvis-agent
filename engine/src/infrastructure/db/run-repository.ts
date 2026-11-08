@@ -1,4 +1,4 @@
-import { ROLES, type Role, type RunEvent, type RunStatus } from '@jarvis/shared';
+import { ROLES, type Role, type RunEvent, type RunStatus, type StopReason } from '@jarvis/shared';
 import { and, asc, desc, eq, gt, gte, isNotNull, sql } from 'drizzle-orm';
 import type { RunEventBody } from '../../application/ports/agent-runner.js';
 import type {
@@ -30,6 +30,8 @@ const toDomain = (row: Row): Run => ({
     cacheRead: row.tokensCacheRead,
     cacheWrite: row.tokensCacheWrite,
   },
+  stopReason: row.stopReason as StopReason | null,
+  modelUsage: row.modelUsage,
   exitCode: row.exitCode,
   error: row.error,
 });
@@ -50,6 +52,8 @@ const toValues = (run: Run): Omit<typeof runs.$inferInsert, 'ord'> => ({
   tokensOutput: run.usage.output,
   tokensCacheRead: run.usage.cacheRead,
   tokensCacheWrite: run.usage.cacheWrite,
+  stopReason: run.stopReason,
+  modelUsage: run.modelUsage,
   exitCode: run.exitCode,
   error: run.error,
 });

@@ -48,19 +48,35 @@ describe('run', () => {
       costUsd: 0,
       turns: 0,
       exitCode: null,
+      stopReason: null,
+      modelUsage: {},
     });
   });
 
   it.each([
-    ['success', 'completed'],
-    ['error_max_turns', 'limit_reached'],
-    ['error_max_budget_usd', 'limit_reached'],
-    ['error_during_execution', 'failed'],
-    ['something_new', 'failed'],
-  ] as const)('maps result subtype %s to %s', (subtype, status) => {
+    ['success', 'completed', 'success'],
+    ['error_max_turns', 'limit_reached', 'max_turns'],
+    ['error_max_budget_usd', 'limit_reached', 'budget'],
+    ['error_during_execution', 'failed', 'error'],
+    ['something_new', 'failed', 'error'],
+  ] as const)('maps result subtype %s to %s / %s', (subtype, status, stopReason) => {
     const finished = finishRun(run, result(subtype), at(3));
-    expect(finished).toMatchObject({ status, finishedAt: at(3), costUsd: 0.42, turns: 7, usage });
+    expect(finished).toMatchObject({
+      status,
+      stopReason,
+      finishedAt: at(3),
+      costUsd: 0.42,
+      turns: 7,
+      usage,
+    });
     expect(finished.error === null).toBe(status === 'completed');
+  });
+
+  it('stores the result per-model usage, or {} when the outcome has none', () => {
+    const modelUsage = { m: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, costUsd: 0.5 } };
+    const success = { type: 'result', subtype: 'success', costUsd: 1, turns: 1, usage } as const;
+    expect(finishRun(run, { ...success, modelUsage }, at(1)).modelUsage).toEqual(modelUsage);
+    expect(finishRun(run, result('success'), at(1)).modelUsage).toEqual({});
   });
 
   it('keeps the CLI message as the error', () => {
@@ -69,16 +85,25 @@ describe('run', () => {
 
   it('maps an exit without a result to failed with the exit code', () => {
     const finished = finishRun(run, { type: 'exit', code: 137 }, at(1));
-    expect(finished).toMatchObject({ status: 'failed', exitCode: 137, costUsd: 0 });
+    expect(finished).toMatchObject({
+      status: 'failed',
+      stopReason: 'killed',
+      exitCode: 137,
+      costUsd: 0,
+    });
     expect(finished.error).toContain('137');
   });
 
   it('maps a stop to stopped and a rate limit to limit_reached', () => {
     expect(finishRun(run, { type: 'stopped' }, at(1))).toMatchObject({
       status: 'stopped',
+      stopReason: 'cancelled',
       error: null,
     });
-    expect(finishRun(run, { type: 'rate_limited' }, at(1)).status).toBe('limit_reached');
+    expect(finishRun(run, { type: 'rate_limited' }, at(1))).toMatchObject({
+      status: 'limit_reached',
+      stopReason: 'rate_limited',
+    });
   });
 
   it('cannot finish or be interrupted twice', () => {
@@ -88,7 +113,11 @@ describe('run', () => {
   });
 
   it('marks a running run interrupted after a restart', () => {
-    expect(interruptRun(run, at(9))).toMatchObject({ status: 'interrupted', finishedAt: at(9) });
+    expect(interruptRun(run, at(9))).toMatchObject({
+      status: 'interrupted',
+      stopReason: 'killed',
+      finishedAt: at(9),
+    });
   });
 });
 

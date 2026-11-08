@@ -391,6 +391,16 @@ function contract(name: string, make: () => Repositories): void {
           costUsd: 0.42,
           turns: 5,
           usage: { input: 10, output: 20, cacheRead: 3_000_000_000, cacheWrite: 40 },
+          stopReason: 'error',
+          modelUsage: {
+            'claude-opus': {
+              input: 10,
+              output: 20,
+              cacheRead: 3_000_000_000,
+              cacheWrite: 40,
+              costUsd: 0.42,
+            },
+          },
           exitCode: 1,
           error: 'boom',
         });

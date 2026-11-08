@@ -116,6 +116,9 @@ describe('ClaudeCliRunner (against the fake binary)', () => {
         costUsd: 0.01,
         turns: 1,
         usage: { input: 10, output: 5, cacheRead: 2, cacheWrite: 1 },
+        modelUsage: {
+          'fake-model': { input: 10, output: 5, cacheRead: 2, cacheWrite: 1, costUsd: 0.01 },
+        },
       },
     ]);
   });

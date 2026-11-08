@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { finishRun, startRun } from '../../domain/index.js';
 import {
   createStreamParser,
   parseLine,
@@ -160,10 +161,52 @@ describe('parseLine', () => {
           costUsd: 0.0421,
           turns: 3,
           usage,
+          modelUsage: {},
         },
       },
     ]);
   });
+
+  it('parses modelUsage per model; missing numbers are 0', () => {
+    const lines = parse({
+      type: 'result',
+      subtype: 'success',
+      modelUsage: {
+        'claude-opus': {
+          inputTokens: 5,
+          outputTokens: 6,
+          cacheReadInputTokens: 7,
+          cacheCreationInputTokens: 8,
+          costUSD: 1.5,
+        },
+        'claude-haiku': { inputTokens: 1 },
+      },
+    });
+    expect(lines.find((l) => l.type === 'outcome')).toMatchObject({
+      outcome: {
+        modelUsage: {
+          'claude-opus': { input: 5, output: 6, cacheRead: 7, cacheWrite: 8, costUsd: 1.5 },
+          'claude-haiku': { input: 1, output: 0, cacheRead: 0, cacheWrite: 0, costUsd: 0 },
+        },
+      },
+    });
+  });
+
+  it.each([['text'], [42], [null], [[1, 2]], [{ m: 'oops' }], [{ m: { inputTokens: 'x' } }]])(
+    'an unexpected modelUsage %j does not throw',
+    (modelUsage) => {
+      const lines = parse({ type: 'result', subtype: 'success', modelUsage });
+      expect(lines.find((l) => l.type === 'outcome')).toMatchObject({
+        outcome: { type: 'result' },
+      });
+    },
+  );
+
+  const STOP_REASON: Record<string, string> = {
+    error_max_turns: 'max_turns',
+    error_max_budget_usd: 'budget',
+    error_during_execution: 'error',
+  };
 
   it.each(['error_max_turns', 'error_max_budget_usd', 'error_during_execution'])(
     'result %s keeps its subtype in the outcome',
@@ -177,6 +220,17 @@ describe('parseLine', () => {
       });
       const outcome = lines.find((l) => l.type === 'outcome');
       expect(outcome).toMatchObject({ outcome: { type: 'result', subtype, costUsd: 1, turns: 1 } });
+      const run = startRun({
+        id: 'r',
+        sessionId: 's',
+        role: 'worker',
+        threadId: 't',
+        taskId: null,
+        at: '2026-01-01T00:00:00.000Z',
+      });
+      const finished =
+        outcome?.type === 'outcome' ? finishRun(run, outcome.outcome, run.startedAt) : run;
+      expect(finished.stopReason).toBe(STOP_REASON[subtype]);
     },
   );
 
@@ -191,6 +245,17 @@ describe('parseLine', () => {
       type: 'outcome',
       outcome: { type: 'rate_limited', message: 'Claude AI usage limit reached|1700000000' },
     });
+    const outcome = lines.find((l) => l.type === 'outcome');
+    const run = startRun({
+      id: 'r',
+      sessionId: 's',
+      role: 'worker',
+      threadId: 't',
+      taskId: null,
+      at: '2026-01-01T00:00:00.000Z',
+    });
+    if (outcome?.type !== 'outcome') throw new Error('expected outcome');
+    expect(finishRun(run, outcome.outcome, run.startedAt).stopReason).toBe('rate_limited');
   });
 
   it('unknown or broken lines become system events and never throw', () => {

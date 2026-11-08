@@ -26,6 +26,8 @@ const run = (patch: Partial<RunDto> = {}): RunDto => ({
   costUsd: 0.42,
   turns: 3,
   maxTurns: 50,
+  stopReason: null,
+  modelUsage: {},
   exitCode: null,
   error: null,
   ...patch,

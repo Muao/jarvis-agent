@@ -21,5 +21,12 @@ export const TokenUsageSchema = z.object({
 });
 export type TokenUsage = z.infer<typeof TokenUsageSchema>;
 
+/** Per-model usage of one run: the model id maps to its tokens and notional cost. */
+export const ModelUsageSchema = z.record(
+  z.string(),
+  TokenUsageSchema.extend({ costUsd: z.number().min(0) }),
+);
+export type ModelUsage = z.infer<typeof ModelUsageSchema>;
+
 export const TextBodySchema = z.strictObject({ text: z.string().min(1) });
 export type TextBody = z.infer<typeof TextBodySchema>;

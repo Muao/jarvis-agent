@@ -15,6 +15,13 @@
       "when": 1793041550968,
       "tag": "0001_append_only_journals",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794136524962,
+      "tag": "0002_awesome_taskmaster",
+      "breakpoints": true
     }
   ]
 }

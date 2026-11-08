@@ -1,4 +1,4 @@
-import type { Role, RunStatus, TokenUsage } from '@jarvis/shared';
+import type { ModelUsage, Role, RunStatus, StopReason, TokenUsage } from '@jarvis/shared';
 import { DomainError } from './errors.js';
 import type { IsoTime } from './time.js';
 
@@ -14,6 +14,13 @@ export interface Run {
   readonly costUsd: number;
   readonly turns: number;
   readonly usage: TokenUsage;
+  /**
+   * Jarvis's own vocabulary for how the *run* ended, derived from the result `subtype` in
+   * `outcomeEnding`; null while `running`. Not the CLI's `stop_reason` (the model's API stop reason,
+   * e.g. `end_turn`) and not its `terminal_reason` (the CLI's run-level ending).
+   */
+  readonly stopReason: StopReason | null;
+  readonly modelUsage: ModelUsage;
   readonly exitCode: number | null;
   readonly error: string | null;
 }
@@ -40,6 +47,8 @@ export function startRun(input: {
     costUsd: 0,
     turns: 0,
     usage: EMPTY_USAGE,
+    stopReason: null,
+    modelUsage: {},
     exitCode: null,
     error: null,
   };
@@ -49,6 +58,7 @@ interface Totals {
   readonly costUsd: number;
   readonly turns: number;
   readonly usage: TokenUsage;
+  readonly modelUsage?: ModelUsage;
 }
 
 /** How a `claude` process ended, as seen by the engine. */
@@ -62,28 +72,52 @@ export type RunOutcome =
   /** The owner or the engine stopped it on purpose. */
   | { readonly type: 'stopped' };
 
-function outcomeStatus(outcome: RunOutcome): { status: RunStatus; error: string | null } {
+interface Ending {
+  readonly status: RunStatus;
+  readonly stopReason: StopReason;
+  readonly error: string | null;
+}
+
+/** The one place that decides how an outcome ends a run: its status, its stop reason and its error. */
+function outcomeEnding(outcome: RunOutcome): Ending {
   switch (outcome.type) {
     case 'stopped':
-      return { status: 'stopped', error: null };
+      return { status: 'stopped', stopReason: 'cancelled', error: null };
     case 'rate_limited':
-      return { status: 'limit_reached', error: outcome.message ?? 'subscription limit reached' };
+      return {
+        status: 'limit_reached',
+        stopReason: 'rate_limited',
+        error: outcome.message ?? 'subscription limit reached',
+      };
     case 'exit':
       return {
         status: 'failed',
+        stopReason: 'killed',
         error:
           outcome.message ?? `claude exited (code ${outcome.code ?? 'unknown'}) without a result`,
       };
     case 'result':
       switch (outcome.subtype) {
         case 'success':
-          return { status: 'completed', error: null };
+          return { status: 'completed', stopReason: 'success', error: null };
         case 'error_max_turns':
-          return { status: 'limit_reached', error: outcome.message ?? 'max turns reached' };
+          return {
+            status: 'limit_reached',
+            stopReason: 'max_turns',
+            error: outcome.message ?? 'max turns reached',
+          };
         case 'error_max_budget_usd':
-          return { status: 'limit_reached', error: outcome.message ?? 'max budget reached' };
+          return {
+            status: 'limit_reached',
+            stopReason: 'budget',
+            error: outcome.message ?? 'max budget reached',
+          };
         default:
-          return { status: 'failed', error: outcome.message ?? outcome.subtype };
+          return {
+            status: 'failed',
+            stopReason: 'error',
+            error: outcome.message ?? outcome.subtype,
+          };
       }
   }
 }
@@ -93,16 +127,18 @@ export function finishRun(run: Run, outcome: RunOutcome, at: IsoTime): Run {
   if (run.status !== 'running') {
     throw new DomainError('run_not_running', `Run ${run.id} is already ${run.status}`);
   }
-  const { status, error } = outcomeStatus(outcome);
+  const { status, stopReason, error } = outcomeEnding(outcome);
   const totals = outcome.type === 'result' ? outcome : run;
   return {
     ...run,
     status,
+    stopReason,
     error,
     finishedAt: at,
     costUsd: totals.costUsd,
     turns: totals.turns,
     usage: totals.usage,
+    modelUsage: outcome.type === 'result' ? (outcome.modelUsage ?? {}) : run.modelUsage,
     exitCode: outcome.type === 'exit' ? outcome.code : run.exitCode,
   };
 }
@@ -112,5 +148,5 @@ export function interruptRun(run: Run, at: IsoTime): Run {
   if (run.status !== 'running') {
     throw new DomainError('run_not_running', `Run ${run.id} is already ${run.status}`);
   }
-  return { ...run, status: 'interrupted', finishedAt: at };
+  return { ...run, status: 'interrupted', stopReason: 'killed', finishedAt: at };
 }

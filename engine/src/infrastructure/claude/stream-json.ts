@@ -1,4 +1,4 @@
-import type { TokenUsage } from '@jarvis/shared';
+import type { ModelUsage, TokenUsage } from '@jarvis/shared';
 import type { RunEventBody } from '../../application/index.js';
 import type { RunOutcome } from '../../domain/index.js';
 
@@ -72,6 +72,28 @@ function usageOf(value: unknown): TokenUsage {
   };
 }
 
+/**
+ * `modelUsage` maps a model id to camelCase counters. The field names are NOT verified against a real
+ * run (ADR-0013: tests never start `claude`); they follow the Agent SDK's `ModelUsage` type:
+ * `inputTokens`, `outputTokens`, `cacheReadInputTokens`, `cacheCreationInputTokens`, `costUSD`.
+ * Anything else parses to zeros, and a missing or malformed key yields `{}`.
+ */
+export function modelUsageOf(value: unknown): ModelUsage {
+  if (!isObject(value)) return {};
+  const out: Record<string, ModelUsage[string]> = {};
+  for (const [model, raw] of Object.entries(value)) {
+    const entry = isObject(raw) ? raw : {};
+    out[model] = {
+      input: Math.round(num(entry['inputTokens'])),
+      output: Math.round(num(entry['outputTokens'])),
+      cacheRead: Math.round(num(entry['cacheReadInputTokens'])),
+      cacheWrite: Math.round(num(entry['cacheCreationInputTokens'])),
+      costUsd: num(entry['costUSD']),
+    };
+  }
+  return out;
+}
+
 const event = (body: RunEventBody): ParsedLine => ({ type: 'event', body });
 
 function parseMessage(line: Json, parent: { parentToolUseId?: string }): ParsedLine[] {
@@ -121,6 +143,7 @@ function parseResult(line: Json, parent: { parentToolUseId?: string }): ParsedLi
     turns: Math.round(num(line['num_turns'])),
     usage: usageOf(line['usage']),
   };
+  const modelUsage = modelUsageOf(line['modelUsage']);
   const out: ParsedLine[] = [
     event({
       kind: 'result',
@@ -144,7 +167,7 @@ function parseResult(line: Json, parent: { parentToolUseId?: string }): ParsedLi
     outcome:
       isError && text !== undefined && RATE_LIMIT.test(text)
         ? { type: 'rate_limited', message: text }
-        : { type: 'result', subtype, ...message, ...totals },
+        : { type: 'result', subtype, ...message, ...totals, modelUsage },
   });
   return out;
 }

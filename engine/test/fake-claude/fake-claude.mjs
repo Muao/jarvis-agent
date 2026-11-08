@@ -122,6 +122,16 @@ const steps = {
         cache_read_input_tokens: 2,
         cache_creation_input_tokens: 1,
       },
+      // Field names are assumed (Agent SDK `ModelUsage`), not verified against a real run.
+      modelUsage: s.modelUsage ?? {
+        'fake-model': {
+          inputTokens: 10,
+          outputTokens: 5,
+          cacheReadInputTokens: 2,
+          cacheCreationInputTokens: 1,
+          costUSD: s.costUsd ?? 0.01,
+        },
+      },
       result: s.text ?? 'done',
     }),
 };

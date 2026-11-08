@@ -222,6 +222,13 @@ describe('message to draft PR, with the fake claude', () => {
     const firstRun = detail.runs.at(0);
     const resumed = detail.runs.at(-1);
 
+    for (const run of detail.runs) {
+      expect(run.stopReason).toBe('success');
+      expect(run.modelUsage).toEqual({
+        'fake-model': { input: 10, output: 5, cacheRead: 2, cacheWrite: 1, costUsd: 0.01 },
+      });
+    }
+
     const events = await json(`/api/runs/${firstRun?.id}/events`, (v) =>
       RunEventsDtoSchema.parse(v),
     );

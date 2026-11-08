@@ -19,6 +19,8 @@ export function toRunDto(run: Run, context: { stage: TaskStage | null; maxTurns:
     costUsd: run.costUsd,
     turns: run.turns,
     maxTurns: context.maxTurns,
+    stopReason: run.stopReason,
+    modelUsage: run.modelUsage,
     exitCode: run.exitCode,
     error: run.error,
   };

@@ -45,6 +45,18 @@ export const RunStatusSchema = z.enum([
 ]);
 export type RunStatus = z.infer<typeof RunStatusSchema>;
 
+/** Why a run ended; finer than `RunStatus`, which folds three reasons into `limit_reached`. */
+export const StopReasonSchema = z.enum([
+  'success',
+  'max_turns',
+  'budget',
+  'error',
+  'rate_limited',
+  'cancelled',
+  'killed',
+]);
+export type StopReason = z.infer<typeof StopReasonSchema>;
+
 export const MessageKindSchema = z.enum([
   'owner',
   'jarvis',
