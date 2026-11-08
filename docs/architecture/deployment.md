@@ -24,6 +24,10 @@ flowchart LR
     claude & engine --> gh
 ```
 
+To try the Linux user, Node/pnpm and the headless `claude` login before the server exists, use the laptop
+rehearsal in the README ("Rehearse the server setup", ADR-0017). It does not cover systemd, journald, Tailscale or
+the firewall.
+
 ## 1. Server
 
 1. Hetzner Cloud → new server: Ubuntu 24.04, 8–16 GB RAM (e.g. CX32/CX42), your SSH key, a firewall with inbound SSH only.

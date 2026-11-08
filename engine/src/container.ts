@@ -242,7 +242,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
     },
     async listen() {
       try {
-        await server.listen({ host: LISTEN_HOST, port });
+        await server.listen({ host: env.listenHost, port });
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') {
           throw new StartupError(

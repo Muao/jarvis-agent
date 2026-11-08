@@ -7,7 +7,17 @@ import { StartupError } from './startup-error.js';
 describe('loadEnv', () => {
   it('defaults the home to ~/.jarvis and maps only known variables', () => {
     const env = loadEnv({ DATABASE_URL: 'postgres://x', OTHER: 'ignored' });
-    expect(env).toEqual({ jarvisHome: join(homedir(), '.jarvis'), databaseUrl: 'postgres://x' });
+    expect(env).toEqual({
+      jarvisHome: join(homedir(), '.jarvis'),
+      databaseUrl: 'postgres://x',
+      listenHost: '127.0.0.1',
+    });
+  });
+
+  it('takes the listen host from JARVIS_LISTEN_HOST', () => {
+    expect(loadEnv({ DATABASE_URL: 'p', JARVIS_LISTEN_HOST: '0.0.0.0' }).listenHost).toBe(
+      '0.0.0.0',
+    );
   });
 
   it('honours JARVIS_HOME and optional tokens', () => {
@@ -20,6 +30,7 @@ describe('loadEnv', () => {
     expect(env).toEqual({
       jarvisHome: '/tmp/h',
       databaseUrl: 'postgres://x',
+      listenHost: '127.0.0.1',
       githubToken: 'g',
       notionToken: 'n',
     });

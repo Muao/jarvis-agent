@@ -19,5 +19,58 @@ services:
       timeout: 3s
       retries: 10
 
+  # Server rehearsal (ADR-0017): `docker compose --profile server ...`. Not part of the laptop workflow.
+  engine:
+    profiles: [server]
+    build: docker/runtime
+    image: jarvis-runtime
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://jarvis:jarvis@postgres:5432/jarvis
+      JARVIS_LISTEN_HOST: 0.0.0.0 # inside the container; the published port below is loopback only
+    command: pnpm --filter @jarvis/engine start
+    ports:
+      - '127.0.0.1:4310:4310'
+      - '127.0.0.1:5180:5180' # web shares this network namespace (see below)
+    volumes: &runtime-volumes
+      - ./:/home/jarvis/jarvis
+      - jarvis-home:/home/jarvis/.jarvis
+      - claude-home:/home/jarvis/.claude
+      - ${TARGET_REPO:-.}:/work/repo # the working repository: set TARGET_REPO to its absolute path
+      - node-modules-root:/home/jarvis/jarvis/node_modules
+      - node-modules-shared:/home/jarvis/jarvis/shared/node_modules
+      - node-modules-engine:/home/jarvis/jarvis/engine/node_modules
+      - node-modules-web:/home/jarvis/jarvis/web/node_modules
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:4310/api/overview >/dev/null']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 120s
+
+  web:
+    profiles: [server]
+    image: jarvis-runtime
+    restart: unless-stopped
+    # Same network namespace as the engine, so vite's proxy target 127.0.0.1:4310 reaches it unchanged.
+    network_mode: 'service:engine'
+    depends_on:
+      engine:
+        condition: service_healthy
+    # `--host` overrides web/vite.config.ts; the preview serves the production build.
+    command: >
+      sh -c "pnpm --filter @jarvis/web build &&
+      pnpm --filter @jarvis/web exec vite preview --host 0.0.0.0 --port 5180 --strictPort"
+    volumes: *runtime-volumes
+
 volumes:
   pgdata:
+  jarvis-home:
+  claude-home:
+  node-modules-root:
+  node-modules-shared:
+  node-modules-engine:
+  node-modules-web:

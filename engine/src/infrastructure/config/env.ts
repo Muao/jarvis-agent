@@ -6,6 +6,8 @@ import { StartupError } from './startup-error.js';
 export interface JarvisEnv {
   readonly jarvisHome: string;
   readonly databaseUrl: string;
+  /** Interface the API binds to; loopback unless the runtime image sets `JARVIS_LISTEN_HOST` (ADR-0017). */
+  readonly listenHost: string;
   readonly githubToken?: string;
   readonly notionToken?: string;
 }
@@ -39,6 +41,7 @@ export function loadEnv(source: EnvSource = process.env): JarvisEnv {
   return {
     jarvisHome: nonEmpty(source['JARVIS_HOME']) ?? join(homedir(), '.jarvis'),
     databaseUrl,
+    listenHost: nonEmpty(source['JARVIS_LISTEN_HOST']) ?? '127.0.0.1',
     ...(githubToken !== undefined ? { githubToken } : {}),
     ...(notionToken !== undefined ? { notionToken } : {}),
   };
