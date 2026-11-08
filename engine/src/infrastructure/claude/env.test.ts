@@ -122,7 +122,8 @@ describe('buildChildEnv', () => {
     });
 
     it('uses - for a run without a task', () => {
-      const { taskId: _omit, ...noTask } = telemetry;
+      const { enabled, otlpEndpoint, protocol, runId, sessionId } = telemetry;
+      const noTask = { enabled, otlpEndpoint, protocol, runId, sessionId };
       const env = buildChildEnv(source, { role: 'dispatcher', telemetry: noTask });
       expect(env['OTEL_RESOURCE_ATTRIBUTES']).toBe(
         'service.name=jarvis-claude,jarvis.role=dispatcher,jarvis.run_id=R-1,jarvis.task_id=-,jarvis.session_id=S-1',

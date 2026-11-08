@@ -37,7 +37,9 @@ export class HttpHeartbeat implements Heartbeat {
       if (response.ok) return;
       status = response.status;
     } catch (error) {
-      // Only the error's name: a message or cause may quote the URL.
+      // Only the error's name. The URL carries a healthchecks.io token, and a fetch error's message
+      // and `cause` both quote it, so neither may be attached here.
+      // eslint-disable-next-line preserve-caught-error -- attaching the cause would leak the token
       throw new Error(
         `request did not complete (${error instanceof Error ? error.name : 'error'})`,
       );
