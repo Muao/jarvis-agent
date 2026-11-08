@@ -254,6 +254,7 @@ export class StartRun {
       keepStdinOpen: run.role === 'worker',
       ...(run.taskId === null ? {} : { taskId: run.taskId }),
       threadId: run.threadId,
+      sessionId: session.id,
     };
     this.deps.notifiers.logger.info(`run ${run.id} started`, {
       event: 'run.started',

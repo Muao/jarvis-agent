@@ -28,6 +28,11 @@ describe('writeRunFiles', () => {
     config: {
       repo: { path: '/repo', remote: 'origin', baseBranch: 'main' },
       allowlist: { githubReviewers: [], autoAllowedCommands: ['Bash(pnpm test:*)'] },
+      telemetry: {
+        enabled: false,
+        otlpEndpoint: 'http://127.0.0.1:4318',
+        protocol: 'http/protobuf',
+      },
     },
     mcpServer: { command: '/usr/bin/node', args: ['--import', 'tsx', '/repo/engine/mcp.ts'] },
     apiUrl: 'http://127.0.0.1:4310',
@@ -144,6 +149,11 @@ describe('writeRunFiles', () => {
         config: {
           repo: { path: '/repo', remote: 'upstream', baseBranch: 'develop' },
           allowlist: { githubReviewers: [], autoAllowedCommands: [] },
+          telemetry: {
+            enabled: false,
+            otlpEndpoint: 'http://127.0.0.1:4318',
+            protocol: 'http/protobuf',
+          },
         },
       });
       await writeRunFiles(runDir, specOf(), ctx);

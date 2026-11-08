@@ -9,7 +9,7 @@ export interface RunContext {
   readonly agentDir: string;
   /** `~/.jarvis/runs/<runId>`: holds `system.md`, `mcp.json`, `settings.json`. */
   readonly runDir: string;
-  readonly config: Pick<JarvisConfig, 'repo' | 'allowlist'>;
+  readonly config: Pick<JarvisConfig, 'repo' | 'allowlist' | 'telemetry'>;
   /** How to start the Jarvis MCP server (the composition root knows the node and tsx paths). */
   readonly mcpServer: { readonly command: string; readonly args: readonly string[] };
   /** Base URL of the engine API, for example `http://127.0.0.1:4310`. */

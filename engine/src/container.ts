@@ -189,7 +189,11 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
       return {
         agentDir: AGENT_DIR,
         runDir: home.runDir(spec.runId),
-        config: { repo: current.repo, allowlist: current.allowlist },
+        config: {
+          repo: current.repo,
+          allowlist: current.allowlist,
+          telemetry: current.telemetry,
+        },
         mcpServer: { command: process.execPath, args: ['--import', TSX_LOADER, MCP_ENTRY] },
         apiUrl,
         connectorsFile: home.mcpServersFile,

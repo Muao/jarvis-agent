@@ -29,6 +29,8 @@ export interface RunSpec {
   readonly keepStdinOpen: boolean;
   readonly taskId?: string;
   readonly threadId: string;
+  /** Jarvis's session row (not the CLI's id); labels the run's telemetry (ADR-0018). */
+  readonly sessionId: string;
 }
 
 /**

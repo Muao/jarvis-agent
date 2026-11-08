@@ -19,9 +19,46 @@ const INHERITED = [
   'CLAUDE_CONFIG_DIR',
 ] as const;
 
+/**
+ * Claude Code's own OTel export (ADR-0018). Present only when telemetry is on; the values are set
+ * by Jarvis from its config and the run, never inherited. Credentials are not part of it: the child
+ * exports to the local collector, which alone authenticates upstream.
+ */
+export interface ChildTelemetry {
+  readonly enabled: boolean;
+  readonly otlpEndpoint: string;
+  readonly protocol: string;
+  readonly runId: string;
+  readonly sessionId: string;
+  readonly taskId?: string;
+}
+
+function telemetryEnv(role: Role, t: ChildTelemetry): Record<string, string> {
+  return {
+    CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+    OTEL_METRICS_EXPORTER: 'otlp',
+    OTEL_LOGS_EXPORTER: 'otlp',
+    OTEL_EXPORTER_OTLP_PROTOCOL: t.protocol,
+    OTEL_EXPORTER_OTLP_ENDPOINT: t.otlpEndpoint,
+    // Prompt text never leaves the host; not configurable.
+    OTEL_LOG_USER_PROMPTS: '0',
+    OTEL_RESOURCE_ATTRIBUTES: [
+      'service.name=jarvis-claude',
+      `jarvis.role=${role}`,
+      `jarvis.run_id=${t.runId}`,
+      `jarvis.task_id=${t.taskId ?? '-'}`,
+      `jarvis.session_id=${t.sessionId}`,
+    ].join(','),
+  };
+}
+
 export function buildChildEnv(
   source: EnvSource,
-  options: { readonly role: Role; readonly githubToken?: string },
+  options: {
+    readonly role: Role;
+    readonly githubToken?: string;
+    readonly telemetry?: ChildTelemetry;
+  },
 ): Record<string, string> {
   const env: Record<string, string> = {};
   for (const name of INHERITED) {
@@ -29,5 +66,6 @@ export function buildChildEnv(
     if (value !== undefined) env[name] = value;
   }
   if (options.role === 'worker' && options.githubToken) env['GH_TOKEN'] = options.githubToken;
+  if (options.telemetry?.enabled) Object.assign(env, telemetryEnv(options.role, options.telemetry));
   return env;
 }

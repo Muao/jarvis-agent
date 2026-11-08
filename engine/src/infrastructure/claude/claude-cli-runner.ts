@@ -115,6 +115,12 @@ class Execution implements RunHandle {
       const env = {
         ...buildChildEnv(options.envSource, {
           role: spec.role,
+          telemetry: {
+            ...ctx.config.telemetry,
+            runId: spec.runId,
+            sessionId: spec.sessionId,
+            ...(spec.taskId === undefined ? {} : { taskId: spec.taskId }),
+          },
           ...(options.githubToken !== undefined ? { githubToken: options.githubToken } : {}),
         }),
         ...options.extraEnv,

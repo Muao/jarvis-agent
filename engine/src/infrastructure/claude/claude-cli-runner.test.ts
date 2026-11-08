@@ -85,6 +85,11 @@ describe('ClaudeCliRunner (against the fake binary)', () => {
         config: {
           repo: { path: home, remote: 'origin', baseBranch: 'main' },
           allowlist: { githubReviewers: [], autoAllowedCommands: [] },
+          telemetry: {
+            enabled: false,
+            otlpEndpoint: 'http://127.0.0.1:4318',
+            protocol: 'http/protobuf',
+          },
         },
         mcpServer: { command: process.execPath, args: ['mcp.js'] },
         apiUrl: options.apiUrl ?? 'http://127.0.0.1:1',

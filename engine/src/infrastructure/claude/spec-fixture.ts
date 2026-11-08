@@ -12,5 +12,6 @@ export const specOf = (overrides: Partial<RunSpec> = {}): RunSpec => ({
   runToken: 'token-1',
   keepStdinOpen: true,
   threadId: 'th-1',
+  sessionId: 'S-1',
   ...overrides,
 });
