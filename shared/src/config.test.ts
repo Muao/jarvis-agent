@@ -32,6 +32,44 @@ describe('JarvisConfigSchema', () => {
     expect(config.models).toEqual({ dispatcher: 'sonnet', worker: 'sonnet', reviewer: 'sonnet' });
     expect(config.allowlist).toEqual({ githubReviewers: [], autoAllowedCommands: [] });
     expect(config.engine).toEqual({ port: 4310, claudeBinary: 'claude' });
+    expect(config.telemetry).toEqual({
+      enabled: false,
+      otlpEndpoint: 'http://127.0.0.1:4318',
+      protocol: 'http/protobuf',
+    });
+  });
+
+  it('keeps telemetry off in the example and accepts a loopback endpoint', () => {
+    expect(JarvisConfigSchema.parse(example).telemetry.enabled).toBe(false);
+    const config = JarvisConfigSchema.parse({
+      ...minimal,
+      telemetry: { enabled: true, otlpEndpoint: 'http://localhost:4318' },
+    });
+    expect(config.telemetry.enabled).toBe(true);
+  });
+
+  it.each([
+    'https://otlp-gateway.grafana.net/otlp',
+    'http://10.0.0.5:4318',
+    'http://127.0.0.1@evil.example:4318',
+    'ftp://127.0.0.1:4318',
+    '127.0.0.1:4318',
+    'not a url',
+    '',
+  ])('refuses telemetry endpoint %j as a path: message line', (otlpEndpoint) => {
+    const result = JarvisConfigSchema.safeParse({ ...minimal, telemetry: { otlpEndpoint } });
+    if (result.success) throw new Error('expected failure');
+    expect(formatConfigError(result.error)).toMatch(/^telemetry\.otlpEndpoint: .+/);
+  });
+
+  it('rejects an unknown telemetry protocol and credential-like keys', () => {
+    expect(
+      JarvisConfigSchema.safeParse({ ...minimal, telemetry: { protocol: 'grpc' } }).success,
+    ).toBe(false);
+    expect(
+      JarvisConfigSchema.safeParse({ ...minimal, telemetry: { headers: 'Authorization=x' } })
+        .success,
+    ).toBe(false);
   });
 
   it('keeps explicit values and partial sections', () => {

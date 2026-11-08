@@ -4,6 +4,23 @@ const positiveInt = (fallback: number) => z.number().int().min(1).default(fallba
 const positiveNumber = (fallback: number) => z.number().positive().default(fallback);
 const modelName = z.string().min(1).default('sonnet');
 
+const loopbackHosts = new Set(['127.0.0.1', 'localhost']);
+
+/** The local Alloy receiver (ADR-0018): http(s) URL whose host is 127.0.0.1 or localhost. */
+const loopbackUrl = z.string().refine(
+  (value) => {
+    try {
+      const url = new URL(value);
+      return (
+        (url.protocol === 'http:' || url.protocol === 'https:') && loopbackHosts.has(url.hostname)
+      );
+    } catch {
+      return false;
+    }
+  },
+  { message: 'must be an http(s) URL on 127.0.0.1 or localhost (the local Alloy receiver)' },
+);
+
 /**
  * `~/.jarvis/jarvis.config.json` (ADR-0006). Strict everywhere: a mistyped limit
  * or a stray key (for instance a token) is an error, never silently ignored.
@@ -48,6 +65,14 @@ export const JarvisConfigSchema = z.strictObject({
     .strictObject({
       port: z.number().int().min(1).max(65535).default(4310),
       claudeBinary: z.string().min(1).default('claude'),
+    })
+    .prefault({}),
+  /** Claude Code's own OTel export (ADR-0018). Off by default; the credential lives in `.env`, never here. */
+  telemetry: z
+    .strictObject({
+      enabled: z.boolean().default(false),
+      otlpEndpoint: loopbackUrl.default('http://127.0.0.1:4318'),
+      protocol: z.enum(['http/protobuf']).default('http/protobuf'),
     })
     .prefault({}),
 });

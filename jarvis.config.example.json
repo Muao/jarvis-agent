@@ -35,5 +35,10 @@
   "engine": {
     "port": 4310,
     "claudeBinary": "claude"
+  },
+  "telemetry": {
+    "enabled": false,
+    "otlpEndpoint": "http://127.0.0.1:4318",
+    "protocol": "http/protobuf"
   }
 }
