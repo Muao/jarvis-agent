@@ -93,10 +93,13 @@ Then `systemctl enable --now jarvis-engine jarvis-web` and `tailscale serve --bg
 ## 5. Update
 
 ```sh
-cd ~/jarvis && git pull && pnpm install --frozen-lockfile && pnpm --filter @jarvis/web build \
-  && scripts/with-secrets.sh pnpm --filter @jarvis/engine db:migrate \
-  && sudo systemctl restart jarvis-engine jarvis-web
+cd ~/jarvis && pnpm run deploy
 ```
+
+`pnpm run deploy` runs [`scripts/deploy.sh`](../../deploy/README.md#deploy-script), which wraps the exact sequence
+above (pull, install, build, migrate, restart) behind one lock-protected command. Use `pnpm run deploy`, not
+`pnpm deploy` — the bare form is pnpm's own built-in `deploy` subcommand (for packaging a workspace project), not
+this repo's script.
 
 ## 6. Backups
 

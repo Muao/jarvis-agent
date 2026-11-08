@@ -12,7 +12,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "deploy": "bash scripts/deploy.sh"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

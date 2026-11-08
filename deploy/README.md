@@ -27,6 +27,17 @@ tailscale serve --bg 5180
 `/etc/jarvis/infisical.env` (`INFISICAL_CLIENT_ID`, `INFISICAL_CLIENT_SECRET`, `INFISICAL_PROJECT_ID`) must exist
 first (deployment.md §3), owned `root:root`, mode `0600` (systemd reads it as root; `jarvis` and a child `claude` must not). `JARVIS_ENV` selects the Infisical environment (default `prod`).
 
+## Deploy script
+
+`pnpm run deploy` (from `~/jarvis` on the server) runs [`../scripts/deploy.sh`](../scripts/deploy.sh): fast-forward
+`git pull`, `pnpm install --frozen-lockfile`, build web, run migrations through `with-secrets.sh`, then restart
+`jarvis-engine` and (once that unit exists) `jarvis-web`. A `flock` stops two deploys overlapping. See
+[`.claude/skills/deployment/SKILL.md`](../.claude/skills/deployment/SKILL.md) for the practices behind that order
+and what to add if this ever grows past one script and one box.
+
+Always run it as `pnpm run deploy`, never the bare `pnpm deploy` — that invokes pnpm's own built-in `deploy`
+subcommand instead.
+
 ## Connectors
 
 The Google Docs connector needs nothing on the server: its refresh token comes from Infisical as environment
