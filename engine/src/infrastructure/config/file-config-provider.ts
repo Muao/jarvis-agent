@@ -1,4 +1,4 @@
-import { readFileSync, watch, type FSWatcher } from 'node:fs';
+import { readFileSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
 import { basename, dirname } from 'node:path';
 import { JarvisConfigSchema, formatConfigError, type JarvisConfig } from '@jarvis/shared';
 import type { ConfigProvider } from '../../application/ports/config-provider.js';
@@ -11,6 +11,24 @@ export interface FileConfigProviderOptions {
 }
 
 type Parsed = { ok: true; config: JarvisConfig } | { ok: false; message: string };
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** `patch` wins; nested objects merge key-by-key instead of replacing the whole object (ADR-0021). */
+function deepMerge(
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(patch)) {
+    const existing = result[key];
+    result[key] =
+      isPlainObject(existing) && isPlainObject(value) ? deepMerge(existing, value) : value;
+  }
+  return result;
+}
 
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -79,6 +97,37 @@ export class FileConfigProvider implements ConfigProvider {
   current(): JarvisConfig {
     if (!this.config) throw new Error('FileConfigProvider.load() must be called before current()');
     return this.config;
+  }
+
+  /**
+   * ADR-0021: merges `patch` into the raw on-disk config (not the in-memory defaulted one),
+   * validates the whole result, and writes only if it parses. The file watcher picks up this
+   * write like any other edit; `this.config` is updated here too so the caller gets the fresh
+   * value immediately instead of waiting for the debounced reload.
+   */
+  async update(patch: Record<string, unknown>): Promise<JarvisConfig> {
+    let raw: string;
+    try {
+      raw = readFileSync(this.path, 'utf8');
+    } catch (error) {
+      throw new Error(`${this.path}: ${(error as Error).message}`, { cause: error });
+    }
+    let current: unknown;
+    try {
+      current = JSON.parse(raw);
+    } catch (error) {
+      throw new Error(`${this.path}: invalid JSON (${(error as Error).message})`, { cause: error });
+    }
+    if (!isPlainObject(current)) throw new Error(`${this.path}: expected a JSON object`);
+    const merged = deepMerge(current, patch);
+    const result = JarvisConfigSchema.safeParse(merged);
+    if (!result.success) throw new Error(formatConfigError(result.error));
+    writeFileSync(this.path, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');
+    const config = deepFreeze(result.data);
+    this.config = config;
+    this.error = null;
+    this.loaded = this.now();
+    return config;
   }
 
   /** Message of the last rejected edit, or null when the file on disk is the one in use. */

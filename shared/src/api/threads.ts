@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CounterSchema, IsoDateSchema, TaskIdSchema, TextBodySchema } from '../common.js';
 import { TaskStageSchema } from '../enums.js';
+import { ArtifactNameSchema } from './tasks.js';
 
 /* Answers to cards (one answer per card). */
 
@@ -61,7 +62,11 @@ const MessageBodySchema = z.discriminatedUnion('kind', [
   }),
   z.object({
     kind: z.literal('decision'),
-    body: z.object({ taskId: TaskIdSchema, summary: z.string(), artifacts: z.array(z.string()) }),
+    body: z.object({
+      taskId: TaskIdSchema,
+      summary: z.string(),
+      artifacts: z.array(ArtifactNameSchema),
+    }),
   }),
   z.object({
     kind: z.literal('question'),

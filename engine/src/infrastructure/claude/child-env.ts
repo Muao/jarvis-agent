@@ -17,6 +17,9 @@ const INHERITED = [
   'SHELL',
   'TMPDIR',
   'CLAUDE_CONFIG_DIR',
+  // ADR-0022: Playwright MCP is a grandchild (engine -> claude -> MCP server); without this it
+  // looks for Chromium in the default cache instead of where the runtime image installed it.
+  'PLAYWRIGHT_BROWSERS_PATH',
 ] as const;
 
 /**

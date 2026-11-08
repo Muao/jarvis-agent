@@ -62,5 +62,6 @@ The worker ticks `[x]` when the task is done and verified. Tasks only depend on 
 ## result.md
 
 Written at the end of the PR stage and updated after each fix round: outcome, PR link, checks run and results,
-acceptance criteria status (met / not met / partially, with evidence), deviations from the plan, open items.
-State what was not verified. Never record a check that was not run.
+the UI check (verdict and scenarios, or the reason it did not run), acceptance criteria status
+(met / not met / partially, with evidence), deviations from the plan, open items. State what was not
+verified. Never record a check that was not run, and never record a UI scenario the browser did not walk.

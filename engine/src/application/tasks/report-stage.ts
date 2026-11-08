@@ -20,6 +20,16 @@ export class ReportStage {
           stage: input.stage,
           note: input.note ?? null,
         });
+        // A note on an unchanged stage is the worker's chosen moment to narrate progress to the
+        // owner (status updates during a long stage, not just at stage transitions).
+        if (input.note !== undefined) {
+          await this.deps.messages.post(tx, outbox, {
+            threadId: task.threadId,
+            taskId: task.id,
+            kind: 'jarvis',
+            body: { text: input.note },
+          });
+        }
         return;
       }
       await this.deps.writer.move(tx, outbox, task, input.stage, { cause: 'stage_reported' });

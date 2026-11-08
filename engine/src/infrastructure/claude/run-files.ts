@@ -23,6 +23,88 @@ function ownToolRules(role: Role): string[] {
 
 const unique = (items: readonly string[]): string[] => [...new Set(items)];
 
+/** ADR-0022: pinned, because `@latest` in an agent runtime makes a run non-reproducible. */
+const PLAYWRIGHT_MCP = '@playwright/mcp@0.0.84';
+
+/**
+ * ADR-0022: what the `ui-tester` subagent may do in the browser. Everything that drives the UI
+ * the way a person would, plus what it needs to read console and network.
+ */
+const BROWSER_TOOLS = [
+  'browser_navigate',
+  'browser_navigate_back',
+  'browser_snapshot',
+  'browser_take_screenshot',
+  'browser_click',
+  'browser_type',
+  'browser_fill_form',
+  'browser_press_key',
+  'browser_hover',
+  'browser_select_option',
+  'browser_drag',
+  'browser_drop',
+  'browser_find',
+  'browser_wait_for',
+  'browser_resize',
+  'browser_console_messages',
+  'browser_network_requests',
+  'browser_network_request',
+  'browser_handle_dialog',
+  'browser_tabs',
+  'browser_close',
+  'browser_emulate_media',
+] as const;
+
+/**
+ * Arbitrary page JavaScript and uploads from the file system. A UI check does not need either,
+ * and `browser_evaluate` would let the agent "prove" a click by calling the handler directly.
+ */
+const BROWSER_DENIED_TOOLS = [
+  'browser_evaluate',
+  'browser_run_code_unsafe',
+  'browser_file_upload',
+] as const;
+
+const playwrightToolName = (tool: string): string => `mcp__playwright__${tool}`;
+
+/** The Playwright MCP server for one worker run: headless, profile-less, pinned to the dev server. */
+export function playwrightServer(ctx: RunContext, screenshotsDir: string): Json {
+  const { ui } = ctx.config;
+  const origin = new URL(ui.baseUrl).origin;
+  return {
+    command: 'npx',
+    args: [
+      '-y',
+      PLAYWRIGHT_MCP,
+      '--headless',
+      '--isolated',
+      '--browser',
+      'chromium',
+      '--viewport-size',
+      '1280x800',
+      '--output-dir',
+      screenshotsDir,
+      // A brake, not a boundary: Playwright MCP says so itself, and it does not cover redirects.
+      '--allowed-origins',
+      origin,
+      '--console-level',
+      'error',
+      '--idle-timeout',
+      '300000',
+      '--timeout-action',
+      '5000',
+      '--timeout-navigation',
+      '15000',
+      '--image-responses',
+      'allow',
+      // A page must not be able to register tools for the agent (SOUL principle 4).
+      '--no-webmcp',
+      '--save-session',
+      ...(ui.noSandbox ? ['--no-sandbox'] : []),
+    ],
+  };
+}
+
 async function readJson(path: string): Promise<Json> {
   return JSON.parse(await readFile(path, 'utf8')) as Json;
 }
@@ -50,6 +132,7 @@ export async function buildWorkerSettings(ctx: RunContext): Promise<Json> {
   const base = await readJson(join(ctx.agentDir, 'settings', 'worker.json'));
   const permissions = (base['permissions'] ?? {}) as Json;
   const { remote, baseBranch } = ctx.config.repo;
+  const browserAllow = ctx.config.ui.enabled ? BROWSER_TOOLS.map(playwrightToolName) : [];
   return {
     ...base,
     permissions: {
@@ -58,8 +141,13 @@ export async function buildWorkerSettings(ctx: RunContext): Promise<Json> {
         ...stringList(permissions['allow']),
         ...ctx.config.allowlist.autoAllowedCommands,
         ...ownToolRules('worker'),
+        ...browserAllow,
       ]),
-      deny: unique([...stringList(permissions['deny']), ...baseBranchDenies(remote, baseBranch)]),
+      deny: unique([
+        ...stringList(permissions['deny']),
+        ...baseBranchDenies(remote, baseBranch),
+        ...BROWSER_DENIED_TOOLS.map(playwrightToolName),
+      ]),
     },
   };
 }
@@ -102,9 +190,15 @@ async function readConnectors(ctx: RunContext): Promise<Json> {
 
 export async function buildMcpConfig(spec: RunSpec, ctx: RunContext): Promise<Json> {
   const connectors = spec.role === 'worker' ? await readConnectors(ctx) : {};
+  // ADR-0022: the browser is a worker tool, and only when the owner turned the UI check on.
+  const playwright =
+    spec.role === 'worker' && ctx.config.ui.enabled && spec.screenshotsDir !== undefined
+      ? { playwright: playwrightServer(ctx, spec.screenshotsDir) }
+      : {};
   return {
     mcpServers: {
       ...connectors,
+      ...playwright,
       jarvis: {
         command: ctx.mcpServer.command,
         args: [...ctx.mcpServer.args],

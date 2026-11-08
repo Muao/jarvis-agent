@@ -36,6 +36,28 @@ describe('ReportStage', () => {
     expect(app.db.tables.journal.at(-1)).toMatchObject({ type: 'stage_note' });
   });
 
+  it('posts a visible chat line when a note is given for the current (unchanged) stage', async () => {
+    const app = buildTestApp();
+    const { task, thread } = await app.seed.task({ stage: 'Implementing' });
+
+    await app.reportStage.execute(app.identity.worker(task), {
+      stage: 'Implementing',
+      note: 'ran the suite, fixing 2 failures',
+    });
+
+    const posted = app.messagesOf(thread.id).find((m) => m.kind === 'jarvis');
+    expect(posted).toMatchObject({ body: { text: 'ran the suite, fixing 2 failures' } });
+  });
+
+  it('does not post a chat line for a plain stage move with no note', async () => {
+    const app = buildTestApp();
+    const { task, thread } = await app.seed.task({ stage: 'Implementing' });
+
+    await app.reportStage.execute(app.identity.worker(task), { stage: 'Verifying' });
+
+    expect(app.messagesOf(thread.id).some((m) => m.kind === 'jarvis')).toBe(false);
+  });
+
   it('rejects a move the stage table does not allow', async () => {
     const app = buildTestApp();
     const { task } = await app.seed.task({ stage: 'Context' });

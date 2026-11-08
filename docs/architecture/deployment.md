@@ -39,6 +39,15 @@ the firewall.
    curl -fsSL https://tailscale.com/install.sh | sh && tailscale up --ssh
    ```
 3. Once `tailscale ssh jarvis@<host>` works, remove SSH from the Hetzner firewall.
+4. Chromium for the UI check (ADR-0022), as root, into a path `jarvis` can read:
+   ```sh
+   export PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+   npx --yes playwright@1.64.1 install --with-deps chromium && chmod -R a+rX /ms-playwright
+   ```
+   Then put `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright` in the engine unit's environment, and set
+   `ui.noSandbox: true` in `jarvis.config.json` — the server has no user namespaces for Chromium's
+   sandbox. Skipping this step is allowed: the UI check then reports `inconclusive` and the PR says so.
+   Adds roughly 400 MB.
 
 ## 2. Claude login (once, interactively)
 

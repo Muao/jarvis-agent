@@ -6,6 +6,7 @@
       "Write",
       "Glob",
       "Grep",
+      "Bash",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
@@ -37,8 +38,16 @@
       "Bash(gh pr merge:*)",
       "Bash(git branch -D:*)",
       "Bash(git branch -d:*)",
+      "Bash(rm -r:*)",
       "Bash(rm -rf:*)",
-      "Bash(sudo:*)"
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Bash(git checkout main:*)",
+      "Bash(git checkout master:*)",
+      "Bash(sudo:*)",
+      "Bash(chmod 777:*)",
+      "Bash(curl:* | sh)",
+      "Bash(curl:* | bash)"
     ]
   }
 }

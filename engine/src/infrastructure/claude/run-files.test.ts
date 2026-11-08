@@ -33,6 +33,20 @@ describe('writeRunFiles', () => {
         otlpEndpoint: 'http://127.0.0.1:4318',
         protocol: 'http/protobuf',
       },
+      ui: {
+        enabled: false,
+        devCommand: 'pnpm dev',
+        baseUrl: 'http://127.0.0.1:5173',
+        readyPath: '/',
+        readyTimeoutSeconds: 90,
+        leaseMinutes: 15,
+        maxScenarios: 8,
+        maxScreenshots: 12,
+        maxImageMb: 5,
+        attachToPr: true,
+        noSandbox: false,
+        paths: ['**/*.tsx'],
+      },
     },
     mcpServer: { command: '/usr/bin/node', args: ['--import', 'tsx', '/repo/engine/mcp.ts'] },
     apiUrl: 'http://127.0.0.1:4310',
@@ -73,6 +87,87 @@ describe('writeRunFiles', () => {
       },
     });
     expect(statSync(join(runDir, 'mcp.json')).mode & 0o077).toBe(0);
+  });
+
+  describe('the UI check (ADR-0022)', () => {
+    const uiOn = (overrides: Record<string, unknown> = {}) => {
+      const base = ctxOf();
+      return ctxOf({
+        config: { ...base.config, ui: { ...base.config.ui, enabled: true, ...overrides } },
+      });
+    };
+    const workerSpec = specOf({ screenshotsDir: '/jarvis/tasks/T-1/screenshots' });
+
+    it('adds a pinned, headless Playwright server pointed at the dev server (AC-4)', async () => {
+      await writeRunFiles(runDir, workerSpec, uiOn());
+
+      const playwright = json('mcp.json')['mcpServers']?.['playwright'] as {
+        command: string;
+        args: string[];
+      };
+      expect(playwright.command).toBe('npx');
+      expect(playwright.args).toContain('@playwright/mcp@0.0.84');
+      expect(playwright.args).toContain('--headless');
+      expect(playwright.args).toContain('--isolated');
+      expect(playwright.args).toContain('--no-webmcp');
+      expect(playwright.args).not.toContain('--no-sandbox');
+      const pairs = (flag: string) => playwright.args[playwright.args.indexOf(flag) + 1];
+      expect(pairs('--output-dir')).toBe('/jarvis/tasks/T-1/screenshots');
+      expect(pairs('--allowed-origins')).toBe('http://127.0.0.1:5173');
+    });
+
+    it('adds --no-sandbox only when the config asks for it (the runtime container)', async () => {
+      await writeRunFiles(runDir, workerSpec, uiOn({ noSandbox: true }));
+      const playwright = json('mcp.json')['mcpServers']?.['playwright'] as { args: string[] };
+      expect(playwright.args).toContain('--no-sandbox');
+    });
+
+    it('leaves the browser out while ui.enabled is false (AC-5)', async () => {
+      await writeRunFiles(runDir, workerSpec, ctxOf());
+      expect(json('mcp.json')['mcpServers']).not.toHaveProperty('playwright');
+    });
+
+    it('never gives the dispatcher a browser (AC-6)', async () => {
+      await writeRunFiles(runDir, specOf({ role: 'dispatcher' }), uiOn());
+      expect(json('mcp.json')['mcpServers']).not.toHaveProperty('playwright');
+    });
+
+    it('leaves the browser out for a run with no screenshots directory', async () => {
+      await writeRunFiles(runDir, specOf(), uiOn());
+      expect(json('mcp.json')['mcpServers']).not.toHaveProperty('playwright');
+    });
+
+    it('allows the driving tools and denies page code and uploads (AC-7)', async () => {
+      await writeRunFiles(runDir, workerSpec, uiOn());
+
+      const { allow, deny } = permissions();
+      expect(allow).toEqual(
+        expect.arrayContaining([
+          'mcp__playwright__browser_navigate',
+          'mcp__playwright__browser_snapshot',
+          'mcp__playwright__browser_take_screenshot',
+          'mcp__playwright__browser_click',
+          'mcp__playwright__browser_console_messages',
+          'mcp__playwright__browser_network_requests',
+        ]),
+      );
+      expect(deny).toEqual(
+        expect.arrayContaining([
+          'mcp__playwright__browser_evaluate',
+          'mcp__playwright__browser_run_code_unsafe',
+          'mcp__playwright__browser_file_upload',
+        ]),
+      );
+      expect(new Set(allow).size).toBe(allow.length);
+    });
+
+    it('denies the page-code tools even with the UI check off, and allows no browser tool', async () => {
+      await writeRunFiles(runDir, workerSpec, ctxOf());
+
+      const { allow, deny } = permissions();
+      expect(allow.filter((rule) => rule.startsWith('mcp__playwright__'))).toEqual([]);
+      expect(deny).toContain('mcp__playwright__browser_run_code_unsafe');
+    });
   });
 
   it('adds connector servers for workers with ${VAR} substituted, never for the dispatcher', async () => {
@@ -153,6 +248,20 @@ describe('writeRunFiles', () => {
             enabled: false,
             otlpEndpoint: 'http://127.0.0.1:4318',
             protocol: 'http/protobuf',
+          },
+          ui: {
+            enabled: false,
+            devCommand: 'pnpm dev',
+            baseUrl: 'http://127.0.0.1:5173',
+            readyPath: '/',
+            readyTimeoutSeconds: 90,
+            leaseMinutes: 15,
+            maxScenarios: 8,
+            maxScreenshots: 12,
+            maxImageMb: 5,
+            attachToPr: true,
+            noSandbox: false,
+            paths: ['**/*.tsx'],
           },
         },
       });

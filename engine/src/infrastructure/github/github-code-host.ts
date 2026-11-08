@@ -1,5 +1,10 @@
 import { Octokit } from '@octokit/rest';
-import type { CodeHost } from '../../application/ports/code-host.js';
+import type {
+  AttachmentResult,
+  AttachmentUpload,
+  CodeHost,
+  RepoTarget,
+} from '../../application/ports/code-host.js';
 import type {
   CheckConclusion,
   CheckRun,
@@ -43,9 +48,21 @@ const CONCLUSIONS: readonly string[] = [
   'action_required',
   'stale',
 ];
+/** The repo one Octokit call is about, in Octokit's own naming. */
+interface Where {
+  readonly owner: string;
+  readonly repo: string;
+}
+
 const ACTIONS_APP_SLUG = 'github-actions';
 const RERUNNABLE: readonly string[] = ['failure', 'timed_out'];
 const RUN_ID = /\/actions\/runs\/(\d+)/;
+/**
+ * ADR-0023. GitHub documents no API for comment attachments; this is the endpoint its own web
+ * UI posts to when an image is dropped into a PR body. It can change or start refusing tokens
+ * without notice, which is why every failure here becomes `{ ok: false, reason }`.
+ */
+const UPLOADS_URL = 'https://uploads.github.com/user-attachments/assets';
 
 interface RawUser {
   login: string;
@@ -64,27 +81,42 @@ export class GitHubCodeHost implements CodeHost, ConnectionChecker {
   private readonly owner: string;
   private readonly repo: string;
   private readonly redact: (text: string) => string;
+  private readonly token: string;
+  private readonly fetchImpl: typeof fetch;
   private cachedLogin: string | null = null;
+  private readonly repositoryIds = new Map<string, number>();
 
   constructor(options: GitHubCodeHostOptions) {
     this.owner = options.owner;
     this.repo = options.repo;
     this.redact = createRedactor([options.token]);
+    this.token = options.token;
+    this.fetchImpl = options.fetch ?? fetch;
     this.octokit = new Octokit({
       auth: options.token,
       request: options.fetch ? { fetch: options.fetch } : {},
     });
   }
 
-  async snapshot(prNumber: number): Promise<PullRequestSnapshot> {
+  /**
+   * ADR-0019: `target` names the repo this call is about. The default repo stands in only when the
+   * caller has no target — never as a fallback for one it failed to resolve, because a PR of the
+   * same number in the default repo is a different pull request.
+   */
+  private where(target?: RepoTarget): { owner: string; repo: string } {
+    if (target === undefined) return { owner: this.owner, repo: this.repo };
+    return { owner: target.owner, repo: target.name };
+  }
+
+  async snapshot(prNumber: number, target?: RepoTarget): Promise<PullRequestSnapshot> {
     return this.guard(async () => {
-      const { owner, repo } = this;
-      const pr = await this.octokit.pulls.get({ owner, repo, pull_number: prNumber });
+      const where = this.where(target);
+      const pr = await this.octokit.pulls.get({ ...where, pull_number: prNumber });
       const headSha = pr.data.head.sha;
       const [checks, reviews, comments] = await Promise.all([
-        this.checksFor(headSha),
-        this.reviewsFor(prNumber),
-        this.commentsFor(prNumber),
+        this.checksFor(where, headSha),
+        this.reviewsFor(where, prNumber),
+        this.commentsFor(where, prNumber),
       ]);
       return { headSha, checks, reviews, comments };
     });
@@ -99,9 +131,9 @@ export class GitHubCodeHost implements CodeHost, ConnectionChecker {
     return login;
   }
 
-  async rerunFailedChecks(_prNumber: number, headSha: string): Promise<void> {
+  async rerunFailedChecks(_prNumber: number, headSha: string, target?: RepoTarget): Promise<void> {
     await this.guard(async () => {
-      const { owner, repo } = this;
+      const { owner, repo } = this.where(target);
       const runs = await this.octokit.paginate(this.octokit.checks.listForRef, {
         owner,
         repo,
@@ -153,8 +185,8 @@ export class GitHubCodeHost implements CodeHost, ConnectionChecker {
     });
   }
 
-  private async checksFor(ref: string): Promise<CheckRun[]> {
-    const { owner, repo } = this;
+  private async checksFor(where: Where, ref: string): Promise<CheckRun[]> {
+    const { owner, repo } = where;
     try {
       const runs = await this.octokit.paginate(this.octokit.checks.listForRef, {
         owner,
@@ -172,12 +204,12 @@ export class GitHubCodeHost implements CodeHost, ConnectionChecker {
     } catch (error) {
       // A fine-grained PAT without "Checks: read" gets 403; commit statuses need only "Commit statuses: read".
       if (statusOf(error) !== 403) throw error;
-      return this.statusesFor(ref);
+      return this.statusesFor(where, ref);
     }
   }
 
-  private async statusesFor(ref: string): Promise<CheckRun[]> {
-    const { owner, repo } = this;
+  private async statusesFor(where: Where, ref: string): Promise<CheckRun[]> {
+    const { owner, repo } = where;
     const combined = await this.octokit.repos.getCombinedStatusForRef({
       owner,
       repo,
@@ -194,8 +226,8 @@ export class GitHubCodeHost implements CodeHost, ConnectionChecker {
   }
 
   /** Latest decisive review per reviewer: comment-only reviews do not change a verdict. */
-  private async reviewsFor(prNumber: number): Promise<PullRequestReview[]> {
-    const { owner, repo } = this;
+  private async reviewsFor(where: Where, prNumber: number): Promise<PullRequestReview[]> {
+    const { owner, repo } = where;
     const raw = await this.octokit.paginate(this.octokit.pulls.listReviews, {
       owner,
       repo,
@@ -219,8 +251,8 @@ export class GitHubCodeHost implements CodeHost, ConnectionChecker {
     return [...latest.values()];
   }
 
-  private async commentsFor(prNumber: number): Promise<PullRequestComment[]> {
-    const { owner, repo } = this;
+  private async commentsFor(where: Where, prNumber: number): Promise<PullRequestComment[]> {
+    const { owner, repo } = where;
     const [issue, review] = await Promise.all([
       this.octokit.paginate(this.octokit.issues.listComments, {
         owner,
@@ -244,6 +276,77 @@ export class GitHubCodeHost implements CodeHost, ConnectionChecker {
         body: c.body ?? '',
       });
     return [...issue.map(toComment('issue')), ...review.map(toComment('review'))];
+  }
+
+  /**
+   * ADR-0023. Uploads one image the way the GitHub web UI does and returns the
+   * `github.com/user-attachments/assets/...` URL to embed in a PR body. Never throws: the caller
+   * (and through it the agent) gets a reason and writes a plain line into the PR instead.
+   */
+  async uploadAttachment(upload: AttachmentUpload): Promise<AttachmentResult> {
+    const owner = upload.repo?.owner ?? this.owner;
+    const repo = upload.repo?.name ?? this.repo;
+    let repositoryId: number;
+    try {
+      repositoryId = await this.repositoryId(owner, repo);
+    } catch (error) {
+      return { ok: false, reason: this.reasonOf(error) };
+    }
+
+    const url = new URL(UPLOADS_URL);
+    url.searchParams.set('name', upload.name);
+    url.searchParams.set('content_type', upload.contentType);
+    url.searchParams.set('repository_id', String(repositoryId));
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(url, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${this.token}`,
+          accept: 'application/json',
+          'content-type': upload.contentType,
+        },
+        body: upload.bytes,
+      });
+    } catch (error) {
+      return { ok: false, reason: this.reasonOf(error) };
+    }
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      return {
+        ok: false,
+        reason: this.redact(
+          `GitHub refused the upload with ${response.status}${body === '' ? '' : `: ${body.slice(0, 200)}`}. ` +
+            'This endpoint is undocumented (ADR-0023); the token may not be accepted for it.',
+        ),
+      };
+    }
+
+    const parsed = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+    const href = ['href', 'url', 'asset_url'].reduce<string | null>((found, key) => {
+      if (found !== null) return found;
+      const value = parsed?.[key];
+      return typeof value === 'string' && value !== '' ? value : null;
+    }, null);
+    if (href === null) {
+      return { ok: false, reason: 'GitHub accepted the upload but returned no asset URL.' };
+    }
+    return { ok: true, url: href };
+  }
+
+  private async repositoryId(owner: string, repo: string): Promise<number> {
+    const key = `${owner}/${repo}`;
+    const cached = this.repositoryIds.get(key);
+    if (cached !== undefined) return cached;
+    const { data } = await this.guard(() => this.octokit.repos.get({ owner, repo }));
+    this.repositoryIds.set(key, data.id);
+    return data.id;
+  }
+
+  private reasonOf(error: unknown): string {
+    return this.redact(error instanceof Error ? error.message : String(error));
   }
 
   private async guard<T>(call: () => Promise<T>): Promise<T> {

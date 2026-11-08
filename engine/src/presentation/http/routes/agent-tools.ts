@@ -36,7 +36,18 @@ export const toolCalls: Readonly<Partial<Record<ToolName, Call>>> = {
     await app.sendToTask.execute(identity, { taskId: input.task, message: input.message });
     return OK;
   }),
+  set_task_target_repo: tool(schemas.set_task_target_repo, async (app, identity, input) => {
+    await app.setTaskTargetRepo.execute(identity, { taskId: input.task, repo: input.repo });
+    return OK;
+  }),
   reply: tool(schemas.reply, (app, identity, input) => app.reply.execute(identity, input)),
+  remember: tool(schemas.remember, async (app, identity, input) => {
+    await app.remember.execute(identity, input);
+    return OK;
+  }),
+  update_config: tool(schemas.update_config, (app, identity, input) =>
+    app.updateConfig.execute(identity, input),
+  ),
 
   report_stage: tool(schemas.report_stage, async (app, identity, input) => {
     await app.reportStage.execute(identity, input);
@@ -59,4 +70,18 @@ export const toolCalls: Readonly<Partial<Record<ToolName, Call>>> = {
     await app.logNote.execute(identity, input);
     return OK;
   }),
+  post_update: tool(schemas.post_update, async (app, identity, input) => {
+    await app.postUpdate.execute(identity, input);
+    return OK;
+  }),
+
+  start_dev_server: tool(schemas.start_dev_server, (app, identity) =>
+    app.startDevServer.execute(identity),
+  ),
+  stop_dev_server: tool(schemas.stop_dev_server, (app, identity) =>
+    app.stopDevServer.execute(identity),
+  ),
+  attach_image: tool(schemas.attach_image, (app, identity, input) =>
+    app.attachImage.execute(identity, input),
+  ),
 };

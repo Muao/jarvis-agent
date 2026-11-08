@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { JarvisConfig } from '@jarvis/shared';
@@ -115,5 +115,33 @@ describe('FileConfigProvider hot reload', () => {
     await write({ repo: { path: '/other' } });
     await new Promise((r) => setTimeout(r, 100));
     expect(provider.current().repo.path).toBe('/r');
+  });
+});
+
+describe('FileConfigProvider.update', () => {
+  it('merges the patch into the raw file, keeping sibling fields, and writes it back', async () => {
+    await write({ repo: { path: '/r' }, limits: { dailyBudgetUsd: 5 } });
+    provider = new FileConfigProvider(file);
+    provider.load();
+
+    const config = await provider.update({ limits: { stallMinutes: 1 } });
+
+    expect(config.limits.stallMinutes).toBe(1);
+    expect(config.limits.dailyBudgetUsd).toBe(5);
+    expect(provider.current().limits.stallMinutes).toBe(1);
+
+    const onDisk = JSON.parse(await readFile(file, 'utf8'));
+    expect(onDisk.limits).toEqual({ stallMinutes: 1, dailyBudgetUsd: 5 });
+  });
+
+  it('rejects a merge that fails validation, writing nothing', async () => {
+    await write({ repo: { path: '/r' } });
+    provider = new FileConfigProvider(file);
+    provider.load();
+
+    await expect(provider.update({ limits: { stallMinutes: -1 } })).rejects.toThrow(
+      /limits\.stallMinutes/,
+    );
+    expect(provider.current().limits.stallMinutes).toBe(10);
   });
 });

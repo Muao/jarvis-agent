@@ -1,19 +1,63 @@
 {
   "steps": [
-    { "type": "init" },
-    { "type": "text", "text": "Spec approved, implementing." },
-    { "type": "jarvis_tool", "tool": "report_stage", "input": { "stage": "Verifying" } },
+    {
+      "type": "init"
+    },
+    {
+      "type": "text",
+      "text": "Spec approved, implementing."
+    },
+    {
+      "type": "jarvis_tool",
+      "tool": "report_stage",
+      "input": {
+        "stage": "Verifying"
+      }
+    },
     {
       "type": "jarvis_tool",
       "tool": "report_checks",
-      "input": { "passed": true, "summary": "test, lint and typecheck are green" }
+      "input": {
+        "passed": true,
+        "summary": "test, lint and typecheck are green"
+      }
     },
-    { "type": "jarvis_tool", "tool": "report_stage", "input": { "stage": "Reviewing" } },
+    {
+      "type": "jarvis_tool",
+      "tool": "report_stage",
+      "input": {
+        "stage": "Reviewing"
+      }
+    },
+    {
+      "type": "jarvis_tool",
+      "tool": "start_dev_server",
+      "input": {}
+    },
+    {
+      "type": "jarvis_tool",
+      "tool": "attach_image",
+      "input": {
+        "path": "screenshots/001-about-page.png",
+        "alt": "the About page"
+      }
+    },
+    {
+      "type": "jarvis_tool",
+      "tool": "stop_dev_server",
+      "input": {}
+    },
     {
       "type": "jarvis_tool",
       "tool": "report_pr",
-      "input": { "number": 7, "url": "https://github.com/example/repo/pull/7" }
+      "input": {
+        "number": 7,
+        "url": "https://github.com/example/repo/pull/7"
+      }
     },
-    { "type": "result", "text": "draft PR opened" }
+    {
+      "type": "result",
+      "text": "draft PR opened"
+    }
   ]
 }

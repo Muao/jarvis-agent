@@ -11,6 +11,7 @@ const source = {
   SHELL: '/bin/zsh',
   TMPDIR: '/tmp',
   CLAUDE_CONFIG_DIR: '/home/o/.claude-personal',
+  PLAYWRIGHT_BROWSERS_PATH: '/ms-playwright',
   CLAUDECODE: '1',
   CLAUDE_CODE_SESSION_ID: 'parent-session',
   ANTHROPIC_API_KEY: 'sk-ant-1',
@@ -29,6 +30,7 @@ describe('buildChildEnv', () => {
     expect(Object.keys(env).sort()).toEqual(
       [
         'CLAUDE_CONFIG_DIR',
+        'PLAYWRIGHT_BROWSERS_PATH',
         'HOME',
         'LANG',
         'LC_ALL',
@@ -38,6 +40,12 @@ describe('buildChildEnv', () => {
         'TMPDIR',
         'USER',
       ].sort(),
+    );
+  });
+
+  it('passes the Playwright browsers path through to the MCP grandchild (ADR-0022)', () => {
+    expect(buildChildEnv(source, { role: 'worker' })['PLAYWRIGHT_BROWSERS_PATH']).toBe(
+      '/ms-playwright',
     );
   });
 

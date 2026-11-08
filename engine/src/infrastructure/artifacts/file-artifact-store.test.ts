@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ArtifactName } from '@jarvis/shared';
@@ -48,6 +48,48 @@ describe('FileArtifactStore', () => {
       'result.md',
     ]);
     expect(all.filter((a) => a.exists).map((a) => a.name)).toEqual(['context.md']);
+  });
+
+  describe('readImage (ADR-0023)', () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+    beforeEach(() => {
+      mkdirSync(join(store.dirFor('T-1'), 'screenshots'), { recursive: true });
+      writeFileSync(join(store.dirFor('T-1'), 'screenshots', '001-card.png'), png);
+    });
+
+    it('reads a screenshot with its base name, type and size', async () => {
+      const blob = await store.readImage('T-1', 'screenshots/001-card.png');
+      expect(blob).toMatchObject({
+        name: '001-card.png',
+        contentType: 'image/png',
+        sizeBytes: png.byteLength,
+      });
+      expect(Buffer.from(blob.bytes)).toEqual(png);
+    });
+
+    it('refuses a path that leaves the task folder (AC-16)', async () => {
+      writeFileSync(join(root, 'outside.png'), png);
+      for (const path of ['../outside.png', '../../outside.png', '/etc/hosts.png']) {
+        await expect(store.readImage('T-1', path)).rejects.toThrow(/outside/);
+      }
+    });
+
+    it('refuses a symlink that points out of the task folder (AC-16)', async () => {
+      writeFileSync(join(root, 'outside.png'), png);
+      symlinkSync(join(root, 'outside.png'), join(store.dirFor('T-1'), 'link.png'));
+
+      await expect(store.readImage('T-1', 'link.png')).rejects.toThrow(/outside/);
+    });
+
+    it('refuses anything that is not an image (AC-17)', async () => {
+      writeFileSync(join(store.dirFor('T-1'), 'spec.md'), '# Spec');
+      await expect(store.readImage('T-1', 'spec.md')).rejects.toThrow(/not an image/);
+    });
+
+    it('reports a missing screenshot as not found', async () => {
+      await expect(store.readImage('T-1', 'screenshots/nope.png')).rejects.toThrow(/not found/);
+    });
   });
 
   it('rejects unknown names and traversal attempts', async () => {

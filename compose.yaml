@@ -32,7 +32,14 @@ services:
       DATABASE_URL: postgres://jarvis:jarvis@postgres:5432/jarvis
       JARVIS_INSIDE_CONTAINER: '1'
       JARVIS_LISTEN_HOST: 0.0.0.0 # inside the container; the published port below is loopback only
-    command: pnpm --filter @jarvis/engine start
+      # Infisical (ADR-0016): set these three in the shell (or ~/.jarvis/.env, loaded by `pnpm dev`'s
+      # own shell, not this container) to inject secrets; unset -> with-secrets.sh falls back to
+      # ~/.jarvis/.env inside the container, unchanged from before.
+      INFISICAL_CLIENT_ID: ${INFISICAL_CLIENT_ID:-}
+      INFISICAL_CLIENT_SECRET: ${INFISICAL_CLIENT_SECRET:-}
+      INFISICAL_PROJECT_ID: ${INFISICAL_PROJECT_ID:-}
+      JARVIS_ENV: ${JARVIS_ENV:-dev}
+    command: scripts/with-secrets.sh pnpm --filter @jarvis/engine start
     ports:
       - '127.0.0.1:4310:4310'
       - '127.0.0.1:5180:5180' # web shares this network namespace (see below)

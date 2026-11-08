@@ -15,6 +15,7 @@ that no ADR allows; propose an ADR first.
 
 ```
 AGENTS.md                    agent instructions (this file)
+STATUS.md                    current state, what is done, what is next — read it first, keep it updated
 .claude/agents/              implementer, spec-creator
 .claude/skills/              stack skills: onion-architecture, fastify, drizzle, react, zod
 docs/specs/                  what and why: abstract spec, UI design brief, feature specs

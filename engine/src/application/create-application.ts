@@ -1,6 +1,8 @@
 import { HandleCodeHostChange } from './code-host/handle-code-host-change.js';
 import { PollPullRequests } from './code-host/poll-pull-requests.js';
 import { ListTasks } from './conversation/list-tasks.js';
+import { UpdateConfig } from './config/update-config.js';
+import { Remember } from './profile/remember.js';
 import type { Notifiers } from './transaction.js';
 import { AnswerPermission } from './permissions/answer-permission.js';
 import { AwaitPermission } from './permissions/await-permission.js';
@@ -23,6 +25,7 @@ import { ResumeAfterRestart } from './recovery/resume-after-restart.js';
 import { DetectStalls } from './supervision/detect-stalls.js';
 import { EnforceTaskTimeouts } from './supervision/enforce-task-timeouts.js';
 import { ExpireOrphanedPermissions } from './supervision/expire-orphaned-permissions.js';
+import { PostProgressUpdates } from './supervision/post-progress-updates.js';
 import { LiveRuns } from './runs/live-runs.js';
 import { ResolveRunIdentity } from './runs/resolve-run-identity.js';
 import { RunEventLog } from './runs/run-event-log.js';
@@ -41,11 +44,13 @@ import type { CodeHost } from './ports/code-host.js';
 import type { ConfigProvider, ConfigStatus } from './ports/config-provider.js';
 import type { ConnectionChecks } from './ports/connection-checks.js';
 import type { DatabasePing } from './ports/database-ping.js';
+import type { DevServerManager } from './ports/dev-server.js';
 import type { Logger } from './ports/logger.js';
 import type { IdGenerator } from './ports/id-generator.js';
 import type { ProfileFiles } from './ports/profile-files.js';
 import type { ProfileStore } from './ports/profile-store.js';
 import type { RepoInfo } from './ports/repo-info.js';
+import type { RepoResolver } from './ports/repo-resolver.js';
 import type { RunCoordinator } from './ports/run-coordinator.js';
 import type { UnitOfWork } from './ports/unit-of-work.js';
 import type { WorktreeManager } from './ports/worktree-manager.js';
@@ -55,13 +60,18 @@ import { AskOwner } from './tasks/ask-owner.js';
 import { CancelTask } from './tasks/cancel-task.js';
 import { CreateTask } from './tasks/create-task.js';
 import { LogNote } from './tasks/log-note.js';
+import { PostUpdate } from './tasks/post-update.js';
 import { ReportChecks } from './tasks/report-checks.js';
 import { ReportPr } from './tasks/report-pr.js';
 import { ReportStage } from './tasks/report-stage.js';
 import { RetryStage } from './tasks/retry-stage.js';
+import { SetTaskTargetRepo } from './tasks/set-task-target-repo.js';
 import { StatusCard } from './tasks/status-card.js';
 import { SubmitSpec } from './tasks/submit-spec.js';
 import { TaskWriter } from './tasks/task-writer.js';
+import { AttachImage } from './ui/attach-image.js';
+import { StartDevServer } from './ui/start-dev-server.js';
+import { StopDevServer } from './ui/stop-dev-server.js';
 
 /** Every port the use cases need; the composition root (or `buildTestApp`) supplies the adapters. */
 export interface ApplicationPorts extends Omit<Notifiers, 'runs'> {
@@ -78,10 +88,14 @@ export interface ApplicationPorts extends Omit<Notifiers, 'runs'> {
   /** Read side of the Config and Connections screens. */
   readonly configStatus: ConfigStatus;
   readonly repoInfo: RepoInfo;
+  /** ADR-0019: checks a task's requested target repo against the allow-list / owner-account rule. */
+  readonly repos: RepoResolver;
   readonly profileFiles: ProfileFiles;
   readonly connections: ConnectionChecks;
   /** Is the database reachable (`GET /api/health`). */
   readonly database: DatabasePing;
+  /** ADR-0022: the engine-owned dev server the worker's UI check runs against. */
+  readonly devServers: DevServerManager;
   /** The engine's version, read once at start-up. */
   readonly version: string;
   /**
@@ -103,10 +117,18 @@ export interface Application {
   readonly answerQuestion: AnswerQuestion;
   readonly reportStage: ReportStage;
   readonly logNote: LogNote;
+  readonly postUpdate: PostUpdate;
   readonly reportChecks: ReportChecks;
   readonly reportPr: ReportPr;
   readonly cancelTask: CancelTask;
   readonly retryStage: RetryStage;
+  readonly setTaskTargetRepo: SetTaskTargetRepo;
+  readonly remember: Remember;
+  readonly updateConfig: UpdateConfig;
+  /** ADR-0022 / ADR-0023: the worker's UI check. */
+  readonly startDevServer: StartDevServer;
+  readonly stopDevServer: StopDevServer;
+  readonly attachImage: AttachImage;
   readonly scheduler: RunScheduler;
   readonly resolveRunIdentity: ResolveRunIdentity;
   readonly stopRun: StopRun;
@@ -117,6 +139,7 @@ export interface Application {
   readonly expirePermission: ExpirePermission;
   readonly pollPullRequests: PollPullRequests;
   readonly detectStalls: DetectStalls;
+  readonly postProgressUpdates: PostProgressUpdates;
   readonly enforceTaskTimeouts: EnforceTaskTimeouts;
   readonly expireOrphanedPermissions: ExpireOrphanedPermissions;
   readonly resumeAfterRestart: ResumeAfterRestart;
@@ -162,6 +185,7 @@ export function createApplication(ports: ApplicationPorts): Application {
     liveRuns,
     eventLog,
     connections: ports.connections,
+    devServers: ports.devServers,
   });
   const notifiers: Notifiers = {
     owner: ports.owner,
@@ -187,17 +211,24 @@ export function createApplication(ports: ApplicationPorts): Application {
     reply: new Reply(deps),
     listTasks: new ListTasks({ uow, runs: notifiers.runs }),
     sendToTask: new SendToTask(deps),
-    createTask: new CreateTask({ ...deps, ids, worktrees }),
+    createTask: new CreateTask({ ...deps, ids, worktrees, repos: ports.repos }),
     submitSpec: new SubmitSpec({ ...deps, artifacts }),
     answerDecision,
     askOwner: new AskOwner(deps),
     answerQuestion,
     reportStage: new ReportStage(deps),
     logNote: new LogNote(deps),
+    postUpdate: new PostUpdate(deps),
     reportChecks: new ReportChecks({ ...deps, config }),
     reportPr: new ReportPr(deps),
     cancelTask: new CancelTask(deps),
     retryStage: new RetryStage(deps),
+    setTaskTargetRepo: new SetTaskTargetRepo({ ...deps, repos: ports.repos }),
+    remember: new Remember({ profile: ports.profile }),
+    updateConfig: new UpdateConfig({ ...deps, config }),
+    startDevServer: new StartDevServer({ ...deps, devServers: ports.devServers, worktrees }),
+    stopDevServer: new StopDevServer({ ...deps, devServers: ports.devServers }),
+    attachImage: new AttachImage({ ...deps, config, artifacts, codeHost: ports.codeHost }),
     scheduler,
     resolveRunIdentity: new ResolveRunIdentity(registry),
     stopRun: new StopRun({ ...deps, liveRuns }),
@@ -222,6 +253,7 @@ export function createApplication(ports: ApplicationPorts): Application {
       messages,
     }),
     detectStalls: new DetectStalls({ ...deps, config }),
+    postProgressUpdates: new PostProgressUpdates({ ...deps, config }),
     enforceTaskTimeouts: new EnforceTaskTimeouts({ ...deps, config, artifacts }),
     expireOrphanedPermissions,
     resumeAfterRestart: new ResumeAfterRestart({

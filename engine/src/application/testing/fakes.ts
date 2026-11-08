@@ -7,11 +7,12 @@ import {
   type StreamEvent,
 } from '@jarvis/shared';
 import type { IsoTime, Message } from '../../domain/index.js';
-import type { ArtifactFile, ArtifactStore } from '../ports/artifact-store.js';
+import type { ArtifactBlob, ArtifactFile, ArtifactStore } from '../ports/artifact-store.js';
 import type { Clock } from '../ports/clock.js';
 import type { ConfigProvider, ConfigStatus } from '../ports/config-provider.js';
 import type { ConnectionChecks, ConnectionOutcome } from '../ports/connection-checks.js';
 import type { DatabasePing } from '../ports/database-ping.js';
+import type { DevServerLease, DevServerManager, DevServerResult } from '../ports/dev-server.js';
 import type { ProfileFile, ProfileFiles } from '../ports/profile-files.js';
 import type { RepoCommands, RepoInfo } from '../ports/repo-info.js';
 import type { EventBus } from '../ports/event-bus.js';
@@ -19,8 +20,10 @@ import type { IdGenerator } from '../ports/id-generator.js';
 import type { LogContext, Logger } from '../ports/logger.js';
 import type { ProfileStore } from '../ports/profile-store.js';
 import type { OwnerChannel } from '../ports/owner-channel.js';
+import type { RepoResolver } from '../ports/repo-resolver.js';
 import type { QueuedWorkerRun, RunCoordinator, WorkerRunReason } from '../ports/run-coordinator.js';
 import type { Worktree, WorktreeManager } from '../ports/worktree-manager.js';
+import { InvalidInputError, NotFoundError } from '../errors.js';
 
 export class FakeClock implements Clock {
   private ms: number;
@@ -79,6 +82,8 @@ export class SequentialIds implements IdGenerator {
 
 export class FakeWorktreeManager implements WorktreeManager {
   readonly created: Worktree[] = [];
+  /** `targetRepo` given to each `create` call, in order, for assertions. */
+  readonly targetRepos: ({ owner: string; name: string } | null)[] = [];
   private failure: Error | null = null;
 
   /** The next `create` rejects with `error` (and nothing is created). */
@@ -86,20 +91,46 @@ export class FakeWorktreeManager implements WorktreeManager {
     this.failure = error;
   }
 
-  async create(taskId: string): Promise<Worktree> {
+  async create(
+    taskId: string,
+    targetRepo?: { owner: string; name: string } | null,
+  ): Promise<Worktree> {
     if (this.failure !== null) {
       const error = this.failure;
       this.failure = null;
       throw error;
     }
-    const worktree = { branch: `jarvis/${taskId}`, path: `/jarvis/worktrees/${taskId}` };
+    this.targetRepos.push(targetRepo ?? null);
+    const path =
+      targetRepo === undefined || targetRepo === null
+        ? `/jarvis/worktrees/${taskId}`
+        : `/jarvis/repos/${targetRepo.owner}/${targetRepo.name}/worktrees/${taskId}`;
+    const worktree = { branch: `jarvis/${taskId}`, path };
     this.created.push(worktree);
     return worktree;
   }
 }
 
+export class FakeRepoResolver implements RepoResolver {
+  private readonly allowed = new Set<string>();
+
+  /** Allow `ownerSlashName` to resolve; everything else rejects. */
+  allow(ownerSlashName: string): void {
+    this.allowed.add(ownerSlashName.toLowerCase());
+  }
+
+  async resolve(ownerSlashName: string): Promise<{ owner: string; name: string }> {
+    if (!this.allowed.has(ownerSlashName.toLowerCase())) {
+      throw new Error(`"${ownerSlashName}" is not allowed`);
+    }
+    const [owner, name] = ownerSlashName.split('/');
+    return Promise.resolve({ owner: owner ?? '', name: name ?? '' });
+  }
+}
+
 export class InMemoryArtifactStore implements ArtifactStore {
   private readonly files = new Map<string, { content: string; updatedAt: IsoTime }>();
+  private readonly images = new Map<string, Uint8Array>();
 
   constructor(private readonly clock: Clock = new FakeClock()) {}
 
@@ -124,6 +155,76 @@ export class InMemoryArtifactStore implements ArtifactStore {
       name,
       exists: this.files.has(`${taskId}/${name}`),
     }));
+  }
+
+  /** Test helper: a screenshot the UI check produced, by its path under the artifacts folder. */
+  writeImage(taskId: string, relativePath: string, bytes: Uint8Array): void {
+    this.images.set(`${taskId}/${relativePath}`, bytes);
+  }
+
+  /** Mirrors `FileArtifactStore`: refuses to leave the folder or to read a non-image. */
+  async readImage(taskId: string, relativePath: string): Promise<ArtifactBlob> {
+    if (relativePath.startsWith('/') || relativePath.split('/').includes('..')) {
+      throw new InvalidInputError(
+        `${JSON.stringify(relativePath)} is outside the task's artifacts directory`,
+      );
+    }
+    const type = Object.entries({
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+    }).find(([ext]) => relativePath.toLowerCase().endsWith(ext));
+    if (type === undefined) {
+      throw new InvalidInputError(`${JSON.stringify(relativePath)} is not an image`);
+    }
+    const bytes = this.images.get(`${taskId}/${relativePath}`);
+    if (bytes === undefined) throw new NotFoundError('screenshot', relativePath);
+    return {
+      name: relativePath.split('/').pop() as string,
+      bytes,
+      contentType: type[1],
+      sizeBytes: bytes.byteLength,
+    };
+  }
+}
+
+/** ADR-0022: records what the engine was asked to start, without starting anything. */
+export class FakeDevServerManager implements DevServerManager {
+  readonly started: { taskId: string; cwd: string }[] = [];
+  readonly stopped: string[] = [];
+  /** What the next `start` answers; the default pretends the server came up. */
+  nextResult: DevServerResult | null = null;
+  private lease: DevServerLease | null = null;
+
+  async start(taskId: string, cwd: string): Promise<DevServerResult> {
+    this.started.push({ taskId, cwd });
+    const result =
+      this.nextResult ??
+      ({
+        ok: true,
+        lease: {
+          taskId,
+          baseUrl: 'http://127.0.0.1:5173',
+          expiresAt: '2026-11-08T00:15:00.000Z',
+        },
+      } satisfies DevServerResult);
+    this.lease = result.ok ? result.lease : null;
+    return result;
+  }
+
+  async stop(taskId: string): Promise<void> {
+    this.stopped.push(taskId);
+    if (this.lease?.taskId === taskId) this.lease = null;
+  }
+
+  async stopAll(): Promise<void> {
+    this.lease = null;
+  }
+
+  current(): DevServerLease | null {
+    return this.lease;
   }
 }
 
@@ -186,6 +287,23 @@ export class RecordingRunCoordinator implements RunCoordinator {
   }
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function deepMerge(
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(patch)) {
+    const existing = result[key];
+    result[key] =
+      isPlainObject(existing) && isPlainObject(value) ? deepMerge(existing, value) : value;
+  }
+  return result;
+}
+
 export class StaticConfigProvider implements ConfigProvider {
   constructor(private config: JarvisConfig = defaultTestConfig()) {}
 
@@ -196,6 +314,14 @@ export class StaticConfigProvider implements ConfigProvider {
   set(config: JarvisConfig): void {
     this.config = config;
   }
+
+  async update(patch: Record<string, unknown>): Promise<JarvisConfig> {
+    const merged = deepMerge(this.config as unknown as Record<string, unknown>, patch);
+    const result = JarvisConfigSchema.safeParse(merged);
+    if (!result.success) throw new Error(result.error.message);
+    this.config = result.data;
+    return result.data;
+  }
 }
 
 /** The schema defaults for everything but the required repo path. */
@@ -205,10 +331,17 @@ export function defaultTestConfig(): JarvisConfig {
 
 /** USER.md in memory; tests change `text` between runs. */
 export class FakeProfileStore implements ProfileStore {
+  /** Facts passed to `appendLearned`, in call order. */
+  readonly learned: string[] = [];
+
   constructor(public text: string | null = null) {}
 
   async userPreferences(): Promise<string | null> {
     return this.text;
+  }
+
+  async appendLearned(fact: string): Promise<void> {
+    this.learned.push(fact);
   }
 }
 

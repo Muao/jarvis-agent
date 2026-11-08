@@ -20,9 +20,11 @@ import {
   FakeConfigStatus,
   FakeConnectionChecks,
   FakeDatabasePing,
+  FakeDevServerManager,
   FakeProfileFiles,
   FakeProfileStore,
   FakeRepoInfo,
+  FakeRepoResolver,
   FakeWorktreeManager,
   InMemoryArtifactStore,
   RecordingEventBus,
@@ -57,6 +59,7 @@ export interface TestApp extends Application {
   readonly uow: FakeUnitOfWork;
   readonly config: StaticConfigProvider;
   readonly worktrees: FakeWorktreeManager;
+  readonly repos: FakeRepoResolver;
   readonly artifacts: InMemoryArtifactStore;
   readonly codeHost: FakeCodeHost;
   readonly owner: RecordingOwnerChannel;
@@ -70,6 +73,8 @@ export interface TestApp extends Application {
   readonly profileFiles: FakeProfileFiles;
   readonly connections: FakeConnectionChecks;
   readonly database: FakeDatabasePing;
+  /** ADR-0022: what the UI check asked the engine to start. */
+  readonly devServers: FakeDevServerManager;
   /** Run identities as presentation would resolve them from a run token. */
   readonly identity: {
     dispatcher(threadId: string): RunIdentity;
@@ -79,7 +84,11 @@ export interface TestApp extends Application {
     /** A thread with no task. */
     thread(title?: string): Promise<Thread>;
     /** A thread with a task in `stage` (default Context), its status card and its journal. */
-    task(options?: { stage?: TaskStage; threadId?: string }): Promise<SeededTask>;
+    task(options?: {
+      stage?: TaskStage;
+      threadId?: string;
+      targetRepo?: { owner: string; name: string } | null;
+    }): Promise<SeededTask>;
   };
   /** Forget the notifications recorded so far, so a test sees only what the use case under test sent. */
   clearEffects(): void;
@@ -105,6 +114,7 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
   const uow = new FakeUnitOfWork(db);
   const config = new StaticConfigProvider();
   const worktrees = new FakeWorktreeManager();
+  const repos = new FakeRepoResolver();
   const artifacts = new InMemoryArtifactStore(clock);
   const codeHost = new FakeCodeHost();
   const owner = new RecordingOwnerChannel();
@@ -118,6 +128,7 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
   const profileFiles = new FakeProfileFiles();
   const connections = new FakeConnectionChecks();
   const database = new FakeDatabasePing();
+  const devServers = new FakeDevServerManager();
 
   const application = createApplication({
     uow,
@@ -125,6 +136,7 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
     clock,
     config,
     worktrees,
+    repos,
     artifacts,
     codeHost,
     owner,
@@ -136,6 +148,7 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
     profileFiles,
     connections,
     database,
+    devServers,
     version: '0.0.0-test',
     logger,
     ...(options.realRuns === true ? {} : { coordinator: runs }),
@@ -173,6 +186,7 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
         title: 'Seeded task',
         branch: `jarvis/${id}`,
         at: clock.now(),
+        targetRepo: options.targetRepo ?? null,
       });
       for (const to of PATH_TO[stage] ?? []) {
         const moved = transition(current, to, {
@@ -202,6 +216,7 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
     uow,
     config,
     worktrees,
+    repos,
     artifacts,
     codeHost,
     owner,
@@ -215,6 +230,7 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
     profileFiles,
     connections,
     database,
+    devServers,
     identity: {
       dispatcher: (threadId) => ({ runId: 'run-d', role: 'dispatcher', threadId }),
       worker: (task) => ({

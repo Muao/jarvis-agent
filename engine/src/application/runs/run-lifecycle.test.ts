@@ -20,6 +20,7 @@ describe('first message of a worker run ("Run context")', () => {
         'branch: jarvis/T-1',
         'artifactsDir: /jarvis/tasks/T-1',
         'stage: Context',
+        'uiCheck: disabled: ui.enabled is false',
         '## Owner preferences (USER.md)',
         'Reply in Ukrainian.',
         '## Task description',
@@ -34,6 +35,7 @@ describe('first message of a worker run ("Run context")', () => {
       maxBudgetUsd: 3,
       keepStdinOpen: true,
       taskId: 'T-1',
+      screenshotsDir: '/jarvis/tasks/T-1/screenshots',
     });
     expect(spec?.resumeSessionId).toBeUndefined();
   });

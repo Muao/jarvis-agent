@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { AllowedRepoResolver } from './allowed-repo-resolver.js';
 import { GitWorktreeManager } from './git-worktree-manager.js';
 
 const git = (cwd: string, ...args: string[]) =>
@@ -76,5 +77,72 @@ describe('GitWorktreeManager', () => {
     git(repo, 'remote', 'add', 'origin', join(root, 'missing.git'));
     await expect(manager().create('T-4')).rejects.toThrow();
     expect(existsSync(join(worktreesDir, 'T-4'))).toBe(false);
+  });
+
+  describe('targetRepo (ADR-0019)', () => {
+    let targetBare: string;
+    let reposRoot: string;
+
+    beforeEach(() => {
+      const targetSource = join(root, 'target-source');
+      targetBare = join(root, 'target.git');
+      reposRoot = join(root, 'cloned-repos');
+      execFileSync('git', ['init', '-b', 'main', targetSource]);
+      git(targetSource, 'config', 'user.email', 't@example.com');
+      git(targetSource, 'config', 'user.name', 'Test');
+      git(targetSource, 'config', 'commit.gpgsign', 'false');
+      writeFileSync(join(targetSource, 'b.txt'), 'b');
+      git(targetSource, 'add', '.');
+      git(targetSource, 'commit', '-m', 'init');
+      execFileSync('git', ['clone', '--bare', targetSource, targetBare]);
+    });
+
+    const managerWithTargetRepos = () =>
+      new GitWorktreeManager({
+        repoPath: repo,
+        remote: 'origin',
+        baseBranch: 'main',
+        worktreesDir,
+        targetRepos: {
+          resolver: new AllowedRepoResolver(
+            { allow: ['owner/target'], allowOwnerRepos: false },
+            { botLogin: () => Promise.resolve('irrelevant') },
+            null,
+          ),
+          reposRoot,
+          token: 'irrelevant',
+          cloneUrl: () => targetBare,
+        },
+      });
+
+    it('clones the target repo on demand and creates the worktree inside it', async () => {
+      const wt = await managerWithTargetRepos().create('T-5', { owner: 'owner', name: 'target' });
+      expect(wt.path).toBe(join(worktreesDir, 'T-5'));
+      expect(existsSync(join(wt.path, 'b.txt'))).toBe(true);
+      expect(existsSync(join(reposRoot, 'owner', 'target'))).toBe(true);
+    });
+
+    it('never touches the default repo.path when a target repo is given', async () => {
+      await managerWithTargetRepos().create('T-5', { owner: 'owner', name: 'target' });
+      expect(existsSync(join(worktreesDir, 'T-5', 'a.txt'))).toBe(false);
+    });
+
+    it('still uses the default repo when no target repo is given', async () => {
+      const wt = await managerWithTargetRepos().create('T-1');
+      expect(existsSync(join(wt.path, 'a.txt'))).toBe(true);
+    });
+
+    it('rejects a target repo outside the allow-list without cloning', async () => {
+      await expect(
+        managerWithTargetRepos().create('T-6', { owner: 'someone', name: 'else' }),
+      ).rejects.toThrow();
+      expect(existsSync(join(reposRoot, 'someone'))).toBe(false);
+    });
+
+    it('fails clearly when targetRepo is given but clone-on-demand is not configured', async () => {
+      await expect(manager().create('T-7', { owner: 'owner', name: 'target' })).rejects.toThrow(
+        /clone-on-demand is not configured/,
+      );
+    });
   });
 });

@@ -203,7 +203,6 @@ describe('timeout (SLK-05)', () => {
     );
     expect(app.messagesOf(thread.id).find((m) => m.kind === 'permission')?.answer).toEqual({
       decision: 'deny',
-      reason: 'timeout',
     });
     expect(app.db.tables.runEvents.get(identity.runId)?.at(-1)).toMatchObject({
       payload: { decision: 'timeout' },

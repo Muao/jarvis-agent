@@ -10,6 +10,7 @@ import {
   type ConfigStatus,
 } from './application/index.js';
 import { FileArtifactStore } from './infrastructure/artifacts/file-artifact-store.js';
+import { ProcessDevServer } from './infrastructure/dev-server/process-dev-server.js';
 import { HttpHeartbeat } from './infrastructure/heartbeat/http-heartbeat.js';
 import { buildChildEnv } from './infrastructure/claude/child-env.js';
 import { ClaudeCliRunner } from './infrastructure/claude/index.js';
@@ -36,6 +37,8 @@ import {
 } from './infrastructure/db/index.js';
 import { runGit } from './infrastructure/git/run-git.js';
 import { GitWorktreeManager } from './infrastructure/git/git-worktree-manager.js';
+import { AllowedRepoResolver, selfRepoRef } from './infrastructure/git/allowed-repo-resolver.js';
+import type { RepoResolver } from './application/index.js';
 import { CodeHostError, GitHubCodeHost, parseRemote } from './infrastructure/github/index.js';
 import { CryptoIdGenerator } from './infrastructure/ids/crypto-id-generator.js';
 import { ConsoleLogger } from './infrastructure/logging/console-logger.js';
@@ -115,6 +118,7 @@ const unconfiguredCodeHost: CodeHost = {
   snapshot: () => Promise.reject(notConfigured()),
   botLogin: () => Promise.reject(notConfigured()),
   rerunFailedChecks: () => Promise.reject(notConfigured()),
+  uploadAttachment: () => Promise.resolve({ ok: false, reason: notConfigured().message }),
 };
 
 function notConfigured(): CodeHostError {
@@ -178,6 +182,20 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
   const port = options.port ?? config.engine.port;
   let apiUrl = `http://${LOOPBACK_HOST}:${port}`;
 
+  // ADR-0019: a task may target a repo besides the configured default, clone-on-demand.
+  const selfRepo = await selfRepoRef(config.repo.path, config.repo.remote);
+  const allowedRepoResolver = new AllowedRepoResolver(
+    config.repos,
+    github ?? unconfiguredCodeHost,
+    selfRepo,
+  );
+  const repoResolver: RepoResolver = {
+    resolve: async (ownerSlashName) => {
+      const ref = await allowedRepoResolver.resolve(ownerSlashName);
+      return { owner: ref.owner, name: ref.repo };
+    },
+  };
+
   const runner = new ClaudeCliRunner({
     binary: config.engine.claudeBinary,
     envSource: options.env,
@@ -193,6 +211,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
           repo: current.repo,
           allowlist: current.allowlist,
           telemetry: current.telemetry,
+          ui: current.ui,
         },
         mcpServer: { command: process.execPath, args: ['--import', TSX_LOADER, MCP_ENTRY] },
         apiUrl,
@@ -222,6 +241,15 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
     github,
     clock,
   });
+  // ADR-0022: the engine owns the UI check's dev server; a leftover from a previous engine dies here.
+  const devServers = new ProcessDevServer({
+    ui: () => provider.current().ui,
+    logger,
+    stateFile: join(home.root, 'dev-server.json'),
+    env: options.env,
+  });
+  await devServers.recover();
+
   const app = createApplication({
     uow: new PgUnitOfWork(createDatabase(pool)),
     ids: new CryptoIdGenerator(),
@@ -233,9 +261,20 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
       remote: config.repo.remote,
       baseBranch: config.repo.baseBranch,
       worktreesDir: join(home.root, 'worktrees'),
+      ...(env.githubToken === undefined
+        ? {}
+        : {
+            targetRepos: {
+              resolver: allowedRepoResolver,
+              reposRoot: join(home.root, 'repos'),
+              token: env.githubToken,
+            },
+          }),
     }),
     artifacts: new FileArtifactStore(join(home.root, 'tasks')),
+    devServers,
     codeHost: github ?? unconfiguredCodeHost,
+    repos: repoResolver,
     runner,
     profile: new FileProfileStore(home.userFile),
     configStatus,
@@ -284,6 +323,8 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
     },
     async close() {
       await server.close();
+      // Before the pool: a dev server must never outlive the engine that leased it (AC-13).
+      await devServers.stopAll();
       provider.close();
       await pool.end();
     },

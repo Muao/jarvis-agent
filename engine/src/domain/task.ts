@@ -14,6 +14,12 @@ export interface TaskCounters {
   readonly reviewRounds: number;
 }
 
+/** A repo besides the configured default, named `owner/name` (ADR-0019). */
+export interface TargetRepo {
+  readonly owner: string;
+  readonly name: string;
+}
+
 export interface Task {
   readonly id: string;
   readonly threadId: string;
@@ -29,6 +35,8 @@ export interface Task {
   readonly updatedAt: IsoTime;
   /** Why the task is `Blocked`, `Failed` or `Cancelled`; null otherwise. */
   readonly reason: string | null;
+  /** The repo this task's worktree is created in, besides the configured default; null means the default. */
+  readonly targetRepo: TargetRepo | null;
 }
 
 export const TERMINAL: readonly TaskStage[] = ['Done', 'Failed', 'Cancelled'];
@@ -123,6 +131,8 @@ export interface NewTask {
   readonly title: string;
   readonly branch: string;
   readonly at: IsoTime;
+  /** ADR-0019: the repo the worktree was created against, besides the configured default. */
+  readonly targetRepo?: TargetRepo | null;
 }
 
 const ZERO_COUNTERS: TaskCounters = { checkRetries: 0, ciFixRounds: 0, reviewRounds: 0 };
@@ -141,6 +151,7 @@ export function createTask(input: NewTask): Task {
     startedAt: input.at,
     updatedAt: input.at,
     reason: null,
+    targetRepo: input.targetRepo ?? null,
   };
 }
 
@@ -190,6 +201,11 @@ export function attachPullRequest(task: Task, pr: PullRequestRef, at: IsoTime): 
 
 export function assignWorkerSession(task: Task, sessionId: string, at: IsoTime): Task {
   return { ...task, workerSessionId: sessionId, updatedAt: at };
+}
+
+/** ADR-0019: names the repo this task's worktree is created in, besides the configured default. */
+export function setTargetRepo(task: Task, targetRepo: TargetRepo, at: IsoTime): Task {
+  return { ...task, targetRepo, updatedAt: at };
 }
 
 type Limits = JarvisConfig['limits'];

@@ -25,6 +25,10 @@ const toDomain = (row: Row): Task => ({
   startedAt: toIso(row.startedAt),
   updatedAt: toIso(row.updatedAt),
   reason: row.reason,
+  targetRepo:
+    row.targetRepoOwner === null || row.targetRepoName === null
+      ? null
+      : { owner: row.targetRepoOwner, name: row.targetRepoName },
 });
 
 /** `ord` is assigned by the database on first insert and never rewritten. */
@@ -44,6 +48,8 @@ const toValues = (task: Task): Omit<typeof tasks.$inferInsert, 'ord'> => ({
   startedAt: toDate(task.startedAt),
   updatedAt: toDate(task.updatedAt),
   reason: task.reason,
+  targetRepoOwner: task.targetRepo?.owner ?? null,
+  targetRepoName: task.targetRepo?.name ?? null,
 });
 
 const active = notInArray(tasks.stage, [...TERMINAL]);

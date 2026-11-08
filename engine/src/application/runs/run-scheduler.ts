@@ -2,6 +2,7 @@ import { canStartRun } from '../../domain/index.js';
 import type { BodyOf } from '../conversation/message-bodies.js';
 import type { ThreadMessages } from '../conversation/thread-messages.js';
 import type { ConnectionChecks } from '../ports/connection-checks.js';
+import type { DevServerManager } from '../ports/dev-server.js';
 import type { QueuedWorkerRun, RunCoordinator, WorkerRunReason } from '../ports/run-coordinator.js';
 import { transact, type Notifiers } from '../transaction.js';
 import { startOfLocalDay } from './local-day.js';
@@ -14,6 +15,8 @@ export interface RunSchedulerDeps extends Omit<StartRunDeps, 'notifiers'> {
   readonly liveRuns: LiveRuns;
   /** The last claude probe; a run never starts while it says the login has expired. */
   readonly connections: Pick<ConnectionChecks, 'last'>;
+  /** ADR-0022: a dev server must not outlive the run that leased it. */
+  readonly devServers: Pick<DevServerManager, 'stop'>;
 }
 
 type FillResult = 'idle' | 'budget_reached' | 'login_expired';
@@ -119,6 +122,16 @@ export class RunScheduler implements RunCoordinator {
   }
 
   private async runEnded(run: LiveRun): Promise<void> {
+    // ADR-0022: whatever the run's outcome, its dev server stops with it (AC-13).
+    if (run.taskId !== null) {
+      await this.deps.devServers.stop(run.taskId).catch((error: unknown) => {
+        this.notifiers.logger.error('could not stop the dev server of a finished run', {
+          runId: run.runId,
+          taskId: run.taskId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }
     await this.exclusive(async () => {
       // Messages that arrived during a dispatcher turn wait for the next one.
       if (run.role === 'dispatcher') this.dispatcherPending.add(run.threadId);

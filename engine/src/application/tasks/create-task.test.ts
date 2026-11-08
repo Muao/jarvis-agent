@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ForbiddenError } from '../errors.js';
+import { ForbiddenError, InvalidInputError } from '../errors.js';
 import { buildTestApp } from '../testing/build-test-app.js';
 
 const input = { title: 'Health endpoint', description: 'Add GET /health returning 200' };
@@ -34,6 +34,15 @@ describe('CreateTask', () => {
     expect(app.owner.delivered.map((m) => m.kind)).toEqual(['status']);
     expect(app.runs.calls).toEqual([{ type: 'worker_run', taskId: 'T-1', reason: 'start' }]);
     expect(app.events.published).toContainEqual({ type: 'task', id: 'T-1' });
+  });
+
+  it("renames the thread to the task's title, so it is findable in the thread list", async () => {
+    const app = buildTestApp();
+    const thread = await app.seed.thread('Ти працюєш?');
+
+    await app.createTask.execute(app.identity.dispatcher(thread.id), input);
+
+    expect(app.db.tables.threads.get(thread.id)).toMatchObject({ title: input.title });
   });
 
   it('numbers tasks T-1, T-2 across threads', async () => {
@@ -73,6 +82,36 @@ describe('CreateTask', () => {
     await expect(app.createTask.execute(app.identity.worker(task), input)).rejects.toBeInstanceOf(
       ForbiddenError,
     );
+  });
+
+  it('creates the worktree against an allow-listed repo and sets Task.targetRepo (ADR-0019)', async () => {
+    const app = buildTestApp();
+    app.repos.allow('owner/name');
+    const thread = await app.seed.thread();
+
+    const created = await app.createTask.execute(app.identity.dispatcher(thread.id), {
+      ...input,
+      repo: 'owner/name',
+    });
+
+    expect(app.task(created.taskId).targetRepo).toEqual({ owner: 'owner', name: 'name' });
+    expect(app.worktrees.targetRepos).toEqual([{ owner: 'owner', name: 'name' }]);
+  });
+
+  it('rejects a disallowed repo and creates no task or worktree', async () => {
+    const app = buildTestApp();
+    const thread = await app.seed.thread();
+
+    await expect(
+      app.createTask.execute(app.identity.dispatcher(thread.id), {
+        ...input,
+        repo: 'someone/else',
+      }),
+    ).rejects.toBeInstanceOf(InvalidInputError);
+
+    expect(app.db.tables.tasks.size).toBe(0);
+    expect(app.worktrees.created).toEqual([]);
+    expect(app.db.tables.journal).toEqual([]);
   });
 
   it('leaves no partial state and sends nothing when the worktree cannot be created', async () => {

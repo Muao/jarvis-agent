@@ -13,6 +13,7 @@ import {
   recordCheckFailure,
   recordCiFailure,
   recordReviewRound,
+  setTargetRepo,
   transition,
   type Task,
   type TransitionCause,
@@ -302,6 +303,16 @@ describe('field helpers', () => {
 
   it('assigns the worker session', () => {
     expect(assignWorkerSession(base, 'sess-1', T1).workerSessionId).toBe('sess-1');
+  });
+
+  it('starts with no target repo', () => {
+    expect(base.targetRepo).toBeNull();
+  });
+
+  it('sets the target repo', () => {
+    const task = setTargetRepo(base, { owner: 'owner', name: 'name' }, T1);
+    expect(task.targetRepo).toEqual({ owner: 'owner', name: 'name' });
+    expect(task.updatedAt).toBe(T1);
   });
 });
 

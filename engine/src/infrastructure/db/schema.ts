@@ -63,6 +63,9 @@ export const tasks = pgTable(
     startedAt: time('started_at').notNull(),
     updatedAt: time('updated_at').notNull(),
     reason: text('reason'),
+    /** ADR-0019: the repo this task's worktree is created in, besides the configured default. */
+    targetRepoOwner: text('target_repo_owner'),
+    targetRepoName: text('target_repo_name'),
   },
   (t) => [
     check('tasks_stage_check', oneOf('stage', TASK_STAGES)),

@@ -2,7 +2,7 @@ import { diffPullRequest, type PullRequestSnapshot } from '../../domain/index.js
 import type { BodyOf } from '../conversation/message-bodies.js';
 import type { ThreadMessages } from '../conversation/thread-messages.js';
 import type { Clock } from '../ports/clock.js';
-import type { CodeHost } from '../ports/code-host.js';
+import type { CodeHost, RepoTarget } from '../ports/code-host.js';
 import type { ConfigProvider } from '../ports/config-provider.js';
 import type { Watch } from '../ports/watch-repository.js';
 import { transact, type TransactionDeps } from '../transaction.js';
@@ -13,6 +13,8 @@ interface Rerun {
   readonly taskId: string;
   readonly prNumber: number;
   readonly headSha: string;
+  /** The repo the PR lives in (ADR-0019); null means the default repo. */
+  readonly repo: RepoTarget | null;
 }
 
 const NOTHING = { rerun: null, changes: 0 } as const;
@@ -62,12 +64,13 @@ export class PollPullRequests {
     const { uow, codeHost } = this.deps;
     // Only a task waiting on its PR is judged. While the worker fixes (Fixing) the state stays as it
     // was, so what happened on the new head is still new when the task is back in PR Open.
-    const waiting = await uow.run(
-      async (tx) => (await tx.tasks.get(watch.taskId))?.stage === 'PR Open',
-    );
-    if (!waiting) return;
+    const task = await uow.run((tx) => tx.tasks.get(watch.taskId));
+    if (task === null || task.stage !== 'PR Open') return;
 
-    const snapshot = await codeHost.snapshot(watch.prNumber);
+    // ADR-0019: the PR lives in the task's target repo, which is not always the default one. Asking
+    // the default repo for the same number would read a different PR, or none at all.
+    const repo = task.targetRepo;
+    const snapshot = await codeHost.snapshot(watch.prNumber, repo ?? undefined);
     const { rerun, changes } = await this.apply(watch, snapshot, botLogin);
     // A quiet tick (the usual one) writes nothing: one line per PR that actually changed.
     if (changes > 0) {
@@ -121,7 +124,10 @@ export class PollPullRequests {
       });
       if (JSON.stringify(summary) !== JSON.stringify(current.summary)) outbox.taskChanged(task);
       return {
-        rerun: handled?.rerun == null ? null : { taskId: task.id, ...handled.rerun },
+        rerun:
+          handled?.rerun == null
+            ? null
+            : { taskId: task.id, repo: task.targetRepo, ...handled.rerun },
         changes: diff.changes.length,
       };
     });
@@ -135,7 +141,7 @@ export class PollPullRequests {
   private async rerun(rerun: Rerun): Promise<void> {
     const { codeHost, notifiers, messages } = this.deps;
     try {
-      await codeHost.rerunFailedChecks(rerun.prNumber, rerun.headSha);
+      await codeHost.rerunFailedChecks(rerun.prNumber, rerun.headSha, rerun.repo ?? undefined);
     } catch (error) {
       notifiers.logger.error('could not re-run failed checks', { ...rerun, ...describe(error) });
       await transact(this.deps, async (tx, outbox) => {

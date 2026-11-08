@@ -2,13 +2,30 @@ import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Worktree, WorktreeManager } from '../../application/ports/worktree-manager.js';
+import type { AllowedRepoResolver } from './allowed-repo-resolver.js';
+import { cloneOnDemand, type CloneOnDemandOptions } from './clone-on-demand.js';
 import { GitError, runGit } from './run-git.js';
+import type { RepoRef } from '../github/remote.js';
 
 export interface GitWorktreeManagerOptions {
   readonly repoPath: string;
   readonly remote: string;
   readonly baseBranch: string;
   readonly worktreesDir: string;
+  /** ADR-0019: resolves and clones a task's target repo when `create` is given one. */
+  readonly targetRepos?: {
+    readonly resolver: AllowedRepoResolver;
+    readonly reposRoot: string;
+    readonly token: string;
+    /** Overrides the clone URL; defaults to GitHub over HTTPS with `token` (tests only). */
+    readonly cloneUrl?: (ref: RepoRef, token: string) => string;
+  };
+}
+
+interface SourceRepo {
+  readonly repoPath: string;
+  readonly remote: string;
+  readonly baseBranch: string;
 }
 
 const TASK_ID = /^T-\d+$/;
@@ -17,11 +34,14 @@ const TASK_ID = /^T-\d+$/;
 export class GitWorktreeManager implements WorktreeManager {
   constructor(private readonly options: GitWorktreeManagerOptions) {}
 
-  async create(taskId: string): Promise<Worktree> {
+  async create(
+    taskId: string,
+    targetRepo?: { owner: string; name: string } | null,
+  ): Promise<Worktree> {
     if (!TASK_ID.test(taskId)) {
       throw new Error(`Invalid task id: ${JSON.stringify(taskId)}`);
     }
-    const { repoPath, worktreesDir } = this.options;
+    const { worktreesDir } = this.options;
     const branch = `jarvis/${taskId}`;
     const path = join(worktreesDir, taskId);
 
@@ -34,21 +54,45 @@ export class GitWorktreeManager implements WorktreeManager {
     }
 
     await mkdir(worktreesDir, { recursive: true });
+    const source = await this.resolveSourceRepo(targetRepo ?? null);
 
-    if (await this.branchExists(branch)) {
-      await runGit(['worktree', 'add', path, branch], { cwd: repoPath });
+    if (await this.branchExists(branch, source)) {
+      await runGit(['worktree', 'add', path, branch], { cwd: source.repoPath });
       return { branch, path };
     }
 
-    const base = await this.resolveBase();
-    await runGit(['worktree', 'add', '-b', branch, path, base], { cwd: repoPath });
+    const base = await this.resolveBase(source);
+    await runGit(['worktree', 'add', '-b', branch, path, base], { cwd: source.repoPath });
     return { branch, path };
   }
 
-  private async branchExists(branch: string): Promise<boolean> {
+  /** The configured default repo, or a target repo resolved and cloned on demand (ADR-0019). */
+  private async resolveSourceRepo(
+    targetRepo: { owner: string; name: string } | null,
+  ): Promise<SourceRepo> {
+    const { repoPath, remote, baseBranch } = this.options;
+    if (targetRepo === null) return { repoPath, remote, baseBranch };
+
+    if (this.options.targetRepos === undefined) {
+      throw new Error(
+        `GitWorktreeManager: task targets "${targetRepo.owner}/${targetRepo.name}" but clone-on-demand is not configured`,
+      );
+    }
+    const { resolver, reposRoot, token, cloneUrl } = this.options.targetRepos;
+    const ref = await resolver.resolve(`${targetRepo.owner}/${targetRepo.name}`);
+    const cloneOptions: CloneOnDemandOptions = {
+      reposRoot,
+      token,
+      ...(cloneUrl === undefined ? {} : { cloneUrl }),
+    };
+    const clonedPath = await cloneOnDemand(ref, cloneOptions);
+    return { repoPath: clonedPath, remote: 'origin', baseBranch };
+  }
+
+  private async branchExists(branch: string, source: SourceRepo): Promise<boolean> {
     try {
       await runGit(['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], {
-        cwd: this.options.repoPath,
+        cwd: source.repoPath,
       });
       return true;
     } catch (error) {
@@ -58,8 +102,8 @@ export class GitWorktreeManager implements WorktreeManager {
   }
 
   /** Fetches the base from the remote and returns the ref to branch from. */
-  private async resolveBase(): Promise<string> {
-    const { repoPath, remote, baseBranch } = this.options;
+  private async resolveBase(source: SourceRepo): Promise<string> {
+    const { repoPath, remote, baseBranch } = source;
     try {
       await runGit(['fetch', remote, baseBranch], { cwd: repoPath });
       return `${remote}/${baseBranch}`;

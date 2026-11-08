@@ -34,3 +34,5 @@ so changes apply from the next run without a restart. Keep personal data out of 
 ## Other
 
 - Anything else Jarvis should always do or avoid.
+
+## Learned

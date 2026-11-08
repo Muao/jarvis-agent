@@ -41,13 +41,7 @@ export class ExpirePermission {
       const card = await tx.messages.permissionCardOf(permissionId);
       const task = next.taskId === null ? null : await tx.tasks.get(next.taskId);
       if (card !== null && task?.stage !== 'Cancelled') {
-        await this.deps.messages.answer(
-          tx,
-          outbox,
-          card,
-          { decision: 'deny', reason: orphaned ? 'run_ended' : 'timeout' },
-          task,
-        );
+        await this.deps.messages.answer(tx, outbox, card, { decision: 'deny' }, task);
       }
       if (task !== null) {
         await this.deps.writer.note(tx, task.id, 'permission_timeout', 'system', {

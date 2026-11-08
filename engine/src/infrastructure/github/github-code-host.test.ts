@@ -199,6 +199,52 @@ describe('GitHubCodeHost.rerunFailedChecks', () => {
   });
 });
 
+describe('GitHubCodeHost: a repo other than its own (ADR-0019)', () => {
+  const TARGET = { owner: 'other', name: 'repo' };
+
+  it('asks the target repo for every part of the snapshot', async () => {
+    const { host: h, fake } = host({
+      'GET /repos/other/repo/pulls/7': { body: PR },
+      'GET /repos/other/repo/commits/abc123/check-runs': {
+        body: { total_count: 1, check_runs: [check(1)] },
+      },
+      'GET /repos/other/repo/pulls/7/reviews': { body: [] },
+      'GET /repos/other/repo/issues/7/comments': { body: [] },
+      'GET /repos/other/repo/pulls/7/comments': { body: [] },
+    });
+
+    const snap = await h.snapshot(7, TARGET);
+
+    expect(snap.headSha).toBe('abc123');
+    expect(snap.checks.map((c) => c.id)).toEqual([1]);
+    // Not one call went to the host's own repo: a PR #7 there is a different pull request.
+    expect(fake.calls.filter((c) => c.includes('/repos/o/r/'))).toEqual([]);
+  });
+
+  it('re-runs the failed checks in the target repo', async () => {
+    const { host: h, fake } = host({
+      'GET /repos/other/repo/commits/abc123/check-runs': {
+        body: {
+          total_count: 1,
+          check_runs: [
+            check(1, {
+              conclusion: 'failure',
+              details_url: 'https://github.com/other/repo/actions/runs/900/job/1',
+            }),
+          ],
+        },
+      },
+      'POST /repos/other/repo/actions/runs/900/rerun-failed-jobs': { body: {} },
+    });
+
+    await h.rerunFailedChecks(7, 'abc123', TARGET);
+
+    expect(fake.calls.filter((c) => c.startsWith('POST'))).toEqual([
+      'POST /repos/other/repo/actions/runs/900/rerun-failed-jobs',
+    ]);
+  });
+});
+
 describe('GitHubCodeHost.botLogin / checkConnection', () => {
   it('caches the bot login', async () => {
     const { host: h, fake } = host({ 'GET /user': { body: { login: 'jarvis-bot' } } });
@@ -266,5 +312,106 @@ describe('GitHubCodeHost errors', () => {
     });
     const err = (await h.botLogin().catch((e: unknown) => e)) as CodeHostError;
     expect(err.message).not.toContain('ghp_abcdefghijklmnop12345');
+  });
+});
+
+describe('GitHubCodeHost.uploadAttachment (ADR-0023)', () => {
+  const UPLOAD = 'POST /user-attachments/assets';
+  const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+  const upload = { name: 'shot.png', contentType: 'image/png', bytes };
+
+  it('posts the bytes with the repository id and returns the asset URL (AC-18)', async () => {
+    const h = host({
+      'GET /repos/o/r': { body: { id: 42 } },
+      [UPLOAD]: (url) => {
+        expect(url.searchParams.get('name')).toBe('shot.png');
+        expect(url.searchParams.get('content_type')).toBe('image/png');
+        expect(url.searchParams.get('repository_id')).toBe('42');
+        return { body: { href: 'https://github.com/user-attachments/assets/u-1' } };
+      },
+    });
+
+    expect(await h.host.uploadAttachment(upload)).toEqual({
+      ok: true,
+      url: 'https://github.com/user-attachments/assets/u-1',
+    });
+  });
+
+  it("resolves the repository id of the task's own repo (ADR-0019)", async () => {
+    const h = host({
+      'GET /repos/other/sandbox': { body: { id: 99 } },
+      [UPLOAD]: (url) => ({
+        body: {
+          url: `https://github.com/user-attachments/assets/${url.searchParams.get('repository_id')}`,
+        },
+      }),
+    });
+
+    const result = await h.host.uploadAttachment({
+      ...upload,
+      repo: { owner: 'other', name: 'sandbox' },
+    });
+
+    expect(result).toEqual({ ok: true, url: 'https://github.com/user-attachments/assets/99' });
+  });
+
+  it('asks for a repository id only once', async () => {
+    const h = host({
+      'GET /repos/o/r': { body: { id: 42 } },
+      [UPLOAD]: { body: { href: 'https://github.com/user-attachments/assets/u-1' } },
+    });
+
+    await h.host.uploadAttachment(upload);
+    await h.host.uploadAttachment(upload);
+
+    expect(h.fake.calls.filter((c) => c === 'GET /repos/o/r')).toHaveLength(1);
+  });
+
+  it('turns a refusal into a reason instead of throwing, and names the ADR (AC-19)', async () => {
+    for (const status of [401, 403, 404, 410, 500]) {
+      const h = host({
+        'GET /repos/o/r': { body: { id: 42 } },
+        [UPLOAD]: { status, body: { message: 'nope' } },
+      });
+
+      const result = await h.host.uploadAttachment(upload);
+
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error('expected a refusal');
+      expect(result.reason).toContain(String(status));
+      expect(result.reason).toContain('undocumented');
+    }
+  });
+
+  it('never puts the token in the reason (SEC-04)', async () => {
+    const h = host({
+      'GET /repos/o/r': { body: { id: 42 } },
+      [UPLOAD]: { status: 401, body: { message: `bad token ${TOKEN}` } },
+    });
+
+    const result = await h.host.uploadAttachment(upload);
+
+    if (result.ok) throw new Error('expected a refusal');
+    expect(result.reason).not.toContain(TOKEN);
+  });
+
+  it('reports a failure to resolve the repository as a reason, not an exception', async () => {
+    const h = host({ [UPLOAD]: { body: { href: 'x' } } });
+
+    const result = await h.host.uploadAttachment(upload);
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('refuses when GitHub accepts the upload but names no asset', async () => {
+    const h = host({
+      'GET /repos/o/r': { body: { id: 42 } },
+      [UPLOAD]: { body: { ok: true } },
+    });
+
+    expect(await h.host.uploadAttachment(upload)).toEqual({
+      ok: false,
+      reason: 'GitHub accepted the upload but returned no asset URL.',
+    });
   });
 });

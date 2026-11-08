@@ -27,10 +27,12 @@ describe('JarvisConfigSchema', () => {
       dailyBudgetUsd: 20,
       permissionTimeoutMinutes: 30,
       stallMinutes: 10,
+      progressUpdateMinutes: 2,
     });
     expect(config.watch.pollSeconds).toBe(60);
     expect(config.models).toEqual({ dispatcher: 'sonnet', worker: 'sonnet', reviewer: 'sonnet' });
     expect(config.allowlist).toEqual({ githubReviewers: [], autoAllowedCommands: [] });
+    expect(config.repos).toEqual({ allow: [], allowOwnerRepos: false });
     expect(config.engine).toEqual({ port: 4310, claudeBinary: 'claude' });
     expect(config.telemetry).toEqual({
       enabled: false,
@@ -78,6 +80,23 @@ describe('JarvisConfigSchema', () => {
     expect(config.limits.checkRetries).toBe(3);
   });
 
+  it('parses repos.allow entries and accepts allowOwnerRepos (ADR-0019)', () => {
+    const config = JarvisConfigSchema.parse({
+      ...minimal,
+      repos: { allow: ['owner/name', 'other-owner/other-repo'], allowOwnerRepos: true },
+    });
+    expect(config.repos).toEqual({
+      allow: ['owner/name', 'other-owner/other-repo'],
+      allowOwnerRepos: true,
+    });
+  });
+
+  it('rejects a repos.allow entry that is not "owner/name"', () => {
+    const result = JarvisConfigSchema.safeParse({ ...minimal, repos: { allow: ['not-a-slug'] } });
+    if (result.success) throw new Error('expected failure');
+    expect(formatConfigError(result.error)).toMatch(/^repos\.allow\.0: /);
+  });
+
   it('rejects unknown keys, including token-like ones', () => {
     expect(JarvisConfigSchema.safeParse({ ...minimal, githubToken: 'x' }).success).toBe(false);
     expect(JarvisConfigSchema.safeParse({ ...minimal, limits: { maxTurnsPerRn: 5 } }).success).toBe(
@@ -99,6 +118,31 @@ describe('JarvisConfigSchema', () => {
     expect(lines.some((l) => l.startsWith('limits.maxConcurrentWorkers: '))).toBe(true);
     expect(lines.some((l) => l.startsWith('limits.dailyBudgetUsd: '))).toBe(true);
     expect(lines.some((l) => l.startsWith('engine.port: '))).toBe(true);
+  });
+
+  it('defaults the ui block to off (AC-1)', () => {
+    const config = JarvisConfigSchema.parse(minimal);
+    expect(config.ui.enabled).toBe(false);
+    expect(config.ui.baseUrl).toBe('http://127.0.0.1:5173');
+    expect(config.ui.leaseMinutes).toBe(15);
+    expect(config.ui.maxScenarios).toBe(8);
+    expect(config.ui.attachToPr).toBe(true);
+    expect(config.ui.paths).toContain('**/*.tsx');
+  });
+
+  it('rejects a ui.baseUrl that is not on the loopback interface (AC-2)', () => {
+    const result = JarvisConfigSchema.safeParse({
+      ...minimal,
+      ui: { baseUrl: 'http://0.0.0.0:5173' },
+    });
+    if (result.success) throw new Error('expected failure');
+    expect(formatConfigError(result.error)).toMatch(/^ui\.baseUrl: .*127\.0\.0\.1/);
+  });
+
+  it('rejects a ui.readyPath that is not a path', () => {
+    expect(JarvisConfigSchema.safeParse({ ...minimal, ui: { readyPath: 'tasks' } }).success).toBe(
+      false,
+    );
   });
 
   it('labels root-level problems', () => {

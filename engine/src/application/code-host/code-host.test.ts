@@ -209,7 +209,7 @@ describe('PollPullRequests: flaky CI', () => {
       snapshot({ checks: [check(1, 'test', 'success'), check(2, 'test', 'failure')] }),
     );
 
-    expect(app.codeHost.reruns).toEqual([{ prNumber: 7, headSha: HEAD_1 }]);
+    expect(app.codeHost.reruns).toEqual([{ repo: null, prNumber: 7, headSha: HEAD_1 }]);
     expect(app.task(task.id)).toMatchObject({ stage: 'PR Open', counters: { ciFixRounds: 0 } });
     expect(systemTexts(app, thread.id)).toContain('Possibly flaky — re-running once.');
     expect(app.db.tables.journal.some((e) => e.type === 'ci_rerun')).toBe(true);
@@ -429,6 +429,67 @@ describe('PollPullRequests: missed events and new commits', () => {
 
     expect(systemTexts(app, thread.id)).toContain('CI failed on bbbbbbb: test.');
     expect(app.task(task.id).stage).toBe('Fixing');
+  });
+});
+
+describe('PollPullRequests: the task’s own repo (ADR-0019)', () => {
+  const TARGET = { owner: 'burnjohn', name: 'quick-blog' };
+
+  /** A task that opened its PR in a repo other than the default one. */
+  async function openPrInTargetRepo(app: TestApp) {
+    const config = app.config.current();
+    app.config.set({ ...config, allowlist: { ...config.allowlist, githubReviewers: ['alice'] } });
+    const seeded = await app.seed.task({ stage: 'Reviewing', targetRepo: TARGET });
+    await app.reportPr.execute(app.identity.worker(seeded.task), PR);
+    app.clearEffects();
+    return seeded;
+  }
+
+  it('reads the PR from the target repo, not the default one', async () => {
+    const app = buildTestApp();
+    const { task } = await openPrInTargetRepo(app);
+    app.codeHost.setFor(TARGET, PR.number, snapshot({ checks: [check(1, 'test', 'success')] }));
+
+    await app.pollPullRequests.execute();
+
+    expect(app.codeHost.readRepos).toEqual(['burnjohn/quick-blog']);
+    expect(app.task(task.id).stage).toBe('PR Open');
+    expect(app.db.tables.watches.get(task.id)?.summary?.ciGreen).toBe(true);
+  });
+
+  it('never judges a same-numbered PR of the default repo', async () => {
+    const app = buildTestApp();
+    const { task, thread } = await openPrInTargetRepo(app);
+    // Someone else's PR #7, red, in the default repo. The task must not see it at all.
+    app.codeHost.set(PR.number, snapshot({ checks: [check(9, 'test', 'failure')] }));
+
+    await app.pollPullRequests.execute();
+
+    expect(app.task(task.id).stage).toBe('PR Open');
+    expect(app.db.tables.watches.get(task.id)?.state).toBeNull();
+    expect(systemTexts(app, thread.id)).toEqual([]);
+    expect(app.logger.entries).toContainEqual(
+      expect.objectContaining({
+        message: 'watcher failed for a PR',
+        context: expect.objectContaining({ taskId: task.id }),
+      }),
+    );
+  });
+
+  it('re-runs the failed checks in the target repo (CI-04)', async () => {
+    const app = buildTestApp();
+    await openPrInTargetRepo(app);
+    const green = snapshot({ checks: [check(1, 'test', 'success')] });
+    app.codeHost.setFor(TARGET, PR.number, green);
+    await app.pollPullRequests.execute();
+    app.clock.advanceMinutes(1);
+    app.codeHost.setFor(TARGET, PR.number, snapshot({ checks: [check(1, 'test', 'failure')] }));
+
+    await app.pollPullRequests.execute();
+
+    expect(app.codeHost.reruns).toEqual([
+      { repo: 'burnjohn/quick-blog', prNumber: PR.number, headSha: HEAD_1 },
+    ]);
   });
 });
 

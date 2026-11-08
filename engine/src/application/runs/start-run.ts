@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import {
   assignWorkerSession,
   isTerminal,
@@ -100,7 +101,7 @@ export class StartRun {
     taskId: string,
     preferences: string | null,
   ): Promise<Prepared | null> {
-    const { writer, ids, clock, worktrees, artifacts } = this.deps;
+    const { writer, ids, clock, worktrees, artifacts, config } = this.deps;
     let task = await tx.tasks.get(taskId);
     if (task === null || isTerminal(task.stage) || NOT_STARTABLE.includes(task.stage)) return null;
     // The task's first run moves it out of Intake.
@@ -136,7 +137,7 @@ export class StartRun {
       outbox,
       await tx.messages.queuedWorkerInput(task.id),
     );
-    const worktree = await worktrees.create(task.id);
+    const worktree = await worktrees.create(task.id, task.targetRepo);
     const run = startRun({
       id: ids.runId(),
       sessionId: session.id,
@@ -156,6 +157,7 @@ export class StartRun {
         branch: task.branch,
         artifactsDir: artifacts.dirFor(task.id),
         stage: task.stage,
+        uiCheck: config.current().ui.enabled ? 'available' : 'disabled: ui.enabled is false',
         preferences,
         pending: pending.map(textOf),
         description,
@@ -252,7 +254,13 @@ export class StartRun {
       maxBudgetUsd: current.limits.maxBudgetUsdPerRun,
       runToken: live.token,
       keepStdinOpen: run.role === 'worker',
-      ...(run.taskId === null ? {} : { taskId: run.taskId }),
+      ...(run.taskId === null
+        ? {}
+        : {
+            taskId: run.taskId,
+            // ADR-0022: Playwright MCP writes unnamed screenshots straight into the task's artifacts.
+            screenshotsDir: join(this.deps.artifacts.dirFor(run.taskId), 'screenshots'),
+          }),
       threadId: run.threadId,
       sessionId: session.id,
     };

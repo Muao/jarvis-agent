@@ -125,6 +125,7 @@ function contract(name: string, make: () => Repositories): void {
           counters: { checkRetries: 1, ciFixRounds: 2, reviewRounds: 3 },
           workerSessionId: 'sess-1',
           reason: 'because',
+          targetRepo: { owner: 'owner', name: 'name' },
         });
         expect(await repos.tasks.get('T-1')).toEqual(task);
         expect(await repos.tasks.get('T-9')).toBeNull();

@@ -169,6 +169,67 @@ describe('agent tools: dispatcher', () => {
     expect(missing.statusCode).toBe(404);
     expect(thread.id).toBeTruthy();
   });
+
+  it('create_task accepts an allow-listed repo and creates the worktree against it', async () => {
+    const { http, app } = await dispatcherRun();
+    const token = app.runner.processes[0]?.spec.runToken ?? '';
+    app.repos.allow('owner/name');
+
+    const created = await call(http, 'create_task', token, {
+      title: 'Page',
+      description: 'Add a page',
+      repo: 'owner/name',
+    });
+
+    expect(created.json()).toMatchObject({ taskId: 'T-1' });
+    expect(app.task('T-1').targetRepo).toEqual({ owner: 'owner', name: 'name' });
+    // start-run.ts also calls worktrees.create (idempotent) once the worker run is scheduled.
+    for (const targetRepo of app.worktrees.targetRepos) {
+      expect(targetRepo).toEqual({ owner: 'owner', name: 'name' });
+    }
+  });
+
+  it('create_task rejects a repo outside the allow-list (400) and creates nothing', async () => {
+    const { http, app } = await dispatcherRun();
+    const token = app.runner.processes[0]?.spec.runToken ?? '';
+
+    const rejected = await call(http, 'create_task', token, {
+      title: 'Page',
+      description: 'Add a page',
+      repo: 'someone/else',
+    });
+
+    expect(rejected.statusCode).toBe(400);
+    expect(rejected.json().message).toContain('someone/else');
+    expect(app.db.tables.tasks.size).toBe(0);
+  });
+
+  it('set_task_target_repo rejects redirecting a task whose worktree already exists (400)', async () => {
+    const { http, app } = await dispatcherRun();
+    const token = app.runner.processes[0]?.spec.runToken ?? '';
+    await call(http, 'create_task', token, { title: 'Page', description: 'Add a page' });
+    app.repos.allow('owner/name');
+
+    const rejected = await call(http, 'set_task_target_repo', token, {
+      task: 'T-1',
+      repo: 'owner/name',
+    });
+
+    expect(rejected.statusCode).toBe(400);
+    expect(app.task('T-1').targetRepo).toBeNull();
+  });
+
+  it('remember appends a fact through the profile store (ADR-0020)', async () => {
+    const { http, app } = await dispatcherRun();
+    const token = app.runner.processes[0]?.spec.runToken ?? '';
+
+    const res = await call(http, 'remember', token, {
+      fact: 'the QuickBlog repo is burnjohn/quick-blog',
+    });
+
+    expect(res.json()).toEqual({ ok: true });
+    expect(app.profile.learned).toEqual(['the QuickBlog repo is burnjohn/quick-blog']);
+  });
 });
 
 describe('agent tools: worker', () => {

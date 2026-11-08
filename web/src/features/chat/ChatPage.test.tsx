@@ -419,13 +419,14 @@ describe('answerable cards', () => {
       'GET /api/threads/th-1': detail([decision()]),
       'POST /api/messages/d1/answer': {},
     });
-    expect(await screen.findByRole('link', { name: 'spec.md' })).toHaveAttribute(
+    const artifacts = within(await screen.findByRole('list', { name: 'Artifacts' }));
+    expect(artifacts.getByRole('button', { name: '▸ spec.md' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    expect(artifacts.getAllByRole('link', { name: 'open full →' })[0]).toHaveAttribute(
       'href',
       '/tasks/T-12?artifact=spec.md',
-    );
-    expect(screen.getByRole('link', { name: 'plan.md' })).toHaveAttribute(
-      'href',
-      '/tasks/T-12?artifact=plan.md',
     );
     await user.click(screen.getByRole('button', { name: 'Approve' }));
     expect(posts(spy, '/api/messages/d1/answer')).toEqual([{ decision: 'approve' }]);

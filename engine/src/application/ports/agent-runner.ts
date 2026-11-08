@@ -28,6 +28,8 @@ export interface RunSpec {
   /** Workers take owner input while they run, so their stdin stays open. */
   readonly keepStdinOpen: boolean;
   readonly taskId?: string;
+  /** ADR-0022: where Playwright MCP writes the UI check's screenshots; workers only. */
+  readonly screenshotsDir?: string;
   readonly threadId: string;
   /** Jarvis's session row (not the CLI's id); labels the run's telemetry (ADR-0018). */
   readonly sessionId: string;

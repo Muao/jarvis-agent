@@ -4,6 +4,10 @@
     "remote": "origin",
     "baseBranch": "main"
   },
+  "repos": {
+    "allow": [],
+    "allowOwnerRepos": false
+  },
   "limits": {
     "maxConcurrentWorkers": 1,
     "checkRetries": 3,
@@ -14,7 +18,8 @@
     "maxBudgetUsdPerRun": 3,
     "dailyBudgetUsd": 20,
     "permissionTimeoutMinutes": 30,
-    "stallMinutes": 10
+    "stallMinutes": 10,
+    "progressUpdateMinutes": 2
   },
   "watch": {
     "pollSeconds": 60
@@ -35,6 +40,28 @@
   "engine": {
     "port": 4310,
     "claudeBinary": "claude"
+  },
+  "ui": {
+    "enabled": false,
+    "devCommand": "pnpm dev",
+    "baseUrl": "http://127.0.0.1:5173",
+    "readyPath": "/",
+    "readyTimeoutSeconds": 90,
+    "leaseMinutes": 15,
+    "maxScenarios": 8,
+    "maxScreenshots": 12,
+    "maxImageMb": 5,
+    "attachToPr": true,
+    "noSandbox": false,
+    "paths": [
+      "**/*.tsx",
+      "**/*.jsx",
+      "**/*.vue",
+      "**/*.svelte",
+      "**/*.css",
+      "**/*.scss",
+      "**/*.html"
+    ]
   },
   "telemetry": {
     "enabled": false,

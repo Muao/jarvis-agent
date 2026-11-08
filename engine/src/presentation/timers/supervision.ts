@@ -9,7 +9,7 @@ export const RESUME_INTERVAL_MS = 60_000;
 export interface SupervisionDeps {
   readonly app: Pick<
     Application,
-    'detectStalls' | 'enforceTaskTimeouts' | 'expireOrphanedPermissions'
+    'detectStalls' | 'postProgressUpdates' | 'enforceTaskTimeouts' | 'expireOrphanedPermissions'
   > & { readonly scheduler: Pick<Application['scheduler'], 'resumeQueued'> };
   /** Subscribes to config changes; returns the unsubscribe function. */
   readonly onConfigChange: (listener: () => void) => () => void;
@@ -33,6 +33,7 @@ export function createSupervision(deps: SupervisionDeps): Supervision {
     run: async () => {
       const steps: [string, () => Promise<unknown>][] = [
         ['detect stalls', () => app.detectStalls.execute()],
+        ['post progress updates', () => app.postProgressUpdates.execute()],
         ['enforce task timeouts', () => app.enforceTaskTimeouts.execute()],
         ['expire orphaned permissions', () => app.expireOrphanedPermissions.execute()],
       ];

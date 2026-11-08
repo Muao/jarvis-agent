@@ -1,6 +1,7 @@
 import { Navigate, type RouteObject } from 'react-router';
 import { Loading } from '../components/Loading';
 import { NotFound } from './NotFound';
+import { RouteError } from './RouteError';
 import { Shell } from './Shell';
 
 /** Every screen is a lazy route: feature code loads when first visited. */
@@ -9,6 +10,7 @@ export const routes: RouteObject[] = [
     path: '/',
     Component: Shell,
     HydrateFallback: Loading,
+    ErrorBoundary: RouteError,
     children: [
       { index: true, element: <Navigate to="/chat" replace /> },
       {

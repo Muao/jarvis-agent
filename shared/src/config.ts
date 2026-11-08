@@ -6,20 +6,25 @@ const modelName = z.string().min(1).default('sonnet');
 
 const loopbackHosts = new Set(['127.0.0.1', 'localhost']);
 
-/** The local Alloy receiver (ADR-0018): http(s) URL whose host is 127.0.0.1 or localhost. */
-const loopbackUrl = z.string().refine(
-  (value) => {
-    try {
-      const url = new URL(value);
-      return (
-        (url.protocol === 'http:' || url.protocol === 'https:') && loopbackHosts.has(url.hostname)
-      );
-    } catch {
-      return false;
-    }
-  },
-  { message: 'must be an http(s) URL on 127.0.0.1 or localhost (the local Alloy receiver)' },
-);
+const isLoopbackUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') && loopbackHosts.has(url.hostname)
+    );
+  } catch {
+    return false;
+  }
+};
+
+/** An http(s) URL whose host is 127.0.0.1 or localhost; `what` names it in the error. */
+const loopbackUrlOf = (what: string) =>
+  z.string().refine(isLoopbackUrl, {
+    message: `must be an http(s) URL on 127.0.0.1 or localhost (${what})`,
+  });
+
+/** The local Alloy receiver (ADR-0018). */
+const loopbackUrl = loopbackUrlOf('the local Alloy receiver');
 
 /**
  * `~/.jarvis/jarvis.config.json` (ADR-0006). Strict everywhere: a mistyped limit
@@ -31,6 +36,15 @@ export const JarvisConfigSchema = z.strictObject({
     remote: z.string().min(1).default('origin'),
     baseBranch: z.string().min(1).default('main'),
   }),
+  /** ADR-0019: repos a task may target besides `repo` (the default), by clone-on-demand. */
+  repos: z
+    .strictObject({
+      allow: z
+        .array(z.string().regex(/^[^/\s]+\/[^/\s]+$/, 'must look like "owner/name"'))
+        .default([]),
+      allowOwnerRepos: z.boolean().default(false),
+    })
+    .prefault({}),
   limits: z
     .strictObject({
       maxConcurrentWorkers: positiveInt(1),
@@ -43,6 +57,7 @@ export const JarvisConfigSchema = z.strictObject({
       dailyBudgetUsd: positiveNumber(20),
       permissionTimeoutMinutes: positiveInt(30),
       stallMinutes: positiveInt(10),
+      progressUpdateMinutes: positiveInt(2),
     })
     .prefault({}),
   watch: z.strictObject({ pollSeconds: positiveInt(60) }).prefault({}),
@@ -65,6 +80,41 @@ export const JarvisConfigSchema = z.strictObject({
     .strictObject({
       port: z.number().int().min(1).max(65535).default(4310),
       claudeBinary: z.string().min(1).default('claude'),
+    })
+    .prefault({}),
+  /**
+   * ADR-0022: the UI check the worker runs in `Reviewing` — an engine-leased dev server plus
+   * Playwright MCP, driven by the `ui-tester` subagent. Off until the owner turns it on.
+   */
+  ui: z
+    .strictObject({
+      enabled: z.boolean().default(false),
+      /** Run in the task's worktree by the engine, never chosen by a model. */
+      devCommand: z.string().min(1).default('pnpm dev'),
+      baseUrl: loopbackUrlOf("the agent's dev server").default('http://127.0.0.1:5173'),
+      readyPath: z.string().startsWith('/').default('/'),
+      readyTimeoutSeconds: positiveInt(90),
+      /** How long one dev server may live before the engine kills its process tree. */
+      leaseMinutes: positiveInt(15),
+      maxScenarios: positiveInt(8),
+      maxScreenshots: positiveInt(12),
+      maxImageMb: positiveNumber(5),
+      /** ADR-0023: false leaves screenshot file names in the PR instead of inline images. */
+      attachToPr: z.boolean().default(true),
+      /** Chromium cannot use user namespaces inside the runtime container (ADR-0017). */
+      noSandbox: z.boolean().default(false),
+      /** A diff touching none of these globs is not a UI change. */
+      paths: z
+        .array(z.string().min(1))
+        .default([
+          '**/*.tsx',
+          '**/*.jsx',
+          '**/*.vue',
+          '**/*.svelte',
+          '**/*.css',
+          '**/*.scss',
+          '**/*.html',
+        ]),
     })
     .prefault({}),
   /** Claude Code's own OTel export (ADR-0018). Off by default; the credential lives in `.env`, never here. */

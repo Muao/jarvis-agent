@@ -187,6 +187,46 @@ describe('activeWorkerMs', () => {
   });
 });
 
+describe('PostProgressUpdates', () => {
+  it('reports what a live run is doing, once per interval', async () => {
+    const app = buildTestApp();
+    const seeded = await app.seed.task({ stage: 'Implementing' });
+    const run = await runningWorker(app, seeded);
+    await app.uow.run((tx) =>
+      tx.runs.appendEvent(
+        run.id,
+        {
+          kind: 'tool_use',
+          payload: { toolUseId: 't1', name: 'Bash', input: { command: 'npm run lint' } },
+        },
+        app.clock.now(),
+      ),
+    );
+
+    await app.postProgressUpdates.execute();
+    expect(systemTexts(app, seeded.thread.id)).toEqual([]);
+
+    app.clock.advanceMinutes(3);
+    await app.postProgressUpdates.execute();
+    await app.postProgressUpdates.execute();
+
+    expect(systemTexts(app, seeded.thread.id)).toEqual([
+      `The worker of ${seeded.task.id} is working — Implementing, 3 min in. Now: Bash: npm run lint.`,
+    ]);
+  });
+
+  it('stays quiet while the run is stalled or waiting for a permission answer', async () => {
+    const app = buildTestApp();
+    const seeded = await app.seed.task({ stage: 'Implementing' });
+    await runningWorker(app, seeded);
+
+    // No events at all: past `stallMinutes`, DetectStalls owns the thread.
+    app.clock.advanceMinutes(11);
+    await app.postProgressUpdates.execute();
+    expect(systemTexts(app, seeded.thread.id)).toEqual([]);
+  });
+});
+
 describe('ExpireOrphanedPermissions', () => {
   it('denies requests whose run is gone, before their deadline', async () => {
     const app = buildTestApp();
@@ -203,7 +243,7 @@ describe('ExpireOrphanedPermissions', () => {
     expect(request).toMatchObject({ status: 'timeout' });
     expect(Date.parse(request?.expiresAt ?? '')).toBeGreaterThan(Date.parse(app.clock.now()));
     const card = app.messagesOf(seeded.thread.id).find((m) => m.kind === 'permission');
-    expect(card?.answer).toEqual({ decision: 'deny', reason: 'run_ended' });
+    expect(card?.answer).toEqual({ decision: 'deny' });
     expect(app.db.tables.journal.at(-1)).toMatchObject({
       type: 'permission_timeout',
       data: { reason: 'run_ended' },

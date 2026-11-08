@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { useAnswerMessage, useCanMutate } from '../../../api/queries';
 import { Markdown } from '../../../components/Markdown';
 import { formatClock } from '../threadFilters';
+import { ArtifactPreview } from './ArtifactPreview';
 import styles from './Card.module.css';
 import type { CardProps } from './types';
 import { useOnce } from './useOnce';
@@ -42,9 +43,7 @@ export function DecisionCard({ message, cancelled }: CardProps<'decision'>) {
         <ul className={styles.list} aria-label="Artifacts">
           {message.body.artifacts.map((name) => (
             <li key={name}>
-              <Link className={styles.link} to={`${taskPath}?artifact=${encodeURIComponent(name)}`}>
-                {name}
-              </Link>
+              <ArtifactPreview taskId={message.body.taskId} name={name} />
             </li>
           ))}
         </ul>

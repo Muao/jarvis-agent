@@ -4,17 +4,24 @@ import { ApproveResultSchema, toolInputSchemas, toolsByRole, type ToolName } fro
 const identityFields = ['taskId', 'threadId', 'role', 'runId'];
 
 const validInputs: Record<ToolName, Record<string, unknown>> = {
-  create_task: { title: 'Add page', description: 'Build the page' },
+  create_task: { title: 'Add page', description: 'Build the page', repo: 'owner/name' },
   list_tasks: {},
   cancel_task: { task: 'T-1' },
   send_to_task: { task: 'T-1', message: 'hi' },
+  set_task_target_repo: { task: 'T-1', repo: 'owner/name' },
   reply: { text: 'hello' },
+  remember: { fact: 'the QuickBlog repo is burnjohn/quick-blog' },
+  update_config: { patch: { limits: { stallMinutes: 1 } } },
   report_stage: { stage: 'Verifying' },
   ask_owner: { question: 'Which one?', options: ['a', 'b'] },
   submit_spec_for_approval: { summary: 'spec ready' },
   report_checks: { passed: true, summary: 'all green' },
   report_pr: { number: 3, url: 'https://github.com/o/r/pull/3' },
   log_note: { text: 'note' },
+  post_update: { text: 'ran the suite, 2 failures, fixing now' },
+  start_dev_server: {},
+  stop_dev_server: {},
+  attach_image: { path: 'screenshots/001-task-card.png', alt: 'the task card' },
   approve: { tool_name: 'Bash', input: { command: 'ls' } },
 };
 

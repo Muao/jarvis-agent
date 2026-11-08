@@ -3,6 +3,11 @@ export interface WorkerPromptInput {
   readonly branch: string;
   readonly artifactsDir: string;
   readonly stage: string;
+  /**
+   * ADR-0022: `available`, or `disabled: <reason>`. The engine decides, so the worker never has
+   * to guess why the browser does not answer, and never tries to arrange one itself.
+   */
+  readonly uiCheck: string;
   /** USER.md, read fresh for this run. */
   readonly preferences: string | null;
   /** Owner messages that arrived while no run was live, oldest first. */
@@ -34,6 +39,7 @@ export function workerFirstMessage(input: WorkerPromptInput): string {
     `branch: ${input.branch}`,
     `artifactsDir: ${input.artifactsDir}`,
     `stage: ${input.stage}`,
+    `uiCheck: ${input.uiCheck}`,
     ...preferencesSection(input.preferences),
   ];
   if (input.pending.length > 0)

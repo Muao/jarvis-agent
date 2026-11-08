@@ -11,6 +11,10 @@ export { HandleCodeHostChange } from './code-host/handle-code-host-change.js';
 export { PollPullRequests } from './code-host/poll-pull-requests.js';
 export { ListTasks } from './conversation/list-tasks.js';
 export type { TaskList, TaskSummary } from './conversation/list-tasks.js';
+export { Remember } from './profile/remember.js';
+export type { RememberInput } from './profile/remember.js';
+export { UpdateConfig } from './config/update-config.js';
+export type { UpdateConfigInput } from './config/update-config.js';
 export { PostOwnerMessage } from './conversation/post-owner-message.js';
 export type { PostedOwnerMessage } from './conversation/post-owner-message.js';
 export { Reply } from './conversation/reply.js';
@@ -53,6 +57,7 @@ export type { CancelTaskInput } from './tasks/cancel-task.js';
 export { CreateTask } from './tasks/create-task.js';
 export type { CreatedTask, CreateTaskInput } from './tasks/create-task.js';
 export { LogNote } from './tasks/log-note.js';
+export { PostUpdate } from './tasks/post-update.js';
 export { ReportChecks } from './tasks/report-checks.js';
 export type { ChecksOutcome, ReportChecksInput } from './tasks/report-checks.js';
 export { ReportPr } from './tasks/report-pr.js';
@@ -60,6 +65,8 @@ export type { ReportPrInput } from './tasks/report-pr.js';
 export { ReportStage } from './tasks/report-stage.js';
 export type { ReportStageInput } from './tasks/report-stage.js';
 export { RetryStage } from './tasks/retry-stage.js';
+export { SetTaskTargetRepo } from './tasks/set-task-target-repo.js';
+export type { SetTaskTargetRepoInput } from './tasks/set-task-target-repo.js';
 export { SubmitSpec } from './tasks/submit-spec.js';
 
 // Domain types that cross the application boundary (presentation may not import domain/ otherwise).
