@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { ChildProcess, spawn as nodeSpawn } from 'node:child_process';
 import { JarvisConfigSchema, type JarvisConfig } from '@jarvis/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ProcessDevServer } from './process-dev-server.js';
+import { ProcessDevServer, loopbackVariants } from './process-dev-server.js';
 
 const BASE_URL = 'http://127.0.0.1:5173';
 
@@ -253,5 +253,23 @@ describe('ProcessDevServer', () => {
     await h.server.recover();
 
     expect(h.killed).toHaveLength(0);
+  });
+});
+
+describe('loopbackVariants (IPv4/IPv6 readiness)', () => {
+  it('pairs 127.0.0.1 with [::1] on the same port', () => {
+    expect(loopbackVariants('http://127.0.0.1:5173')).toEqual([
+      'http://127.0.0.1:5173',
+      'http://[::1]:5173/',
+    ]);
+  });
+
+  it('pairs localhost and [::1] too', () => {
+    expect(loopbackVariants('http://localhost:3000')[1]).toBe('http://[::1]:3000/');
+    expect(loopbackVariants('http://[::1]:3000')[1]).toBe('http://127.0.0.1:3000/');
+  });
+
+  it('leaves anything else alone', () => {
+    expect(loopbackVariants('http://192.168.1.10:5173')).toEqual(['http://192.168.1.10:5173']);
   });
 });

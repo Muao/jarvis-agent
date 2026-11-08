@@ -57,6 +57,19 @@ const refuse = (reason: DevServerRefusal, detail: string): DevServerRefused => (
  * and everything it spawned (a dev server is usually a shell that forks a bundler). Holds at most
  * one lease engine-wide; the lease is the hard stop that makes a runaway UI check finite.
  */
+/**
+ * `baseUrl` plus the same port on the other loopback family, so IPv4/IPv6 never decides whether a
+ * running dev server is seen. A non-loopback host (which the config refuses anyway) is left alone.
+ */
+export function loopbackVariants(baseUrl: string): string[] {
+  const url = new URL(baseUrl);
+  const other = { '127.0.0.1': '[::1]', localhost: '[::1]', '[::1]': '127.0.0.1' }[url.hostname];
+  if (other === undefined) return [baseUrl];
+  const twin = new URL(baseUrl);
+  twin.hostname = other;
+  return [baseUrl, twin.toString()];
+}
+
 export class ProcessDevServer implements DevServerManager {
   private running: Running | null = null;
   private readonly spawn: Spawn;
@@ -231,12 +244,22 @@ export class ProcessDevServer implements DevServerManager {
     );
   }
 
+  /**
+   * The configured URL first, then the other loopback family. A dev server told to listen on
+   * `localhost` (Vite's default) binds whichever family its runtime resolves first, and inside the
+   * container that is `::1` — so a probe of `127.0.0.1` never sees a server that is up and running.
+   * Observed on 2026-11-08: Vite reported ready in 272 ms and the check still timed out after 90 s.
+   */
   private async answers(ui: JarvisConfig['ui']): Promise<boolean> {
+    for (const base of loopbackVariants(ui.baseUrl)) {
+      if (await this.answersAt(new URL(ui.readyPath, base))) return true;
+    }
+    return false;
+  }
+
+  private async answersAt(url: URL): Promise<boolean> {
     try {
-      const response = await this.fetchImpl(new URL(ui.readyPath, ui.baseUrl), {
-        method: 'GET',
-        redirect: 'manual',
-      });
+      const response = await this.fetchImpl(url, { method: 'GET', redirect: 'manual' });
       return response.status < 500;
     } catch {
       return false;
