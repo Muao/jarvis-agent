@@ -12,7 +12,7 @@ export interface GitWorktreeManagerOptions {
   readonly remote: string;
   readonly baseBranch: string;
   readonly worktreesDir: string;
-  /** ADR-0012: resolves and clones a task's target repo when `create` is given one. */
+  /** ADR-0019: resolves and clones a task's target repo when `create` is given one. */
   readonly targetRepos?: {
     readonly resolver: AllowedRepoResolver;
     readonly reposRoot: string;
@@ -66,45 +66,7 @@ export class GitWorktreeManager implements WorktreeManager {
     return { branch, path };
   }
 
-  /** ADR-0018: stand a worktree on an existing PR's head, on a `jarvis-check/*` branch. */
-  async createForPullRequest(
-    taskId: string,
-    targetRepo: { owner: string; name: string } | null,
-    prNumber: number,
-  ): Promise<Worktree> {
-    if (!TASK_ID.test(taskId)) {
-      throw new Error(`Invalid task id: ${JSON.stringify(taskId)}`);
-    }
-    if (!Number.isInteger(prNumber) || prNumber <= 0) {
-      throw new Error(`Invalid pull request number: ${JSON.stringify(prNumber)}`);
-    }
-    const { worktreesDir } = this.options;
-    const branch = `jarvis-check/${taskId}`;
-    const path = join(worktreesDir, taskId);
-
-    if (existsSync(path)) {
-      const current = (await runGit(['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: path })).trim();
-      if (current !== branch) {
-        throw new Error(`Worktree ${path} exists but is on "${current}", expected "${branch}"`);
-      }
-      return { branch, path };
-    }
-
-    await mkdir(worktreesDir, { recursive: true });
-    const source = await this.resolveSourceRepo(targetRepo);
-
-    // A branch left by an earlier attempt at the same task is the same PR's head: reuse it rather
-    // than force-fetching over it.
-    if (!(await this.branchExists(branch, source))) {
-      await runGit(['fetch', source.remote, `pull/${prNumber}/head:${branch}`], {
-        cwd: source.repoPath,
-      });
-    }
-    await runGit(['worktree', 'add', path, branch], { cwd: source.repoPath });
-    return { branch, path };
-  }
-
-  /** The configured default repo, or a target repo resolved and cloned on demand (ADR-0012). */
+  /** The configured default repo, or a target repo resolved and cloned on demand (ADR-0019). */
   private async resolveSourceRepo(
     targetRepo: { owner: string; name: string } | null,
   ): Promise<SourceRepo> {

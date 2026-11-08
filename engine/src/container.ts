@@ -1,4 +1,4 @@
-// Composition root (ADR-0002): the only place adapters are constructed and wired to the application.
+// Composition root (ADR-0003): the only place adapters are constructed and wired to the application.
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import type { JarvisConfig } from '@jarvis/shared';
@@ -50,7 +50,7 @@ import { WebOwnerChannel } from './infrastructure/sse/web-owner-channel.js';
 import { LOOPBACK_HOST, buildServer } from './presentation/http/server.js';
 import type { TimerDeps } from './presentation/timers/index.js';
 
-/** `<repo checkout>/agent`: the Claude Code plugin the runs load (ADR-0009). */
+/** `<repo checkout>/agent`: the Claude Code plugin the runs load (ADR-0011). */
 const AGENT_DIR = fileURLToPath(new URL('../../agent', import.meta.url));
 const TSX_LOADER = import.meta.resolve('tsx');
 const MCP_ENTRY = fileURLToPath(new URL('./presentation/mcp/main.ts', import.meta.url));
@@ -119,8 +119,6 @@ const unconfiguredCodeHost: CodeHost = {
   botLogin: () => Promise.reject(notConfigured()),
   rerunFailedChecks: () => Promise.reject(notConfigured()),
   uploadAttachment: () => Promise.resolve({ ok: false, reason: notConfigured().message }),
-  describePullRequest: () => Promise.reject(notConfigured()),
-  postComment: () => Promise.resolve({ ok: false, reason: notConfigured().message }),
 };
 
 function notConfigured(): CodeHostError {
@@ -184,7 +182,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
   const port = options.port ?? config.engine.port;
   let apiUrl = `http://${LOOPBACK_HOST}:${port}`;
 
-  // ADR-0012: a task may target a repo besides the configured default, clone-on-demand.
+  // ADR-0019: a task may target a repo besides the configured default, clone-on-demand.
   const selfRepo = await selfRepoRef(config.repo.path, config.repo.remote);
   const allowedRepoResolver = new AllowedRepoResolver(
     config.repos,
@@ -243,7 +241,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
     github,
     clock,
   });
-  // ADR-0014: the engine owns the UI check's dev server; a leftover from a previous engine dies here.
+  // ADR-0022: the engine owns the UI check's dev server; a leftover from a previous engine dies here.
   const devServers = new ProcessDevServer({
     ui: () => provider.current().ui,
     logger,

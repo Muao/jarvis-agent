@@ -20,7 +20,6 @@ describe('first message of a worker run ("Run context")', () => {
         'branch: jarvis/T-1',
         'artifactsDir: /jarvis/tasks/T-1',
         'stage: Context',
-        'taskKind: build',
         'uiCheck: disabled: ui.enabled is false',
         '## Owner preferences (USER.md)',
         'Reply in Ukrainian.',

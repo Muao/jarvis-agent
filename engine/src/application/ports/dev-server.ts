@@ -1,5 +1,5 @@
 /**
- * The dev server the worker's UI check runs against (ADR-0014). The engine owns the process:
+ * The dev server the worker's UI check runs against (ADR-0022). The engine owns the process:
  * the command comes from `ui.devCommand`, never from a model, and every server holds a lease
  * that the engine ends by killing the process tree. One lease at a time, engine-wide.
  */
@@ -22,13 +22,7 @@ export type DevServerRefusal =
   /** The command started but `ui.readyPath` never answered in time. */
   | 'not_ready'
   /** The command exited before becoming ready. */
-  | 'exited'
-  /**
-   * ADR-0018: the task checks a pull request whose head is a fork or whose author is not in
-   * `allowlist.githubReviewers`, and the owner did not approve running its code. Refused by
-   * `StartDevServer` before the manager is ever asked — no process was started.
-   */
-  | 'untrusted_head';
+  | 'exited';
 
 export interface DevServerStarted {
   readonly ok: true;

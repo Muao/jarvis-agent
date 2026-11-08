@@ -6,7 +6,7 @@ import { ApiCallError, type JarvisApi } from './api-client.js';
 /** Model-facing descriptions: what the tool does, when to use it, what it returns. */
 export const toolDescriptions: Readonly<Record<ToolName, string>> = {
   create_task:
-    'Create a new task from the owner\'s request and start work on it. Use it when the owner asks for a change that needs a worker; write a short title and a self-contained description. Optionally give a `repo` ("owner/name") besides the default one; it must be allow-listed or owned by the configured GitHub account, or creation is rejected with the reason. For "check/test the UI of this pull request" pass `kind: "ui_check"` and `pr` (a PR URL, "owner/name#41", or a number together with `repo`): that task only looks at a pull request that already exists — it writes no code and opens no PR. Returns the created task (id, title, stage).',
+    'Create a new task from the owner\'s request and start work on it. Use it when the owner asks for a change that needs a worker; write a short title and a self-contained description. Optionally give a `repo` ("owner/name") besides the default one; it must be allow-listed or owned by the configured GitHub account, or creation is rejected with the reason. Returns the created task (id, title, stage).',
   list_tasks:
     'List all tasks with their current stage. Use it to see what is already running before creating, cancelling or messaging a task. Returns an array of tasks.',
   cancel_task:
@@ -44,8 +44,6 @@ export const toolDescriptions: Readonly<Record<ToolName, string>> = {
   attach_image:
     'Upload one screenshot and get the markdown to paste into the PR body. `path` is relative to your artifactsDir (for example "screenshots/001-task-card.png") and may not leave it; `alt` is the caption. Returns {"ok": true, "url", "markdown"}, or {"ok": false, "reason"} — on a refusal put the file name as plain text in the PR, never a markdown image that would render broken.',
 
-  comment_on_pr:
-    'Post one comment on the task\'s pull request — the UI-check report, for example. The owner is asked first: a permission card appears in the thread and this waits for their answer, so nothing reaches GitHub unapproved. Returns {"ok": true, "url"} when posted, or {"ok": false, "reason"} when the owner declined, the task has no PR, a comment was already posted, or GitHub refused; on a refusal keep the report in the thread and do not retry.',
   approve:
     'Permission prompt tool for the Claude CLI: decides whether a tool use is allowed by asking the owner. Not meant to be called by the model.',
 };
@@ -69,7 +67,7 @@ export interface JarvisMcpOptions {
   readonly api: JarvisApi;
 }
 
-/** An MCP server that exposes exactly the tools of the caller's role (ADR-0004). */
+/** An MCP server that exposes exactly the tools of the caller's role (ADR-0005). */
 export function createJarvisMcpServer({ role, api }: JarvisMcpOptions): McpServer {
   const server = new McpServer({ name: 'jarvis', version: '0.0.0' });
 
