@@ -22,6 +22,7 @@ const validInputs: Record<ToolName, Record<string, unknown>> = {
   start_dev_server: {},
   stop_dev_server: {},
   attach_image: { path: 'screenshots/001-task-card.png', alt: 'the task card' },
+  comment_on_pr: { body: '## UI verification\n\nverdict: pass' },
   approve: { tool_name: 'Bash', input: { command: 'ls' } },
 };
 
@@ -82,5 +83,39 @@ describe('ApproveResultSchema', () => {
     ).toBe(true);
     expect(ApproveResultSchema.safeParse({ behavior: 'deny', message: 'no' }).success).toBe(true);
     expect(ApproveResultSchema.safeParse({ behavior: 'allow' }).success).toBe(false);
+  });
+});
+
+describe('create_task (ADR-0018)', () => {
+  const base = { title: 'Check PR 41', description: 'Walk the UI of PR 41' };
+
+  it('accepts a ui_check task with a pull request', () => {
+    expect(
+      toolInputSchemas.create_task.safeParse({
+        ...base,
+        kind: 'ui_check',
+        pr: 'https://github.com/o/r/pull/41',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('accepts a plain build task with neither field', () => {
+    expect(toolInputSchemas.create_task.safeParse(base).success).toBe(true);
+  });
+
+  it('rejects an unknown kind', () => {
+    expect(
+      toolInputSchemas.create_task.safeParse({ ...base, kind: 'ui-check' }).success,
+    ).toBe(false);
+  });
+});
+
+describe('comment_on_pr (ADR-0018)', () => {
+  it('takes a body and nothing else: the PR comes from the task, not the model', () => {
+    expect(toolInputSchemas.comment_on_pr.safeParse({ body: 'hi' }).success).toBe(true);
+    expect(toolInputSchemas.comment_on_pr.safeParse({ body: '' }).success).toBe(false);
+    expect(
+      toolInputSchemas.comment_on_pr.safeParse({ body: 'hi', pr: 41 }).success,
+    ).toBe(false);
   });
 });

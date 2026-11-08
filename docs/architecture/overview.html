@@ -77,38 +77,38 @@ footer{padding-top:24px;border-top:1px solid var(--line);font-size:.84rem;color:
 <div class="wrap">
 <header class="top">
   <span class="eyebrow">Jarvis · architecture · draft 2026-10-26</span>
-  <h1>Як працює Jarvis</h1>
-  <p class="lede">Персональний агент для розробки на ноутбуці власника. Задача приходить у чат, Jarvis доводить її до перевіреного draft PR і супроводжує, доки CI зелений і рев'ю схвалене. Усі виклики моделі йдуть через CLI <code>claude</code> на підписці Max, без API-ключа.</p>
-  <div class="status"><span class="pill a">Ітерація 1: engine + Postgres + web (чат і адмінка)</span><span class="pill h">Ітерація 2: Slack-треди</span><span class="pill">Усі ADR: proposed</span></div>
+  <h1>How Jarvis works</h1>
+  <p class="lede">A personal development agent on the owner's laptop. A task arrives in chat, Jarvis takes it to a verified draft PR and follows it until CI is green and the review is approved. All model calls go through the <code>claude</code> CLI on the Max subscription, with no API key.</p>
+  <div class="status"><span class="pill a">Iteration 1: engine + Postgres + web (chat and admin)</span><span class="pill h">Iteration 2: Slack threads</span><span class="pill">All ADRs: proposed</span></div>
 </header>
 
-<nav class="toc" aria-label="Розділи"><div class="row">
-  <a href="#parts">Складові</a><a href="#flow">Флоу задачі</a><a href="#stages">Стани задачі</a><a href="#data">Де живуть дані</a><a href="#db">База</a><a href="#runs">Запуски Claude</a><a href="#code">Код</a><a href="#safety">Безпека і ліміти</a><a href="#open">Відкрите</a>
+<nav class="toc" aria-label="Sections"><div class="row">
+  <a href="#parts">Components</a><a href="#flow">Task flow</a><a href="#stages">Task states</a><a href="#data">Where data lives</a><a href="#db">Database</a><a href="#runs">Claude runs</a><a href="#code">Code</a><a href="#safety">Safety and limits</a><a href="#open">Open questions</a>
 </div></nav>
 
 <section id="parts">
-  <h2>Складові</h2>
-  <p>Усе працює на одному ноутбуці. Engine — єдиний процес, який керує системою. Claude робить змістовну роботу, але змінює стан лише через інструменти, які дає engine.</p>
+  <h2>Components</h2>
+  <p>Everything runs on a single laptop. The engine is the only process that controls the system. Claude does the substantive work, but changes state only through tools the engine provides.</p>
   <div class="fig"><pre class="mermaid">
 flowchart LR
     O([Owner])
-    subgraph L[Ноутбук]
-        W[Web: чат + адмінка]
+    subgraph L[Laptop]
+        W[Web: chat + admin]
         subgraph E[Engine · Node]
             API[HTTP API + SSE]
-            UC[Сценарії, стейт-машина, ліміти]
+            UC[Use cases, state machine, limits]
             RUN[ClaudeCliRunner]
-            WT[Watcher · таймер]
-            MCP[Jarvis MCP · інструменти]
+            WT[Watcher · timer]
+            MCP[Jarvis MCP · tools]
         end
         PG[(Postgres · Docker)]
-        D["claude -p · диспетчер"]
-        K["claude -p · воркер"]
-        FS[(~/.jarvis: артефакти, worktrees)]
+        D["claude -p · dispatcher"]
+        K["claude -p · worker"]
+        FS[(~/.jarvis: artifacts, worktrees)]
     end
     GH[(GitHub)]
     SRC[(Claude Design · Notion · Google Docs)]
-    S[(Slack · ітерація 2)]
+    S[(Slack · iteration 2)]
     O --> W
     W -- REST --> API
     API -- SSE --> W
@@ -116,24 +116,24 @@ flowchart LR
     UC --> RUN --> D & K
     D & K -- tool calls --> MCP --> API
     K --> FS
-    K -- MCP з токенами --> SRC
+    K -- MCP with tokens --> SRC
     K -- git push, gh pr --> GH
     WT -- poll --> GH
     WT --> UC
     S -. Socket Mode .- API
   </pre></div>
   <div class="grid3">
-    <div class="card s"><span class="role">Engine</span><h3>Звичайний код</h3><p>Приймає повідомлення, зберігає стан, запускає Claude, стежить за GitHub, стрімить події у веб. Сам не «думає».</p></div>
-    <div class="card a"><span class="role">Dispatcher</span><h3>Одна сесія на тред</h3><p>На кожне ваше повідомлення — короткий запуск, що продовжує сесію треду. Розуміє запит, створює й веде задачі, відповідає. Код не пише.</p></div>
-    <div class="card a"><span class="role">Worker</span><h3>Процес на етап задачі</h3><p>Працює в git worktree задачі: контекст, spec, план, код, перевірки, рев'ю, PR. Між етапами процесу немає, сесія відновлюється.</p></div>
-    <div class="card s"><span class="role">Watcher</span><h3>Опитує GitHub</h3><p>Раз на хвилину: CI, рев'ю, коментарі. Модель не запускає. Будить воркера лише коли щось змінилось.</p></div>
-    <div class="card s"><span class="role">Jarvis MCP</span><h3>Межа можливостей</h3><p>Інструменти на роль: <code>create_task</code>, <code>report_stage</code>, <code>ask_owner</code>, <code>approve</code>… Інструмента для merge чи push у main немає.</p></div>
-    <div class="card h"><span class="role">Web</span><h3>Чат і адмінка</h3><p>Треди, картки рішень і дозволів, задачі, артефакти, живі консолі запусків, ліміти, підключення.</p></div>
+    <div class="card s"><span class="role">Engine</span><h3>Plain code</h3><p>Receives messages, stores state, launches Claude, watches GitHub, streams events to the web. It does not “think” itself.</p></div>
+    <div class="card a"><span class="role">Dispatcher</span><h3>One session per thread</h3><p>Each of your messages triggers a short run that resumes the thread's session. It understands the request, creates and manages tasks, and replies. It does not write code.</p></div>
+    <div class="card a"><span class="role">Worker</span><h3>One process per task stage</h3><p>Works in the task's git worktree: context, spec, plan, code, checks, review, PR. No process exists between stages; the session is resumed.</p></div>
+    <div class="card s"><span class="role">Watcher</span><h3>Polls GitHub</h3><p>Once a minute: CI, reviews, comments. It never runs the model. It wakes the worker only when something changed.</p></div>
+    <div class="card s"><span class="role">Jarvis MCP</span><h3>Capability boundary</h3><p>Tools per role: <code>create_task</code>, <code>report_stage</code>, <code>ask_owner</code>, <code>approve</code>… There is no tool for merge or push to main.</p></div>
+    <div class="card h"><span class="role">Web</span><h3>Chat and admin</h3><p>Threads, decision and permission cards, tasks, artifacts, live run consoles, limits, connections.</p></div>
   </div>
 </section>
 
 <section id="flow">
-  <h2>Флоу однієї задачі</h2>
+  <h2>Flow of a single task</h2>
   <div class="fig"><pre class="mermaid">
 sequenceDiagram
     actor O as Owner
@@ -142,127 +142,127 @@ sequenceDiagram
     participant D as Dispatcher
     participant K as Worker
     participant G as GitHub
-    O->>W: повідомлення (новий тред)
+    O->>W: message (new thread)
     W->>E: POST message
-    E->>D: resume сесії треду
+    E->>D: resume thread session
     D->>E: create_task
-    E->>E: гілка jarvis/T-1 + worktree
-    E->>K: запуск: контекст, spec, план
+    E->>E: branch jarvis/T-1 + worktree
+    E->>K: run: context, spec, plan
     K->>E: submit_spec_for_approval
-    E-->>W: картка Approve / Comment
-    Note over K: процес завершився, слот вільний
+    E-->>W: Approve / Comment card
+    Note over K: process exited, slot free
     O->>W: Approve
-    E->>K: resume: код, перевірки, рев'ю
+    E->>K: resume: code, checks, review
     K->>G: push, draft PR
     K->>E: report_pr
-    loop кожні 60 с
+    loop every 60 s
         E->>G: checks, reviews, comments
     end
-    G-->>E: CI впав / коментар рев'юера
-    E->>K: resume: виправ
-    K->>G: новий коміт
-    G-->>E: CI зелений + approve
-    E-->>W: підсумок у треді
+    G-->>E: CI failed / reviewer comment
+    E->>K: resume: fix
+    K->>G: new commit
+    G-->>E: CI green + approve
+    E-->>W: summary in thread
   </pre></div>
-  <p class="cap">Поки задача чекає вас, CI або рев'ю, жоден процес Claude не працює і ліміти не витрачаються. Ваше повідомлення під час роботи воркера йде йому в stdin, інакше чекає наступного запуску.</p>
+  <p class="cap">While a task waits for you, CI or review, no Claude process runs and no limits are spent. Your message sent while the worker is running goes to its stdin; otherwise it waits for the next run.</p>
 </section>
 
 <section id="stages">
-  <h2>Стани задачі</h2>
+  <h2>Task states</h2>
   <div class="fig"><pre class="mermaid">
 stateDiagram-v2
     [*] --> Intake
     Intake --> Context
-    Context --> SpecReview: spec і план готові
-    SpecReview --> Context: коментар власника
+    Context --> SpecReview: spec and plan ready
+    SpecReview --> Context: owner comment
     SpecReview --> Implementing: Approve
     Implementing --> Verifying
-    Verifying --> Implementing: перевірка червона (до 3 спроб)
+    Verifying --> Implementing: check red (up to 3 attempts)
     Verifying --> Reviewing
-    Reviewing --> Implementing: блокуюче зауваження
+    Reviewing --> Implementing: blocking comment
     Reviewing --> PROpen: draft PR
-    PROpen --> Fixing: CI впав / коментар
-    Fixing --> PROpen: новий коміт
-    PROpen --> Done: CI зелений + approve
-    Context --> Blocked: питання або немає доступу
-    Implementing --> Blocked: питання
-    Blocked --> Context: відповідь
-    Verifying --> Failed: спроби вичерпано
-    Fixing --> Blocked: раунди вичерпано
+    PROpen --> Fixing: CI failed / comment
+    Fixing --> PROpen: new commit
+    PROpen --> Done: CI green + approve
+    Context --> Blocked: question or no access
+    Implementing --> Blocked: question
+    Blocked --> Context: answer
+    Verifying --> Failed: attempts exhausted
+    Fixing --> Blocked: rounds exhausted
     Done --> [*]
   </pre></div>
-  <p class="cap">З будь-якого стану задачу можна скасувати (<code>Cancelled</code>): гілка й PR лишаються. Слот воркера займають лише стани, де процес справді працює.</p>
+  <p class="cap">A task can be cancelled (<code>Cancelled</code>) from any state: the branch and PR remain. Only states where a process is actually running occupy a worker slot.</p>
 </section>
 
 <section id="data">
-  <h2>Де живуть дані</h2>
-  <p>Дані розкладені за тим, хто їх змінює і чи можна ними ділитися. Визначення агента — у git, його можна показати учасникам. Особисте й робоче — у <code>~/.jarvis</code>, поза репозиторієм. Стан — у Postgres. Транскрипти сесій зберігає сам Claude Code.</p>
+  <h2>Where data lives</h2>
+  <p>Data is split by who changes it and whether it can be shared. The agent definition is in git and can be shown to participants. Personal and working data live in <code>~/.jarvis</code>, outside the repository. State is in Postgres. Session transcripts are stored by Claude Code itself.</p>
   <div class="loc">
-    <div class="card"><h3>1. Визначення агента <span class="tag git">git · repo jarvis</span></h3>
-      <p>Хто такий Jarvis і як він працює. Це плагін Claude Code, який engine підключає до кожного запуску через <code>--plugin-dir</code>.</p>
+    <div class="card"><h3>1. Agent definition <span class="tag git">git · repo jarvis</span></h3>
+      <p>Who Jarvis is and how it works. It is a Claude Code plugin that the engine attaches to every run via <code>--plugin-dir</code>.</p>
 <pre class="tree">agent/
   .claude-plugin/plugin.json
-  SOUL.md                     <em>роль, принципи, стиль</em>
-  USER.example.md             <em>шаблон вподобань власника</em>
+  SOUL.md                     <em>role, principles, style</em>
+  USER.example.md             <em>template of owner preferences</em>
   prompts/
-    dispatcher.md             <em>як розуміти повідомлення, коли створювати задачу</em>
+    dispatcher.md             <em>how to interpret messages, when to create a task</em>
     worker/context.md · implement.md · fix-ci.md · address-review.md
-  agents/                     <em>субагенти воркера</em>
+  agents/                     <em>worker subagents</em>
     context-researcher.md · plan-verifier.md · implementer.md · reviewer.md
-  skills/                     <em>SDD-процес, робота з PR, візуальна перевірка</em>
+  skills/                     <em>SDD process, PR handling, visual verification</em>
   templates/                  <em>context · spec · plan · tasks · result</em>
-  settings/worker.json        <em>allow/deny: що можна без питання, що заборонено</em>
+  settings/worker.json        <em>allow/deny: what is allowed without asking, what is forbidden</em>
   settings/dispatcher.json</pre></div>
 
-    <div class="card"><h3>2. Особисте і робоче <span class="tag priv">~/.jarvis · поза git</span></h3>
-      <p>Вподобання, конфіг, секрети й усе, що агент створює під час роботи.</p>
+    <div class="card"><h3>2. Personal and working data <span class="tag priv">~/.jarvis · outside git</span></h3>
+      <p>Preferences, config, secrets, and everything the agent produces while working.</p>
 <pre class="tree">~/.jarvis/
-  USER.md                     <em>ваші вподобання: мова, формат плану, PR</em>
-  jarvis.config.json          <em>репозиторій, ліміти, моделі, allowlist</em>
+  USER.md                     <em>your preferences: language, plan format, PR</em>
+  jarvis.config.json          <em>repository, limits, models, allowlist</em>
   .env                        <em>GITHUB_TOKEN, NOTION_TOKEN, Google, DATABASE_URL</em>
-  mcp/servers.json            <em>MCP-сервери конекторів; токени підставляються з .env</em>
-  dispatcher/                 <em>робоча папка диспетчера (потрібна для --resume)</em>
-  worktrees/T-1/              <em>git worktree задачі в цільовому репозиторії</em>
+  mcp/servers.json            <em>connector MCP servers; tokens are substituted from .env</em>
+  dispatcher/                 <em>dispatcher working folder (needed for --resume)</em>
+  worktrees/T-1/              <em>task git worktree in the target repository</em>
   tasks/T-1/
     context.md spec.md plan.md tasks.md result.md
     screenshots/
-  runs/R-17/                  <em>згенеровані на запуск mcp.json і settings.json</em></pre></div>
+  runs/R-17/                  <em>mcp.json and settings.json generated per run</em></pre></div>
 
     <div class="grid2">
-      <div class="card"><h3>3. Стан <span class="tag db">Postgres · Docker</span></h3><p>Треди, повідомлення, задачі, журнал, запуски та кожна подія запуску, дозволи, стан нагляду за PR, використання. Деталі нижче.</p></div>
-      <div class="card"><h3>4. Сесії Claude <span class="tag ext">~/.claude · керує Claude Code</span></h3><p>Транскрипти <code>~/.claude/projects/&lt;папка&gt;/&lt;session&gt;.jsonl</code> і вхід у підписку (Keychain). Jarvis зберігає лише <code>session_id</code>. Сесія прив'язана до папки запуску, тому диспетчер завжди стартує з <code>~/.jarvis/dispatcher</code>, а воркер — зі свого worktree.</p></div>
-      <div class="card"><h3>5. Правила проєкту <span class="tag ext">цільовий репозиторій</span></h3><p><code>AGENTS.md</code> з командами перевірок і dev-сервера, конвенції, CI. Воркер читає їх зі свого worktree. Правила проєкту не змішуються з профілем власника.</p></div>
-      <div class="card"><h3>6. Зовнішній результат <span class="tag ext">GitHub</span></h3><p>Гілки <code>jarvis/*</code>, draft PR, коментарі й коміти від акаунта Jarvis. Це те, що бачать інші люди.</p></div>
+      <div class="card"><h3>3. State <span class="tag db">Postgres · Docker</span></h3><p>Threads, messages, tasks, journal, runs and every run event, permissions, PR watch state, usage. Details below.</p></div>
+      <div class="card"><h3>4. Claude sessions <span class="tag ext">~/.claude · managed by Claude Code</span></h3><p>Transcripts in <code>~/.claude/projects/&lt;folder&gt;/&lt;session&gt;.jsonl</code> and the subscription login (Keychain). Jarvis stores only the <code>session_id</code>. A session is bound to the launch folder, so the dispatcher always starts from <code>~/.jarvis/dispatcher</code> and the worker from its own worktree.</p></div>
+      <div class="card"><h3>5. Project rules <span class="tag ext">target repository</span></h3><p><code>AGENTS.md</code> with check and dev-server commands, conventions, CI. The worker reads them from its worktree. Project rules are not mixed with the owner's profile.</p></div>
+      <div class="card"><h3>6. External output <span class="tag ext">GitHub</span></h3><p><code>jarvis/*</code> branches, draft PRs, comments and commits from the Jarvis account. This is what other people see.</p></div>
     </div>
   </div>
-  <div class="note">Запуски <code>claude</code> стартують з <code>--setting-sources project,local</code>: ваші особисті плагіни, скіли й хуки з <code>~/.claude</code> не потрапляють в агента. Він бачить лише плагін Jarvis, правила цільового репозиторію й MCP-сервери з <code>--mcp-config</code> (з <code>--strict-mcp-config</code>).</div>
+  <div class="note"><code>claude</code> runs start with <code>--setting-sources project,local</code>: your personal plugins, skills and hooks from <code>~/.claude</code> do not reach the agent. It sees only the Jarvis plugin, the target repository's rules and the MCP servers from <code>--mcp-config</code> (with <code>--strict-mcp-config</code>).</div>
 </section>
 
 <section id="db">
-  <h2>Що лежить у базі</h2>
+  <h2>What is in the database</h2>
   <div class="tbl"><table>
-    <thead><tr><th>Таблиця</th><th>Що зберігає</th><th>Ключові поля</th></tr></thead>
+    <thead><tr><th>Table</th><th>What it stores</th><th>Key fields</th></tr></thead>
     <tbody>
-      <tr><td>threads</td><td>Розмови з власником</td><td>title, status, summary (пам'ять треду), dispatcher_session_id, slack_thread_ts</td></tr>
-      <tr><td>messages</td><td>Повідомлення в треді, зокрема картки</td><td>thread_id, author (owner / jarvis / system), kind (text, status, decision, question, permission), body, payload</td></tr>
-      <tr><td>tasks</td><td>Задачі</td><td>thread_id, stage, waiting_for, branch, worktree_path, pr_number, head_sha, worker_session_id, лічильники спроб і раундів</td></tr>
-      <tr><td>task_events</td><td>Журнал задачі, лише дописування</td><td>task_id, at, type, payload; пишеться в одній транзакції зі зміною стану</td></tr>
-      <tr><td>runs</td><td>Запуски <code>claude</code></td><td>role, task_id / thread_id, stage, session_id, pid, model, status, turns, cost_usd (оцінка), exit_reason</td></tr>
-      <tr><td>run_events</td><td>Кожна подія stream-json — це і є «консоль»</td><td>run_id, seq, type (text, tool_use, tool_result, error, result), payload jsonb</td></tr>
-      <tr><td>permission_requests</td><td>Запити дозволів</td><td>run_id, tool, input_preview, status, answered_at</td></tr>
-      <tr><td>watches</td><td>Нагляд за PR</td><td>task_id, pr_number, head_sha, checks jsonb, review_state, last_comment_id, next_poll_at</td></tr>
-      <tr><td>usage_daily</td><td>Оцінка витрат за день</td><td>date, cost_usd, runs, paused</td></tr>
+      <tr><td>threads</td><td>Conversations with the owner</td><td>title, status, summary (thread memory), dispatcher_session_id, slack_thread_ts</td></tr>
+      <tr><td>messages</td><td>Messages in a thread, including cards</td><td>thread_id, author (owner / jarvis / system), kind (text, status, decision, question, permission), body, payload</td></tr>
+      <tr><td>tasks</td><td>Tasks</td><td>thread_id, stage, waiting_for, branch, worktree_path, pr_number, head_sha, worker_session_id, attempt and round counters</td></tr>
+      <tr><td>task_events</td><td>Task journal, append-only</td><td>task_id, at, type, payload; written in the same transaction as the state change</td></tr>
+      <tr><td>runs</td><td><code>claude</code> runs</td><td>role, task_id / thread_id, stage, session_id, pid, model, status, turns, cost_usd (estimate), exit_reason</td></tr>
+      <tr><td>run_events</td><td>Every stream-json event — this is the “console”</td><td>run_id, seq, type (text, tool_use, tool_result, error, result), payload jsonb</td></tr>
+      <tr><td>permission_requests</td><td>Permission requests</td><td>run_id, tool, input_preview, status, answered_at</td></tr>
+      <tr><td>watches</td><td>PR watch</td><td>task_id, pr_number, head_sha, checks jsonb, review_state, last_comment_id, next_poll_at</td></tr>
+      <tr><td>usage_daily</td><td>Daily cost estimate</td><td>date, cost_usd, runs, paused</td></tr>
     </tbody>
   </table></div>
-  <p class="cap">Секретів у базі немає. Події запусків проходять через редактор, який вирізає токени, перш ніж записати їх у базу чи відправити у веб.</p>
+  <p class="cap">There are no secrets in the database. Run events pass through a redactor that strips tokens before they are written to the database or sent to the web.</p>
 </section>
 
 <section id="runs">
-  <h2>Як запускається Claude</h2>
+  <h2>How Claude is launched</h2>
   <div class="grid2">
     <div class="card a"><span class="role">Dispatcher run</span>
 <pre class="tree">cd ~/.jarvis/dispatcher
-claude -p "&lt;повідомлення&gt;"
+claude -p "&lt;message&gt;"
   --resume &lt;thread-session&gt;
   --output-format stream-json --verbose
   --plugin-dir agent/ --setting-sources project,local
@@ -281,49 +281,49 @@ claude -p --resume &lt;task-session&gt;
   --permission-prompt-tool mcp__jarvis__approve
   --model sonnet --max-turns 60 --max-budget-usd 3</pre></div>
   </div>
-  <p class="cap">Engine передає дочірнім процесам лише потрібні змінні: воркеру <code>GH_TOKEN</code> і токени конекторів, диспетчеру нічого. Якщо в середовищі є <code>ANTHROPIC_API_KEY</code>, engine не стартує, бо інакше <code>-p</code> мовчки перейшов би на оплату за API.</p>
+  <p class="cap">The engine passes child processes only the variables they need: the worker gets <code>GH_TOKEN</code> and connector tokens, the dispatcher gets nothing. If <code>ANTHROPIC_API_KEY</code> is present in the environment, the engine refuses to start, because otherwise <code>-p</code> would silently switch to API billing.</p>
 </section>
 
 <section id="code">
-  <h2>Як влаштований код</h2>
+  <h2>How the code is organized</h2>
   <div class="grid2">
-<pre class="tree">shared/        <em>Zod-контракти: HTTP, SSE, MCP, конфіг</em>
+<pre class="tree">shared/        <em>Zod contracts: HTTP, SSE, MCP, config</em>
 engine/src/
-  domain/      <em>Task і стани, Thread, Run, LimitPolicy</em>
+  domain/      <em>Task and states, Thread, Run, LimitPolicy</em>
   application/ <em>PostOwnerMessage, ApproveSpec,</em>
                <em>HandleCodeHostChange, ResumeTask…</em>
-               <em>+ порти: AgentRunner, CodeHost,</em>
+               <em>+ ports: AgentRunner, CodeHost,</em>
                <em>TaskRepository, OwnerChannel</em>
   infrastructure/ <em>Drizzle, ClaudeCliRunner, git,</em>
-                  <em>GitHub (Octokit), файли, конфіг</em>
+                  <em>GitHub (Octokit), files, config</em>
   presentation/   <em>HTTP+SSE, Jarvis MCP, watcher,</em>
-                  <em>Slack (ітерація 2)</em>
-web/           <em>чат + адмінка (React)</em>
-agent/         <em>плагін: SOUL, промпти, субагенти</em>
+                  <em>Slack (iteration 2)</em>
+web/           <em>chat + admin (React)</em>
+agent/         <em>plugin: SOUL, prompts, subagents</em>
 compose.yaml   <em>Postgres</em></pre>
-    <div class="card"><h3>Правило onion</h3><ul class="ls"><li>Домен не знає про БД, процеси й HTTP — стейт-машина й ліміти тестуються без зовнішнього світу.</li><li>Сценарії говорять із зовнішнім світом лише через порти.</li><li><code>claude</code>, <code>git</code>, <code>gh</code> запускаються тільки в infrastructure.</li><li>Slack в ітерації 2 — ще один адаптер у presentation поруч із вебом; домен і сценарії не змінюються.</li></ul></div>
+    <div class="card"><h3>The onion rule</h3><ul class="ls"><li>The domain knows nothing about the DB, processes or HTTP — the state machine and limits are tested without the outside world.</li><li>Use cases talk to the outside world only through ports.</li><li><code>claude</code>, <code>git</code>, <code>gh</code> are run only in infrastructure.</li><li>Slack in iteration 2 is just another adapter in presentation next to the web; the domain and use cases do not change.</li></ul></div>
   </div>
 </section>
 
 <section id="safety">
-  <h2>Безпека і ліміти</h2>
+  <h2>Safety and limits</h2>
   <div class="grid2">
-    <div class="card"><h3>Що агент може і не може</h3><ul class="ls"><li>Змінює файли лише у своєму worktree.</li><li>Пушить лише в <code>jarvis/*</code>; push у базову гілку, force-push, merge заборонені в settings і не мають інструментів.</li><li>Решта дій поза allowlist — картка <code>Allow / Deny</code> у треді; без відповіді — відмова за таймаутом.</li><li>Текст із PR, Notion, логів CI — дані, а не інструкції.</li><li>Коментарі в PR враховуються лише від людей з allowlist.</li></ul></div>
-    <div class="card"><h3>Ліміти під Max 5x · <code>jarvis.config.json</code></h3><ul class="ls"><li>1 воркер одночасно (можна 2).</li><li>3 спроби перевірок, 2 раунди CI, 3 раунди рев'ю.</li><li>На запуск: 60 кроків і $3 за оцінкою CLI.</li><li>$20 на день: далі нові запуски на паузі, банер у вебі.</li><li>Watcher опитує GitHub раз на 60 с без моделі.</li></ul><p class="muted">Долари — оцінка CLI, а не лічильник підписки. Це гальмо, не точний облік.</p></div>
+    <div class="card"><h3>What the agent can and cannot do</h3><ul class="ls"><li>Changes files only in its own worktree.</li><li>Pushes only to <code>jarvis/*</code>; push to the base branch, force-push and merge are denied in settings and have no tools.</li><li>Any other action outside the allowlist produces an <code>Allow / Deny</code> card in the thread; with no answer it is denied on timeout.</li><li>Text from PRs, Notion and CI logs is data, not instructions.</li><li>PR comments are honored only from people on the allowlist.</li></ul></div>
+    <div class="card"><h3>Limits for Max 5x · <code>jarvis.config.json</code></h3><ul class="ls"><li>1 worker at a time (2 possible).</li><li>3 check attempts, 2 CI rounds, 3 review rounds.</li><li>Per run: 60 turns and $3 by the CLI estimate.</li><li>$20 per day: after that new runs are paused, with a banner in the web.</li><li>The watcher polls GitHub every 60 s without the model.</li></ul><p class="muted">Dollars are a CLI estimate, not the subscription meter. It is a brake, not precise accounting.</p></div>
   </div>
 </section>
 
 <section id="open">
-  <h2>Ще не вирішено</h2>
+  <h2>Not yet decided</h2>
   <ol class="steps">
-    <li>Яка демо-задача і в якому репозиторії.</li>
-    <li>Як воркер отримує дизайн із Claude Design: посилання, handoff чи експорт у репозиторій.</li>
-    <li>Які MCP-сервери для Notion і Google Docs беремо і які права токенів їм потрібні.</li>
-    <li>Чи вистачає fine-grained PAT для читання check runs, чи потрібен інший спосіб.</li>
-    <li>Скільки ліміту Max 5x з'їдає один повний прогін демо-задачі.</li>
-    <li>Прийняти або змінити ADR-0002…0011.</li>
+    <li>Which demo task, and in which repository.</li>
+    <li>How the worker gets the design from Claude Design: a link, a handoff, or an export into the repository.</li>
+    <li>Which MCP servers to use for Notion and Google Docs, and which token permissions they need.</li>
+    <li>Whether a fine-grained PAT is enough to read check runs, or another approach is needed.</li>
+    <li>How much of the Max 5x limit one full run of the demo task consumes.</li>
+    <li>Accept or change ADR-0002…0011.</li>
   </ol>
 </section>
 
-<footer>Джерела в репозиторії <code>~/projects/jarvis</code>: <code>docs/architecture/README.md</code>, <code>docs/specs/abstract-project-spec.md</code>, <code>docs/specs/web-ui-design.md</code>, <code>docs/decisions/architecture/</code>.</footer>
+<footer>Sources in the repository <code>~/projects/jarvis</code>: <code>docs/architecture/README.md</code>, <code>docs/specs/abstract-project-spec.md</code>, <code>docs/specs/web-ui-design.md</code>, <code>docs/decisions/architecture/</code>.</footer>
 </div>

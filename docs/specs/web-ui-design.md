@@ -5,299 +5,301 @@ owner: Ivan Lapa
 plan: TBD — after UI design
 ---
 
-# Spec: Web UI design brief — чат і адмінка Jarvis
+# Spec: Web UI design brief — Jarvis chat and admin panel
 
-Spec ID: `SPEC-web-ui-design` · Джерело продуктових вимог: [`abstract-project-spec.md`](abstract-project-spec.md)
-(ID `SLK-*`, `DSP-*`, `WRK-*`, `CTX-*`, `CI-*`, `ST-*`, `PRF-*`, `SEC-*`, `ADM-*`, `NFR-*`).
+Spec ID: `SPEC-web-ui-design` · Source of product requirements: [`abstract-project-spec.md`](abstract-project-spec.md)
+(IDs `SLK-*`, `DSP-*`, `WRK-*`, `CTX-*`, `CI-*`, `ST-*`, `PRF-*`, `SEC-*`, `ADM-*`, `NFR-*`).
 
-Це бриф для дизайну, який власник малює сам у Claude Design. Документ фіксує структуру екранів, їхній
-зміст, дані, дії та стани. Кольори, шрифти, відступи й візуальну мову він свідомо не визначає: це
-рішення власника. Коли дизайн буде готовий, на його основі напишемо специфікацію web-шару з EARS-критеріями.
+This is a brief for the design that the owner draws in Claude Design. The document fixes the structure
+of the screens, their content, data, actions and states. Colors, fonts, spacing and the visual language
+are deliberately left undefined: those are the owner's decisions. Once the design is ready, we will write
+the web-layer specification with EARS criteria based on it.
 
-## Мета і межі
+## Goal and scope
 
-У першій ітерації веб-застосунок виконує дві ролі:
+In the first iteration the web app plays two roles:
 
-- **Чат із Jarvis.** Тут власник ставить задачі, відповідає на питання, підтверджує spec і план, дозволяє
-  або забороняє дії агента. Вимоги `SLK-*` в абстрактній специфікації в ітерації 1 реалізує саме цей чат.
-- **Адмінка.** Видно всі задачі, стан, сесії Claude, журнали подій, ліміти й підключення. Можна дебажити:
-  зупинити прогін, повторити етап, написати в сесію.
+- **Chat with Jarvis.** This is where the owner submits tasks, answers questions, approves the spec and
+  plan, and allows or denies agent actions. In iteration 1 the `SLK-*` requirements of the abstract spec
+  are implemented by this chat.
+- **Admin panel.** Shows all tasks, state, Claude sessions, event journals, limits and connections.
+  Supports debugging: stop a run, retry a stage, write into a session.
 
-Slack із тредами приходить у другій ітерації й має лягти на ту саму модель 1:1. Кожне повідомлення
-власника верхнього рівня відкриває `Thread`. Уся подальша розмова про нього (відповіді агента, питання,
-підтвердження, прогрес) іде всередині цього треду. Тому чат у вебі будуємо як список тредів, а не як
-одну нескінченну стрічку.
+Slack with threads arrives in iteration 2 and must map onto the same 1:1 model. Every top-level owner
+message opens a `Thread`. All further conversation about it (agent replies, questions, approvals,
+progress) happens inside that thread. That is why we build the web chat as a list of threads, not as
+one endless feed.
 
-**Що дизайнуємо в ітерації 1:** оболонку, Chat, Tasks, Task detail, Session console, Overview, Config & limits,
-Connections, а також спільні компоненти й стани.
+**What we design in iteration 1:** the shell, Chat, Tasks, Task detail, Session console, Overview, Config & limits,
+Connections, plus shared components and states.
 
-**Що лишаємо на ітерацію 2:** Slack (на Connections лише неактивний рядок), історію використання лімітів
-за тижні, редагування конфігу з UI, мобільну версію.
+**What we leave for iteration 2:** Slack (only an inactive row on Connections), weekly limit-usage
+history, editing the config from the UI, the mobile version.
 
-### Модель, яку показує UI
+### The model the UI shows
 
-| Сутність | Що це для UI |
+| Entity | What it is for the UI |
 | --- | --- |
-| `Thread` | Розмова власника з Jarvis. Починається з повідомлення верхнього рівня. Може породити 0 або 1 `Task` |
-| `Message` | Повідомлення в треді: від `Owner`, від `Jarvis` або службова картка (статус, рішення, питання, дозвіл) |
-| `Task` | Робота з кодом від прийому до завершення супроводу PR. Має `Task Stage` (див. глосарій абстрактної специфікації) |
-| `Session` | Сесія Claude CLI (`claude -p --resume`). У треду є сесія диспетчера, у задачі одна або кілька сесій воркера |
-| `Run` | Один запуск CLI в межах сесії: від старту процесу до завершення ходу. Має токени, `total_cost_usd`, тривалість, статус |
-| `Run Event` | Подія stream-json: текст агента, виклик інструмента (вхід і результат), помилка, системна подія |
-| `Artifact` | Файл задачі: `context.md`, `spec.md`, `plan.md`, `tasks.md`, `result.md` |
-| `Permission Request` | Запит дозволу від CLI через `--permission-prompt-tool`: інструмент, опис, вхідні дані |
-| `Limits` | Значення з конфіг-файлу. У UI лише для читання |
-| `Usage` | Умовна вартість (`total_cost_usd` з CLI) за сьогодні порівняно з денним лімітом |
+| `Thread` | A conversation between the owner and Jarvis. Starts with a top-level message. May spawn 0 or 1 `Task` |
+| `Message` | A message in a thread: from `Owner`, from `Jarvis`, or a service card (status, decision, question, permission) |
+| `Task` | Work on code from intake to the end of PR follow-up. Has a `Task Stage` (see the glossary of the abstract spec) |
+| `Session` | A Claude CLI session (`claude -p --resume`). A thread has a dispatcher session; a task has one or more worker sessions |
+| `Run` | One CLI invocation within a session: from process start to end of turn. Has tokens, `total_cost_usd`, duration, status |
+| `Run Event` | A stream-json event: agent text, a tool call (input and result), an error, a system event |
+| `Artifact` | A task file: `context.md`, `spec.md`, `plan.md`, `tasks.md`, `result.md` |
+| `Permission Request` | A permission request from the CLI via `--permission-prompt-tool`: tool, description, input data |
+| `Limits` | Values from the config file. Read-only in the UI |
+| `Usage` | Notional cost (`total_cost_usd` from the CLI) for today compared to the daily limit |
 
-Вартість у CLI на підписці умовна: реальних грошей власник за неї не платить. UI завжди підписує її як
-`notional $`, щоб не плутати з рахунком за API.
+Cost in the CLI on a subscription is notional: the owner pays no real money for it. The UI always labels
+it as `notional $` to avoid confusing it with an API bill.
 
-## Навігація й оболонка
+## Navigation and shell
 
-Ліва навігація з п'ятьма пунктами плюс два службові внизу:
+Left-hand navigation with five items plus two service items at the bottom:
 
-| Маршрут | Екран | Пункт навігації | Вимоги |
+| Route | Screen | Nav item | Requirements |
 | --- | --- | --- | --- |
-| `/` | перенаправляє на `/chat` | — | — |
+| `/` | redirects to `/chat` | — | — |
 | `/chat`, `/chat/:threadId` | Chat | `Chat` | SLK-01…SLK-07, DSP-01, DSP-04…DSP-07, WRK-04, WRK-05 |
 | `/overview` | Overview | `Overview` | DSP-08, DSP-09, ADM-01, NFR-03 |
 | `/tasks` | Tasks | `Tasks` | ADM-01, DSP-05 |
 | `/tasks/:taskId` | Task detail | `Tasks` | ADM-02, WRK-01…WRK-11, CI-01…CI-09, ST-03 |
-| `/sessions/:sessionId` | Session console | `Tasks` (або `Chat` для сесії диспетчера) | ADM-03, ADM-04, ADM-06 |
-| `/config` | Config & limits | службовий | ADM-05, PRF-01…PRF-04, NFR-03 |
-| `/connections` | Connections | службовий | CTX-01…CTX-05, SEC-04 |
-| інший шлях | Not found | — | — |
+| `/sessions/:sessionId` | Session console | `Tasks` (or `Chat` for the dispatcher session) | ADM-03, ADM-04, ADM-06 |
+| `/config` | Config & limits | service | ADM-05, PRF-01…PRF-04, NFR-03 |
+| `/connections` | Connections | service | CTX-01…CTX-05, SEC-04 |
+| any other path | Not found | — | — |
 
-Оболонка на кожному екрані:
+The shell on every screen:
 
-- Назва продукту `Jarvis` і позначка `LOCAL · NO AUTH` (ADM-07).
-- Компактний `Usage meter`: `notional $X.XX / $Y.YY today` і смужка. Клік веде на `/config`.
-- Індикатор зв'язку з engine: `Live`, `Reconnecting…`, `Offline`.
-- Лічильник того, що чекає на власника: питання, підтвердження spec/плану, запити дозволів. Клік веде на
-  найстаріший такий тред.
-- Банер `Paused: daily budget reached` на всю ширину, коли ліміт вичерпано (див. «Стани»).
+- The product name `Jarvis` and the `LOCAL · NO AUTH` badge (ADM-07).
+- A compact `Usage meter`: `notional $X.XX / $Y.YY today` and a bar. Clicking it goes to `/config`.
+- An engine connection indicator: `Live`, `Reconnecting…`, `Offline`.
+- A counter of what is waiting on the owner: questions, spec/plan approvals, permission requests.
+  Clicking it goes to the oldest such thread.
+- A full-width `Paused: daily budget reached` banner when the limit is exhausted (see "Global states").
 
-## Екрани
+## Screens
 
 ### Chat — `/chat`, `/chat/:threadId`
 
-**Мета.** Головний робочий екран: поставити задачу, вести розмову, ухвалювати рішення. Покриває SLK-01…SLK-07,
+**Goal.** The main working screen: submit a task, hold the conversation, make decisions. Covers SLK-01…SLK-07,
 DSP-01, DSP-04…DSP-07, WRK-04, WRK-05, SEC-01.
 
-**Блоки:**
+**Blocks:**
 
-1. **Список тредів** (ліва колонка). Кожен рядок: перші слова повідомлення, `Task Stage` бейджем (якщо є задача),
-   час останньої активності, позначка «чекає на вас». Зверху кнопка `New thread` і фільтр `All · Waiting for me · Active · Done`.
-   Сортування: спершу ті, що чекають на власника, далі за останньою активністю.
-2. **Тред** (центр). Заголовок: назва треду, посилання на задачу (`T-12 →`) і PR (`PR #34 ↗`), бейдж етапу.
-   Під ним хронологічна стрічка повідомлень.
-3. **Поле вводу** внизу треду. Текст, `Send`, підказка «Enter — надіслати, Shift+Enter — новий рядок».
-   Поки диспетчер обробляє попереднє повідомлення, нове можна написати: воно стає в чергу з позначкою `queued`.
-4. **Порожній стан без вибраного треду**: поле «Опишіть задачу або поставте питання» і кілька прикладів
-   («Додай сторінку програми курсу за дизайном…», «Що в Notion сказано про…»).
+1. **Thread list** (left column). Each row: the first words of the message, a `Task Stage` badge (if there is a task),
+   time of last activity, a "waiting for you" marker. At the top, a `New thread` button and an `All · Waiting for me · Active · Done` filter.
+   Sorting: threads waiting on the owner first, then by last activity.
+2. **Thread** (center). Header: thread title, links to the task (`T-12 →`) and the PR (`PR #34 ↗`), stage badge.
+   Below it, a chronological feed of messages.
+3. **Input field** at the bottom of the thread. Text, `Send`, a hint "Enter — send, Shift+Enter — new line".
+   While the dispatcher is processing the previous message, a new one can be written: it is placed in the queue with a `queued` marker.
+4. **Empty state with no thread selected:** a "Describe a task or ask a question" field and a few examples
+   ("Add a course curriculum page from the design…", "What does Notion say about…").
 
-**Типи повідомлень у стрічці:**
+**Message types in the feed:**
 
-| Тип | Зміст | Дії |
+| Type | Content | Actions |
 | --- | --- | --- |
-| `Owner message` | Текст власника, час, позначка `queued` / `delivered` | — |
-| `Jarvis message` | Текст агента в Markdown, посилання на артефакти, PR, джерела | — |
-| `Status card` | Одне повідомлення, яке оновлюється на місці (SLK-07): етап, кроки з галочками (`✓ context`, `✓ spec`, `… implementing 3/5`), лічильники спроб (`checks 2/3`), час від старту | `Open task →`, `Open console →` |
-| `Decision card` | Spec і план на підтвердження (WRK-04): короткий зміст, посилання на `spec.md` і `plan.md` | `Approve`, `Request changes` (відкриває поле коментаря) |
-| `Question card` | Питання воркера (WRK-05) з варіантами або вільною відповіддю | кнопки варіантів, `Answer` |
-| `Permission card` | Запит дозволу (SLK-05, DSP-09): хто питає (диспетчер чи воркер `T-12`), інструмент, опис, вхідні дані (згорнуті, якщо довгі) | `Allow`, `Deny` |
-| `Result card` | Draft PR відкрито, CI-результат, фінальний підсумок (WRK-09, CI-03, CI-08) | `Open PR ↗`, `Open result.md` |
-| `System line` | Службова подія: «Task queued — starts when a worker is free», «Worker restarted from stage Implementing», «Cancelled» | — |
+| `Owner message` | Owner's text, time, `queued` / `delivered` marker | — |
+| `Jarvis message` | Agent text in Markdown, links to artifacts, the PR, sources | — |
+| `Status card` | One message that updates in place (SLK-07): stage, steps with checkmarks (`✓ context`, `✓ spec`, `… implementing 3/5`), attempt counters (`checks 2/3`), time since start | `Open task →`, `Open console →` |
+| `Decision card` | Spec and plan for approval (WRK-04): a short summary, links to `spec.md` and `plan.md` | `Approve`, `Request changes` (opens a comment field) |
+| `Question card` | A worker question (WRK-05) with options or a free-form answer | option buttons, `Answer` |
+| `Permission card` | A permission request (SLK-05, DSP-09): who is asking (the dispatcher or worker `T-12`), tool, description, input data (collapsed if long) | `Allow`, `Deny` |
+| `Result card` | Draft PR opened, CI result, final summary (WRK-09, CI-03, CI-08) | `Open PR ↗`, `Open result.md` |
+| `System line` | A service event: "Task queued — starts when a worker is free", "Worker restarted from stage Implementing", "Cancelled" | — |
 
-Після відповіді картки рішення, питання чи дозволу стають неактивними й показують, що вибрано, ким і коли
-(`Approved · 14:32`). Одну картку не можна відповісти двічі.
+After an answer, decision, question and permission cards become inactive and show what was chosen, by whom and when
+(`Approved · 14:32`). A card cannot be answered twice.
 
-**Дії в треді (меню `⋯`):** `Status` (DSP-05), `Cancel task` (DSP-06, з підтвердженням), `Open task`, `Open dispatcher session`.
+**Thread actions (the `⋯` menu):** `Status` (DSP-05), `Cancel task` (DSP-06, with confirmation), `Open task`, `Open dispatcher session`.
 
-**Стани:** порожній список тредів; завантаження треду; диспетчер «думає» (індикатор під останнім повідомленням);
-помилка надсилання (повідомлення з `Retry`); тред без задачі (питання до знань, DSP-07); бюджет вичерпано
-(поле вводу активне, але над ним пояснення, що нові задачі стануть у чергу); engine недоступний (поле вводу
-вимкнене, повідомлення «Engine offline — messages can't be sent»).
+**States:** empty thread list; thread loading; the dispatcher is "thinking" (an indicator under the last message);
+send failure (a message with `Retry`); thread without a task (a knowledge question, DSP-07); budget exhausted
+(the input field stays active, but above it an explanation that new tasks will be queued); engine unavailable
+(the input field is disabled, with the message "Engine offline — messages can't be sent").
 
 ### Overview — `/overview`
 
-**Мета.** З одного погляду зрозуміти, що зараз відбувається. Аналог Mission Control з Agent Ops Center.
-Покриває DSP-08, DSP-09, ADM-01, NFR-03.
+**Goal.** Understand at a glance what is happening right now. An analog of Mission Control from Agent Ops Center.
+Covers DSP-08, DSP-09, ADM-01, NFR-03.
 
-**Блоки:**
+**Blocks:**
 
-1. **KPI-рядок:** `Workers busy N/max`, `Queue N`, `Waiting for you N`, `PRs open N`, `Usage today $X / $Y`.
-2. **Dispatcher.** Картка сесії диспетчера: статус (`Idle`, `Running`, `Waiting for permission`, `Error`),
-   поточна дія (інструмент і аргумент або «Thinking»), час поточного прогону, посилання на консоль.
-3. **Workers.** Картка на кожен слот воркера, кількість карток дорівнює `maxConcurrentWorkers`. Зайнятий слот:
-   задача (`T-12` і назва), етап зі степером `Context · Spec · Impl · Verify · Review · PR`, поточна дія, тривалість,
-   спроби (`checks 1/3`), умовна вартість прогону, `Console →`. Вільний слот: «Free».
-   Окремо позначаємо стан «завис»: немає подій понад 10 хвилин або чекає дозволу (DSP-09).
-4. **Queue.** Задачі й події, що чекають на вільний слот: що саме (нова задача, подія CI, відповідь власника), відколи.
-5. **Watching.** Задачі в `PR Open` і `Blocked`, які слот не займають: PR, стан CI, стан рев'ю, час останньої перевірки
-   watcher-ом, наступна перевірка через N с.
-6. **Event log.** Загальна стрічка подій усіх задач, найновіші зверху, з фільтром за задачею й типом
-   (`stage`, `ci`, `review`, `permission`, `error`) і паузою, як у Mission Control.
+1. **KPI row:** `Workers busy N/max`, `Queue N`, `Waiting for you N`, `PRs open N`, `Usage today $X / $Y`.
+2. **Dispatcher.** The dispatcher session card: status (`Idle`, `Running`, `Waiting for permission`, `Error`),
+   current action (tool and argument, or "Thinking"), duration of the current run, a link to the console.
+3. **Workers.** A card per worker slot; the number of cards equals `maxConcurrentWorkers`. A busy slot:
+   the task (`T-12` and title), the stage with a `Context · Spec · Impl · Verify · Review · PR` stepper, current action, duration,
+   attempts (`checks 1/3`), the run's notional cost, `Console →`. A free slot: "Free".
+   The "stuck" state is marked separately: no events for over 10 minutes, or waiting for permission (DSP-09).
+4. **Queue.** Tasks and events waiting for a free slot: what exactly (a new task, a CI event, an owner reply), and since when.
+5. **Watching.** Tasks in `PR Open` and `Blocked` that occupy no slot: the PR, CI state, review state, the time of the watcher's
+   last check, next check in N s.
+6. **Event log.** A combined feed of events across all tasks, newest first, with a filter by task and type
+   (`stage`, `ci`, `review`, `permission`, `error`) and a pause, as in Mission Control.
 
-**Стани:** нічого не відбувається (усі слоти вільні, черга порожня, «Jarvis is idle»); пауза через бюджет
-(картки воркерів показують `Paused`, черга не рухається); engine недоступний.
+**States:** nothing happening (all slots free, the queue empty, "Jarvis is idle"); paused over budget
+(worker cards show `Paused`, the queue does not move); engine unavailable.
 
 ### Tasks — `/tasks`
 
-**Мета.** Список усіх задач. Покриває ADM-01, DSP-05.
+**Goal.** The list of all tasks. Covers ADM-01, DSP-05.
 
-Таблиця: `ID`, `Title`, `Stage`, `Waiting for` (`owner`, `CI`, `review`, `worker slot`, `—`), `Branch`, `PR`,
-`CI` (зведений стан актуального коміту), `Runs`, `Notional $`, `Updated`. Фільтри за етапом
-(`Active · Waiting · Done · Failed · Cancelled`) і пошук за назвою або ID. Клік по рядку відкриває Task detail.
+A table: `ID`, `Title`, `Stage`, `Waiting for` (`owner`, `CI`, `review`, `worker slot`, `—`), `Branch`, `PR`,
+`CI` (the aggregated state of the current commit), `Runs`, `Notional $`, `Updated`. Filters by stage
+(`Active · Waiting · Done · Failed · Cancelled`) and search by title or ID. Clicking a row opens Task detail.
 
-**Стани:** порожньо («Ще немає задач. Поставте першу в Chat» з посиланням); завантаження; помилка.
+**States:** empty ("No tasks yet. Submit the first one in Chat", with a link); loading; error.
 
 ### Task detail — `/tasks/:taskId`
 
-**Мета.** Усе про одну задачу в одному місці: що зроблено, що зараз, що далі. Покриває ADM-02, ADM-06,
-WRK-01…WRK-11, CI-01…CI-09, ST-03, ST-05.
+**Goal.** Everything about one task in one place: what has been done, what is happening now, what comes next.
+Covers ADM-02, ADM-06, WRK-01…WRK-11, CI-01…CI-09, ST-03, ST-05.
 
-**Блоки:**
+**Blocks:**
 
-1. **Шапка.** ID, назва, бейдж етапу, `Waiting for`, гілка `jarvis/T-12`, PR-посилання, посилання на тред,
-   час від старту, сумарна умовна вартість. Дії: `Retry stage`, `Stop worker`, `Cancel task` (з підтвердженням).
-2. **Stage timeline.** Етапи `Intake → Context → Spec Review → Implementing → Verifying → Reviewing → PR Open → Fixing → Done`
-   з часом входу й виходу. Повтори (наприклад, повернення з рев'ю в `Fixing`) показуємо окремими відрізками.
-   Термінальні `Blocked`, `Failed`, `Cancelled` мають причину.
-3. **Artifacts.** Вкладки `context.md`, `spec.md`, `plan.md`, `tasks.md`, `result.md`. Markdown рендериться,
-   посилання на джерела клікабельні. Для `tasks.md` чекбокси показують статус підзадач. Файл, який ще не створено,
-   має порожній стан «Not written yet — appears at stage X».
-4. **PR · CI · Review.** Посилання на PR, актуальний коміт (короткий SHA). Список CI-перевірок цього коміту:
-   назва, статус (`queued`, `running`, `passed`, `failed`, `skipped`), тривалість, посилання на лог. Попередні коміти
-   згорнуті під `Earlier commits`. Стан рев'ю: `Pending`, `Changes requested`, `Approved`, коментарі рев'юерів
-   (автор, текст, чи обробив їх Jarvis). Лічильники раундів: `CI fixes 1/2`, `Review rounds 0/3`.
-5. **Runs.** Таблиця прогонів CLI в задачі: роль (`dispatcher`, `worker`, `reviewer`, `plan verifier`), етап,
-   старт, тривалість, статус (`running`, `completed`, `failed`, `stopped`, `limit reached`), токени, notional $.
-   Клік відкриває Session console на цьому прогоні.
-6. **Journal.** Хронологічний журнал подій задачі (ST-03): зміни етапу, повідомлення, події CI й рев'ю,
-   дії власника з адмінки (ADM-06) з позначкою `by owner`.
+1. **Header.** ID, title, stage badge, `Waiting for`, the `jarvis/T-12` branch, the PR link, a link to the thread,
+   time since start, total notional cost. Actions: `Retry stage`, `Stop worker`, `Cancel task` (with confirmation).
+2. **Stage timeline.** The stages `Intake → Context → Spec Review → Implementing → Verifying → Reviewing → PR Open → Fixing → Done`
+   with entry and exit times. Repeats (for example, returning from review to `Fixing`) are shown as separate segments.
+   The terminal `Blocked`, `Failed`, `Cancelled` carry a reason.
+3. **Artifacts.** Tabs `context.md`, `spec.md`, `plan.md`, `tasks.md`, `result.md`. Markdown is rendered,
+   source links are clickable. For `tasks.md`, the checkboxes show subtask status. A file not yet created
+   has an empty state "Not written yet — appears at stage X".
+4. **PR · CI · Review.** The PR link, the current commit (short SHA). The list of this commit's CI checks:
+   name, status (`queued`, `running`, `passed`, `failed`, `skipped`), duration, log link. Earlier commits are
+   collapsed under `Earlier commits`. Review state: `Pending`, `Changes requested`, `Approved`, reviewer comments
+   (author, text, whether Jarvis has handled them). Round counters: `CI fixes 1/2`, `Review rounds 0/3`.
+5. **Runs.** A table of the task's CLI runs: role (`dispatcher`, `worker`, `reviewer`, `plan verifier`), stage,
+   start, duration, status (`running`, `completed`, `failed`, `stopped`, `limit reached`), tokens, notional $.
+   Clicking opens the Session console at that run.
+6. **Journal.** A chronological journal of the task's events (ST-03): stage changes, messages, CI and review events,
+   owner actions from the admin panel (ADM-06) with a `by owner` marker.
 
-**Стани:** задача не існує (Not found); задача активна (блоки оновлюються наживо); `Failed` (вгорі причина,
-останні спроби, кнопка `Retry stage`); `Cancelled` (дії вимкнені, гілка й PR лишаються посиланнями).
+**States:** the task does not exist (Not found); the task is active (blocks update live); `Failed` (the reason at the top,
+the latest attempts, a `Retry stage` button); `Cancelled` (actions disabled, the branch and PR remain links).
 
 ### Session console — `/sessions/:sessionId`
 
-**Мета.** Живий структурований перегляд сесії Claude: що агент пише, які інструменти викликає, що вони
-повертають. Аналог Agent console і Session Log з Agent Ops Center, але на реальних подіях stream-json.
-Покриває ADM-03, ADM-04, ADM-06.
+**Goal.** A live, structured view of a Claude session: what the agent writes, which tools it calls, what they
+return. An analog of the Agent console and Session Log from Agent Ops Center, but on real stream-json events.
+Covers ADM-03, ADM-04, ADM-06.
 
-**Блоки:**
+**Blocks:**
 
-1. **Шапка.** Роль сесії, задача або тред, модель, статус (`Running`, `Idle`, `Waiting for permission`, `Stopped`, `Error`),
-   ID сесії CLI, кількість прогонів.
-2. **Run selector.** Список прогонів сесії; за замовчуванням поточний або останній.
-3. **Run summary.** Токени (`input`, `output`, `cache read`, `cache write`), `total_cost_usd` як notional $,
-   тривалість, кількість ходів відносно `max turns per run`.
-4. **Event stream.** Події по порядку:
-   - текст агента (Markdown);
-   - виклик інструмента: назва, вхідні дані (згорнуті), результат (перші рядки, `Show more`), статус `ok` / `error`, тривалість;
-   - запит дозволу і рішення по ньому;
-   - системні події (старт процесу, `resume`, завершення ходу, вихід процесу з кодом);
-   - помилки CLI.
-   Поки прогін іде, нові події додаються внизу. Якщо власник прокрутив угору, автопрокрутка вимикається
-   і з'являється кнопка `Jump to latest`.
-5. **Фільтри й пошук.** `All · Messages · Tool calls · Errors · System`, пошук за текстом, перехід між помилками.
-6. **Панель керування** (ADM-06):
-   - `Send message` — поле вводу. Повідомлення стає в чергу й піде в сесію наступним ходом (`--resume`). У стрічці воно
-     видно як `queued`, потім як доставлене.
-   - `Stop run` — зупиняє поточний процес CLI, з підтвердженням.
-   - `Retry stage` — перезапускає поточний етап задачі з артефактів.
+1. **Header.** The session's role, task or thread, model, status (`Running`, `Idle`, `Waiting for permission`, `Stopped`, `Error`),
+   the CLI session ID, the number of runs.
+2. **Run selector.** The list of the session's runs; by default the current or the latest one.
+3. **Run summary.** Tokens (`input`, `output`, `cache read`, `cache write`), `total_cost_usd` as notional $,
+   duration, number of turns relative to `max turns per run`.
+4. **Event stream.** Events in order:
+   - agent text (Markdown);
+   - a tool call: name, input data (collapsed), result (first lines, `Show more`), `ok` / `error` status, duration;
+   - a permission request and the decision on it;
+   - system events (process start, `resume`, end of turn, process exit with a code);
+   - CLI errors.
+   While a run is in progress, new events are appended at the bottom. If the owner scrolls up, autoscroll turns off
+   and a `Jump to latest` button appears.
+5. **Filters and search.** `All · Messages · Tool calls · Errors · System`, text search, jumping between errors.
+6. **Control panel** (ADM-06):
+   - `Send message` — an input field. The message is queued and goes into the session on the next turn (`--resume`). In the feed it
+     shows as `queued`, then as delivered.
+   - `Stop run` — stops the current CLI process, with confirmation.
+   - `Retry stage` — restarts the task's current stage from the artifacts.
 
-**Стани:** сесія ще без прогонів; прогін завершився з помилкою (причина вгорі); процес завис (немає подій понад
-10 хвилин, попередження); сесію зупинено; бюджет вичерпано (`Send message` і `Retry stage` вимкнені з поясненням).
+**States:** a session with no runs yet; a run finished with an error (the reason at the top); the process is stuck (no events for over
+10 minutes, a warning); the session is stopped; budget exhausted (`Send message` and `Retry stage` disabled with an explanation).
 
 ### Config & limits — `/config`
 
-**Мета.** Показати, за якими правилами працює Jarvis, і скільки ліміту вже витрачено. Тільки читання:
-значення змінюються у конфіг-файлі. Покриває ADM-05, PRF-01…PRF-04, NFR-03.
+**Goal.** Show which rules Jarvis works by and how much of the limit has already been spent. Read-only:
+values are changed in the config file. Covers ADM-05, PRF-01…PRF-04, NFR-03.
 
-**Блоки:**
+**Blocks:**
 
-1. **Usage.** `notional $X.XX of $Y.YY today`, смужка, час скидання, розбивка за ролями (`dispatcher`, `worker`,
-   `reviewer`, `plan verifier`) і за задачами. Попередження на 80 % і стан `Paused` на 100 %.
-2. **Limits.** Таблиця «параметр — значення — що означає»: `maxConcurrentWorkers`, `checkRetries`, `ciFixRounds`,
-   `reviewRounds`, `taskTimeout`, `maxTurnsPerRun`, `dailyBudgetUsd`, `watcherPollInterval`, моделі для кожної ролі.
-   Шлях до файлу конфігу й час останнього читання.
-3. **Repository.** Робочий репозиторій, гілка за замовчуванням, команди перевірок і dev-сервера з `AGENTS.md`
-   репозиторію (CON-04). Якщо `AGENTS.md` не має потрібних команд, попередження.
-4. **Profile.** Вміст `SOUL.md` і `USER.md` тільки для читання, шлях до файлів, час останньої зміни (PRF-03).
-5. **Allowlists.** Рев'юери, чиї коментарі обробляються (CI-06); дозволені команди без запиту (SEC-01).
+1. **Usage.** `notional $X.XX of $Y.YY today`, a bar, the reset time, a breakdown by role (`dispatcher`, `worker`,
+   `reviewer`, `plan verifier`) and by task. A warning at 80% and the `Paused` state at 100%.
+2. **Limits.** A "parameter — value — what it means" table: `maxConcurrentWorkers`, `checkRetries`, `ciFixRounds`,
+   `reviewRounds`, `taskTimeout`, `maxTurnsPerRun`, `dailyBudgetUsd`, `watcherPollInterval`, the models for each role.
+   The path to the config file and the time it was last read.
+3. **Repository.** The working repository, the default branch, the check and dev-server commands from the repository's
+   `AGENTS.md` (CON-04). If `AGENTS.md` lacks the needed commands, a warning.
+4. **Profile.** Read-only contents of `SOUL.md` and `USER.md`, the file paths, the time of the last change (PRF-03).
+5. **Allowlists.** Reviewers whose comments are processed (CI-06); commands allowed without a prompt (SEC-01).
 
-**Стани:** конфіг не читається або невалідний (помилка з рядком і полем, Jarvis не стартує задачі).
+**States:** the config cannot be read or is invalid (an error with the line and field; Jarvis does not start tasks).
 
 ### Connections — `/connections`
 
-**Мета.** Перевірити, що все потрібне підключено, і що Jarvis не платить за API. Покриває CTX-01…CTX-05, SEC-04.
+**Goal.** Verify that everything needed is connected, and that Jarvis is not paying for the API. Covers CTX-01…CTX-05, SEC-04.
 
-Рядок на кожне підключення: назва, статус (`Connected`, `Not configured`, `Error`), деталі, час перевірки, `Check again`.
+A row per connection: name, status (`Connected`, `Not configured`, `Error`), details, check time, `Check again`.
 
-| Підключення | Що показуємо |
+| Connection | What we show |
 | --- | --- |
-| Claude CLI | Версія, вхід через підписку (`Logged in · Max`), або `Not logged in` з інструкцією `claude login`. **Червоне попередження**, якщо задано `ANTHROPIC_API_KEY`: у такому разі CLI платить за API, а не з підписки |
-| GitHub | Акаунт бота, від якого Jarvis пушить і відкриває PR; доступ до робочого репозиторію; права токена (`contents`, `pull requests`, `checks`/`actions` read); термін дії токена. Сам токен ніколи не показується (SEC-04) |
-| Notion | Доступ до кореневої сторінки з конфігу |
-| Google Docs | Доступ до папки або документа з конфігу |
-| Claude Design | Чи доступний handoff дизайну (CTX-01) |
-| Slack | `Iteration 2`, рядок неактивний |
+| Claude CLI | Version, subscription login (`Logged in · Max`), or `Not logged in` with a `claude login` instruction. **A red warning** if `ANTHROPIC_API_KEY` is set: in that case the CLI pays for the API instead of using the subscription |
+| GitHub | The bot account Jarvis pushes and opens PRs from; access to the working repository; token permissions (`contents`, `pull requests`, `checks`/`actions` read); token expiry. The token itself is never shown (SEC-04) |
+| Notion | Access to the root page from the config |
+| Google Docs | Access to the folder or document from the config |
+| Claude Design | Whether the design handoff is available (CTX-01) |
+| Slack | `Iteration 2`, the row is inactive |
 
-**Стани:** перевірка триває; помилка перевірки з текстом причини; усе підключено.
+**States:** a check in progress; a check failed with the reason text; everything connected.
 
-## Спільні компоненти
+## Shared components
 
-| Компонент | Де використовується | Що має вміти |
+| Component | Where it is used | What it must do |
 | --- | --- | --- |
-| `Message bubble` | Chat | Автор, час, Markdown, стан `queued` / `delivered` / `failed` |
-| `Status card` | Chat | Оновлюватися на місці, список кроків із галочками, лічильники спроб, посилання |
-| `Decision buttons` | Decision card, Question card | Основна й другорядна дія, неактивний стан після відповіді з підписом, хто і коли |
-| `Permission card` | Chat, Session console, Overview | Хто питає, інструмент, опис, згорнуті вхідні дані, `Allow` / `Deny`, підсумок після рішення |
-| `Stage badge` | Усюди, де є задача | Усі значення `Task Stage`; термінальні стани відрізняються не лише кольором, а й символом або словом |
-| `Stage stepper` | Overview, Task detail | Поточний етап, пройдені, майбутні; повтори |
-| `CI check row` | Task detail, Overview | Назва, статус, тривалість, посилання на лог |
-| `Run event row` | Session console | Типи подій зі списку вище, згортання довгого виводу |
-| `Usage meter` | Оболонка, Overview, Config | Компактний і повний варіанти, попередження, `Paused` |
-| `Artifact viewer` | Task detail, посилання з чату | Markdown, чекбокси, порожній стан «ще не створено» |
-| `Connection row` | Connections | Статус, деталі, `Check again` |
-| `Empty state` | Усі списки | Пояснення й наступна дія |
-| `Connection banner` | Оболонка | `Reconnecting…` і `Offline` з часом останнього зв'язку |
+| `Message bubble` | Chat | Author, time, Markdown, `queued` / `delivered` / `failed` state |
+| `Status card` | Chat | Update in place, a list of steps with checkmarks, attempt counters, links |
+| `Decision buttons` | Decision card, Question card | Primary and secondary action, inactive state after an answer with a caption of who and when |
+| `Permission card` | Chat, Session console, Overview | Who is asking, the tool, description, collapsed input data, `Allow` / `Deny`, a summary after the decision |
+| `Stage badge` | Everywhere a task appears | All `Task Stage` values; terminal states differ not only by color but also by a symbol or a word |
+| `Stage stepper` | Overview, Task detail | The current stage, completed ones, upcoming ones; repeats |
+| `CI check row` | Task detail, Overview | Name, status, duration, log link |
+| `Run event row` | Session console | The event types from the list above, collapsing long output |
+| `Usage meter` | Shell, Overview, Config | Compact and full variants, warnings, `Paused` |
+| `Artifact viewer` | Task detail, links from chat | Markdown, checkboxes, a "not created yet" empty state |
+| `Connection row` | Connections | Status, details, `Check again` |
+| `Empty state` | All lists | An explanation and the next action |
+| `Connection banner` | Shell | `Reconnecting…` and `Offline` with the time of last contact |
 
-## Загальні стани
+## Global states
 
-- **Live updates.** Дані приходять через SSE. Нові повідомлення, зміни етапів і події консолі з'являються без перезавантаження.
-- **Disconnected.** Якщо зв'язок з engine втрачено, оболонка показує `Reconnecting…`, дії, що змінюють дані, вимикаються.
-  Після відновлення UI дотягує пропущені події.
-- **Budget paused.** Коли денний ліміт вичерпано: банер в оболонці, воркери `Paused`, нові задачі в черзі, кнопки запуску
-  (`Retry stage`, `Send message` у консолі) вимкнені з поясненням і часом скидання. Чат лишається доступним.
-- **Loading** і **Error** для кожного екрана й блоку окремо: помилка одного блоку не ламає сторінку.
+- **Live updates.** Data arrives over SSE. New messages, stage changes and console events appear without a reload.
+- **Disconnected.** If the connection to the engine is lost, the shell shows `Reconnecting…` and data-changing actions are disabled.
+  After reconnecting, the UI catches up on missed events.
+- **Budget paused.** When the daily limit is exhausted: a banner in the shell, workers `Paused`, new tasks queued, launch buttons
+  (`Retry stage`, `Send message` in the console) disabled with an explanation and the reset time. Chat stays available.
+- **Loading** and **Error** for every screen and block separately: one block's error does not break the page.
 
-## Граничні випадки
+## Edge cases
 
-| Випадок | Що показує UI | Вимога |
+| Case | What the UI shows | Requirement |
 | --- | --- | --- |
-| Два запити дозволу одночасно від різних воркерів | Дві окремі картки у відповідних тредах; лічильник «чекає на вас» = 2 | SLK-05, DSP-09 |
-| Власник натиснув `Allow` двічі або у двох вкладках | Друге натискання нічого не робить; картка показує перше рішення | SLK-05 |
-| Відповідь на питання прийшла, коли задача вже `Cancelled` | Картка неактивна з поясненням «Task cancelled» | DSP-06 |
-| Третя задача при зайнятих слотах | `System line` «Queued — position N», задача в Overview → Queue | DSP-08 |
-| Воркер мовчить понад 10 хвилин | Попередження на картці воркера й у треді | DSP-09 |
-| Дуже довгий вивід інструмента (тисячі рядків) | Перші рядки, `Show more`, без зависання сторінки | ADM-04 |
-| Прогін завершився через `max turns` | Статус `limit reached` і пояснення, що робить Jarvis далі | WRK-11 |
-| CI перезапущено на тому ж коміті | Рядки перевірок оновлюються на місці, старий результат під `Earlier attempts` | CI-07 |
-| Коментар у PR від не-allowlist автора або бота | Показується з позначкою `ignored` | CI-06 |
-| Артефакт змінився, поки відкритий | Оновлюється з позначкою `Updated just now` | ADM-02 |
-| Текст із Notion чи PR містить HTML або «інструкції» | Показується як текст, без виконання розмітки й скриптів | SEC-03 |
-| `ANTHROPIC_API_KEY` у середовищі | Червоне попередження на Connections і в оболонці | CON-01 |
-| Конфіг невалідний | Config показує помилку; Chat пояснює, що задачі не стартують | — |
+| Two simultaneous permission requests from different workers | Two separate cards in the corresponding threads; the "waiting for you" counter = 2 | SLK-05, DSP-09 |
+| The owner clicked `Allow` twice or in two tabs | The second click does nothing; the card shows the first decision | SLK-05 |
+| An answer to a question arrives when the task is already `Cancelled` | The card is inactive with a "Task cancelled" explanation | DSP-06 |
+| A third task while the slots are busy | A `System line` "Queued — position N", the task appears in Overview → Queue | DSP-08 |
+| A worker is silent for over 10 minutes | A warning on the worker card and in the thread | DSP-09 |
+| Very long tool output (thousands of lines) | The first lines, `Show more`, no page freeze | ADM-04 |
+| A run ended due to `max turns` | A `limit reached` status and an explanation of what Jarvis does next | WRK-11 |
+| CI rerun on the same commit | Check rows update in place, the old result goes under `Earlier attempts` | CI-07 |
+| A PR comment from a non-allowlist author or a bot | Shown with an `ignored` marker | CI-06 |
+| An artifact changed while open | It updates with an `Updated just now` marker | ADM-02 |
+| Text from Notion or a PR contains HTML or "instructions" | Shown as text, without executing markup or scripts | SEC-03 |
+| `ANTHROPIC_API_KEY` in the environment | A red warning on Connections and in the shell | CON-01 |
+| The config is invalid | Config shows the error; Chat explains that tasks do not start | — |
 
-## Відкриті питання для дизайну
+## Open design questions
 
-- [ ] Chat і Overview — окремі екрани чи Chat із правою панеллю стану воркерів? Від цього залежить, чи власник
-  бачить прогрес без перемикання.
-- [ ] Session console відкривається окремою сторінкою чи бічною панеллю поверх Chat і Task detail?
-- [ ] Чи показувати в треді проміжні повідомлення агента, чи лише `Status card` і картки рішень (менше шуму, але менше видно)?
-- [ ] Як позначати сесію диспетчера в списку тредів: окремий службовий тред чи лише посилання з кожного треду?
-- [ ] Чи потрібна темна тема в ітерації 1?
-- [ ] Чи потрібен глобальний `Stop all` на випадок, коли агент робить щось не те?
+- [ ] Are Chat and Overview separate screens, or is Chat paired with a right-hand worker status panel? This determines whether
+  the owner sees progress without switching.
+- [ ] Does the Session console open as a separate page or as a side panel over Chat and Task detail?
+- [ ] Should the thread show the agent's intermediate messages, or only the `Status card` and decision cards (less noise, but less visibility)?
+- [ ] How to mark the dispatcher session in the thread list: a separate service thread or only a link from each thread?
+- [ ] Is a dark theme needed in iteration 1?
+- [ ] Is a global `Stop all` needed for the case when the agent is doing something wrong?

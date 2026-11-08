@@ -2,7 +2,7 @@
 
 Product: `docs/specs/abstract-project-spec.md` (IDs `SLK-*`, `DSP-*`, `WRK-*`, `CTX-*`, `CI-*`, `ST-*`, `PRF-*`,
 `LIM-*`, `SEC-*`, `ADM-*`, `NFR-*`). UI: `docs/specs/web-ui-design.md`. Architecture: `docs/architecture/README.md`.
-Decisions: ADR-0001…0013 (all `proposed`; this plan treats them as binding — the owner accepts or supersedes them).
+Decisions: ADR-0001…0011 (all `proposed`; this plan treats them as binding — the owner accepts or supersedes them).
 
 ## How this plan is executed
 
@@ -72,7 +72,7 @@ Decisions: ADR-0001…0013 (all `proposed`; this plan treats them as binding —
 
 - `Session` = one Claude CLI session: dispatcher session per thread, worker session per task (`claude_session_id`
   stored, `--resume` on every later run). `Run` = one `claude` process.
-- Run argv is built by one pure function (ADR-0003/0011): `-p --output-format stream-json --verbose`,
+- Run argv is built by one pure function (ADR-0003/0009): `-p --output-format stream-json --verbose`,
   `--input-format stream-json` for workers, `--resume <id>` when known, `--model`, `--max-turns`,
   `--max-budget-usd`, `--plugin-dir <repo>/agent`, `--setting-sources project,local`,
   `--mcp-config <runDir>/mcp.json --strict-mcp-config`, `--permission-prompt-tool mcp__jarvis__approve`,
@@ -167,7 +167,7 @@ implementer runs before reporting; the phase gate re-runs it.
   `run.ts`, `permission.ts`, `limits.ts` (`LimitPolicy`: budget left, can start run, task timed out), `watch.ts`
   (pure `diffPullRequest(prev, next, { botLogin, reviewers })` → `CodeHostChange[]`: `ci_completed{conclusion}`,
   `review{state}`, `comment{id}`; idempotent; ignores bot/non-allowlist; only the current head SHA — CI-06, CI-07, CI-09),
-  `waiting-for.ts`, `errors.ts`. Architecture test enforces ADR-0002 layer rules and ADR-0006/0009/0010 import rules.
+  `waiting-for.ts`, `errors.ts`. Architecture test enforces ADR-0002 layer rules and ADR-0006/0007/0008 import rules.
 - AC: ST-03 (journal event per transition), CI-06, CI-07, CI-09, LIM-03/04 (policy), WRK-11 (timeout rule).
 - Verify: `pnpm --filter @jarvis/engine test:unit typecheck`.
 
@@ -203,7 +203,7 @@ T06–T10 run in parallel (disjoint paths). T06 and T09 only need the T04 ports 
 - Do: `loadEnv` (only place reading `process.env`; startup guard for `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN`/
   `CLAUDE_CODE_USE_BEDROCK`/`CLAUDE_CODE_USE_VERTEX` with a clear message), `JarvisHome` paths, `FileConfigProvider`
   (Zod validation with field-level errors, `fs.watch` reload — LIM-02, LIM-05, PRF-03), `redactSecrets(text)`, system clock.
-- AC: SEC-04, SEC-05, LIM-01, LIM-02, LIM-05; ADR-0005/0007 Confirmation (`config.test.ts`, redactor test).
+- AC: SEC-04, SEC-05, LIM-01, LIM-02, LIM-05; ADR-0005/0015 Confirmation (`config.test.ts`, redactor test).
 
 **T07 · backend · Postgres persistence**
 - Owned: `engine/src/infrastructure/db/**`, `engine/drizzle/**`, `engine/test/db.ts`.
@@ -278,7 +278,7 @@ T06–T10 run in parallel (disjoint paths). T06 and T09 only need the T04 ports 
 Not an implementer task. With a scratch target repo that satisfies CON-04 (`AGENTS.md` with check commands):
 knowledge question (DSP-07) → small code task → spec/plan approval card → implementation → checks → review →
 (with `GITHUB_TOKEN` of the bot and a real remote) draft PR → watcher sees CI. Record cost of the run (open question
-"Перевірити до старту"). Findings become fix tasks before Phase 6 merges.
+"To verify before the start"). Findings become fix tasks before Phase 6 merges.
 
 ### Phase 6 — Web app (gate: unit/RTL tests, typecheck, build, e2e)
 
@@ -290,7 +290,7 @@ T15 first; T16–T19 in parallel (disjoint feature folders); T20 last. Provision
 - Do: router with all routes + Not found; shell (nav, `LOCAL · NO AUTH`, usage meter, connection indicator,
   waiting-for-me counter, budget banner); typed API client from shared schemas; SSE hook patching/invalidating Query;
   shared components (`StageBadge`, `StageStepper`, `Markdown` via react-markdown, `EmptyState`, `ConfirmDialog`, `UsageMeter`).
-- AC: ADM-07, NFR-08, UI "Загальні стани", ADR-0010 Confirmation.
+- AC: ADM-07, NFR-08, UI "Global states", ADR-0010 Confirmation.
 
 **T16 · ui · Chat** — Owned `web/src/features/chat/**` — SLK-01…SLK-07, DSP-04…DSP-07, WRK-04, WRK-05 (all card types,
 one-answer rule, queued messages, thread menu, empty/offline/budget states).
@@ -324,7 +324,7 @@ T01 → T02 → T03 → T04 → T05 → {T06, T07, T08, T09, T10} → T11 → {T
 
 | When | What |
 |---|---|
-| any time | Accept or change ADR-0001…0013 |
+| any time | Accept or change ADR-0001…0011 |
 | Phase 5 | Target repo for the demo (open question in the spec) and the GitHub bot account + fine-grained PAT in `~/.jarvis/.env` |
 | Phase 5 | Who reviews in the demo (`allowlist.githubReviewers`) |
 | Phase 6 | Claude Design output, if it should replace provisional styles in this iteration |

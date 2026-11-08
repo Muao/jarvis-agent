@@ -1,101 +1,104 @@
-# UI-перевірка зміни перед PR
+# UI verification of a change before the PR
 
-**Статус:** draft (2026-11-08) · **Автор:** власник + Jarvis · **Стадія:** Reviewing
+**Status:** draft (2026-11-08) · **Author:** owner + Jarvis · **Stage:** Reviewing
 
-Воркер, перш ніж відкрити draft PR, має сам подивитися на те, що зробив: підняти застосунок,
-пройти браузером сценарії з `spec.md`, зняти скриншоти і вкласти їх у тіло pull request.
+Before opening a draft PR, the worker must look at what it built with its own eyes: start the
+application, walk through the `spec.md` scenarios in a browser, take screenshots, and embed them in
+the pull request body.
 
-## 1. Навіщо
+## 1. Why
 
-Зараз пайплайн доводить зміну до PR на підставі тестів, лінтера і тайпчека. Для UI це слабке
-свідчення: тести можуть бути зелені, а кнопка — не клікатися, сторінка — впасти на гідрації,
-верстка — поїхати. Власник дізнається про це тільки тоді, коли сам відкриє PR, стягне гілку і
-запустить dev-сервер. Тобто найдорожчий крок перевірки лежить на людині.
+Today the pipeline takes a change to a PR on the strength of tests, the linter, and the typecheck.
+For UI that is weak evidence: the tests can be green while a button does not click, the page crashes
+on hydration, or the layout breaks. The owner finds out only when they open the PR themselves, pull
+the branch, and start the dev server. In other words, the most expensive verification step rests on
+a human.
 
-Правило WRK-10 в `agent/prompts/worker.md` уже вимагає саме цього поведінку («UI change: start the dev
-server per `AGENTS.md`, open the page in a browser **if a browser tool is available**…»). Дірка не в
-промпті — браузерного інструмента в системі немає, тож умова ніколи не виконується, і воркер щоразу
-законно пише в PR «браузера не було».
+Rule WRK-10 in `agent/prompts/worker.md` already demands exactly this behavior ("UI change: start the dev
+server per `AGENTS.md`, open the page in a browser **if a browser tool is available**…"). The hole is
+not in the prompt — the system has no browser tool, so the condition is never met, and every time the
+worker legitimately writes "no browser was available" in the PR.
 
-Ця специфікація закриває дірку: дає інструмент, обмежує його і визначає, що саме вважається
-перевіркою.
+This specification closes the hole: it provides the tool, constrains it, and defines what exactly
+counts as verification.
 
-## 2. Межі
+## 2. Scope
 
-**Цілі**
+**Goals**
 
-- Воркер проходить браузером acceptance criteria зі `spec.md`, які стосуються UI, і для кожного дає
-  вердикт.
-- Скриншоти лежать інлайном у тілі draft PR, а не лінками, по яких треба клікати.
-- UI-перевірка не може стати нескінченною: у неї є лізинг часу, стеля сценаріїв і стеля раундів
-  виправлень, і всі вони нав'язані ззовні агента.
-- Працює однаково на ноуті та в контейнері (`docker/runtime`), бо перший живий ран планується на сервері.
+- The worker walks through the UI-related acceptance criteria from `spec.md` in a browser and gives
+  a verdict for each one.
+- Screenshots sit inline in the draft PR body, not behind links that have to be clicked.
+- UI verification cannot become endless: it has a time lease, a scenario cap, and a cap on fix
+  rounds, all imposed from outside the agent.
+- Works the same on the laptop and in the container (`docker/runtime`), because the first live run is planned on the server.
 
-**Не цілі**
+**Non-goals**
 
-- Не пишемо постійні e2e-тести в цільовий репозиторій. UI-перевірка — це свідчення для одного PR, а не
-  артефакт, що лишається в коді.
-- Не робимо візуальної регресії (порівняння з baseline-скриншотом). Немає baseline — немає і сенсу.
-- Не ходимо браузером у зовнішній інтернет і не логінимося в чужі сервіси.
-- Не робимо галереї скриншотів у власному UI Jarvis (власник вибрав PR як місце показу). Це природне
-  наступне розширення, не частина цієї версії.
-- Не робимо перевірки мобільних вьюпортів, доступності (axe) і перформансу. Місце для них у
-  `ui-tester` є, але не в першій версії.
+- We do not write permanent e2e tests into the target repository. UI verification is evidence for one
+  PR, not an artifact that stays in the code.
+- We do not do visual regression (comparison against a baseline screenshot). No baseline — no point.
+- The browser does not go to the external internet and does not log into third-party services.
+- We do not build screenshot galleries in Jarvis's own UI (the owner chose the PR as the place to
+  show them). That is a natural next extension, not part of this version.
+- We do not check mobile viewports, accessibility (axe), or performance. There is room for them in
+  `ui-tester`, but not in the first version.
 
-**Анти-цілі** — те, що робить фічу провалом, навіть якщо технічно вона працює
+**Anti-goals** — things that make the feature a failure even if it technically works
 
-- Агент сам вирішує, яку команду запустити як dev-сервер. Команда — це власницький конфіг, не вибір
-  моделі.
-- Витік процесів: `pnpm dev`, який лишився жити після рану і тримає порт.
-- PR, у тілі якого зламані картинки.
-- UI-перевірка, яка з'їдає бюджет рану і не дає воркеру дійти до PR.
+- The agent decides on its own which command to run as the dev server. The command is owner config,
+  not the model's choice.
+- Process leaks: a `pnpm dev` that outlives the run and keeps holding the port.
+- A PR whose body contains broken images.
+- A UI verification that eats the run budget and keeps the worker from reaching the PR.
 
-## 3. Рішення власника (2026-11-08)
+## 3. Owner decisions (2026-11-08)
 
-| Питання | Рішення |
+| Question | Decision |
 |---|---|
-| Куди скриншоти | У тіло PR через недокументований `uploads.github.com/user-attachments/assets` |
-| Хто водить браузер | Субагент `ui-tester` у воркера, на стадії Reviewing |
-| Критерій «працює» | Проходження UI-сценаріїв, виведених із `spec.md` |
-| Де працює | І на ноуті, і в контейнері на сервері |
-| Модель субагентів | `sonnet` |
+| Where screenshots go | Into the PR body via the undocumented `uploads.github.com/user-attachments/assets` |
+| Who drives the browser | A `ui-tester` subagent of the worker, at the Reviewing stage |
+| The "it works" criterion | Passing the UI scenarios derived from `spec.md` |
+| Where it runs | Both on the laptop and in the container on the server |
+| Subagent model | `sonnet` |
 
-## 4. Що в нас уже є
+## 4. What we already have
 
-Ця фіча майже цілком складається з наявних деталей.
+This feature is almost entirely assembled from existing parts.
 
-| Що потрібно | Де вже лежить |
+| What is needed | Where it already lives |
 |---|---|
-| Канал для сторонніх MCP-серверів воркеру | `buildMcpConfig` у `engine/src/infrastructure/claude/run-files.ts` — підмішує `mcpServers` з `~/.jarvis/mcp/servers.json` і підставляє `${VAR}` із секретів; лише для ролі `worker` |
-| Місце для скриншотів | `<artifactsDir>/screenshots/` — `artifacts.dirFor(task.id)`, уже передається у `workerFirstMessage` |
-| Шаблон субагента | `agent/agents/reviewer.md` — frontmatter `name/description/tools/model`, контракт Input → Check → Output |
-| Місце для інструментів агента | `shared/src/mcp.ts` (`toolInputSchemas`, `toolsByRole`) + `engine/src/presentation/mcp/server.ts` (ADR-0004) |
-| Токен і доступ до GitHub | `GitHubCodeHost` (`@octokit/rest`) з `createRedactor` на токені |
-| Межа раундів виправлень | `limits.reviewRounds` + `TRANSITIONS['Reviewing'] → 'Implementing'` із причиною `rounds_exhausted` |
-| Одночасність | `limits.maxConcurrentWorkers: 1` — один воркер, отже один браузер |
-| Місце для лімітів | `limits` у `shared/src/config.ts`, strict-схема, гаряче перечитування |
-| Playwright як залежність | у `web/` уже є `@playwright/test@1.64.1` для наших e2e — але це наш репозиторій, не рантайм агента |
+| A channel for third-party MCP servers to the worker | `buildMcpConfig` in `engine/src/infrastructure/claude/run-files.ts` — mixes in `mcpServers` from `~/.jarvis/mcp/servers.json` and substitutes `${VAR}` from secrets; `worker` role only |
+| A place for screenshots | `<artifactsDir>/screenshots/` — `artifacts.dirFor(task.id)`, already passed into `workerFirstMessage` |
+| A subagent template | `agent/agents/reviewer.md` — `name/description/tools/model` frontmatter, Input → Check → Output contract |
+| A place for agent tools | `shared/src/mcp.ts` (`toolInputSchemas`, `toolsByRole`) + `engine/src/presentation/mcp/server.ts` (ADR-0004) |
+| Token and GitHub access | `GitHubCodeHost` (`@octokit/rest`) with `createRedactor` on the token |
+| A bound on fix rounds | `limits.reviewRounds` + `TRANSITIONS['Reviewing'] → 'Implementing'` with reason `rounds_exhausted` |
+| Concurrency | `limits.maxConcurrentWorkers: 1` — one worker, hence one browser |
+| A place for limits | `limits` in `shared/src/config.ts`, strict schema, hot reload |
+| Playwright as a dependency | `web/` already has `@playwright/test@1.64.1` for our e2e — but that is our repository, not the agent runtime |
 
-Чого немає: браузерного інструмента, керованого dev-сервера, способу покласти картинку в PR, і
-браузерів у `docker/runtime/Dockerfile`.
+What is missing: a browser tool, a managed dev server, a way to put an image into a PR, and
+browsers in `docker/runtime/Dockerfile`.
 
-## 5. Як це працює
+## 5. How it works
 
-### 5.1 Коли перевірка запускається
+### 5.1 When the check runs
 
-Воркер запускає UI-перевірку у стадії `Reviewing`, **після** `reviewer` і після того, як усі його
-блокери закриті, і **до** `git push`. Умови — усі разом:
+The worker runs UI verification in the `Reviewing` stage, **after** `reviewer` and after all of its
+blockers are closed, and **before** `git push`. The conditions — all of them together:
 
-1. У рядку `uiCheck:` блоку «Run context» стоїть `available`. Це рішення енджина, не моделі (див. 5.2).
-2. `git diff <base>...HEAD --name-only` дає хоча б один шлях, що матчить `ui.paths` із конфігу.
-3. У `spec.md` є хоча б один acceptance criterion, який описує видиму поведінку.
+1. The `uiCheck:` line of the "Run context" block says `available`. This is the engine's decision, not the model's (see 5.2).
+2. `git diff <base>...HEAD --name-only` yields at least one path matching `ui.paths` from the config.
+3. `spec.md` contains at least one acceptance criterion that describes visible behavior.
 
-Якщо (1) не виконано — воркер пише причину в тіло PR і в `result.md` і йде далі (це вже вимагає
-WRK-10, лишаємо). Якщо (2) або (3) не виконані — зміна не UI-шна, перевірку пропускаємо без згадки.
+If (1) does not hold, the worker writes the reason into the PR body and `result.md` and moves on
+(WRK-10 already requires this; we keep it). If (2) or (3) does not hold, the change is not a UI
+change, and the check is skipped without mention.
 
-### 5.2 Рядок `uiCheck` у Run context
+### 5.2 The `uiCheck` line in Run context
 
-`workerFirstMessage` отримує ще один рядок:
+`workerFirstMessage` gets one more line:
 
 ```
 ## Run context
@@ -106,47 +109,47 @@ stage: Reviewing
 uiCheck: available
 ```
 
-Значення: `available`, або `disabled: ui.enabled is false`. Енджин обчислює це один раз на ран.
-Моделі не доводиться вгадувати, чому браузер не відповідає, і вона не намагається підняти його сама.
+Values: `available`, or `disabled: ui.enabled is false`. The engine computes this once per run.
+The model never has to guess why the browser is not responding, and it does not try to start one itself.
 
-Спершу я хотів ще й значення «браузера не встановлено», але відмовився: щоб його дати, енджин мусив
-би вгадувати, де Playwright тримає Chromium, і ця перевірка брехала б щоразу, коли вгадала не той
-шлях. Відсутній браузер натомість проявляється як помилка першого ж `browser_navigate`, яку промпт
-трактує як `inconclusive` і виносить у PR. Чесніше, ніж окремий зелений прапорець, якому не можна
-вірити.
+At first I also wanted a "browser not installed" value, but dropped it: to produce it, the engine
+would have to guess where Playwright keeps Chromium, and the check would lie every time it guessed
+the wrong path. A missing browser instead shows up as an error on the very first `browser_navigate`,
+which the prompt treats as `inconclusive` and surfaces in the PR. More honest than a separate green
+flag that cannot be trusted.
 
-### 5.3 Dev-сервер належить енджину
+### 5.3 The dev server belongs to the engine
 
-Воркер **не** запускає сервер через `Bash`. Для цього є два інструменти Jarvis MCP:
+The worker does **not** start the server via `Bash`. There are two Jarvis MCP tools for this:
 
 ```
 start_dev_server: {}                       → { baseUrl: string, expiresAt: string }
 stop_dev_server:  {}
 ```
 
-`start_dev_server` запускає `ui.devCommand` у ворктрі задачі-викликача, чекає, доки `ui.readyPath`
-на `ui.baseUrl` відповість не-5xx (до `ui.readyTimeoutSeconds`), і віддає `baseUrl`. Далі:
+`start_dev_server` runs `ui.devCommand` in the calling task's worktree, waits until `ui.readyPath`
+on `ui.baseUrl` responds with a non-5xx (up to `ui.readyTimeoutSeconds`), and returns the `baseUrl`. Then:
 
-- **Команда — з конфігу.** Модель не передає жодного аргументу; `start_dev_server` приймає порожній
-  об'єкт. Це і є захист анти-цілі «агент сам вирішує, що запустити».
-- **Лізинг.** Процес живе не довше `ui.leaseMinutes`. Енджин убиває все дерево процесів по таймауту,
-  а також коли ран завершується, коли задача виходить зі стадії `Reviewing`, і на старті енджина
-  (підбирає сироти після рестарту).
-- **Один слот на весь енджин.** Другий `start_dev_server`, поки живе чужий, відмовляє з
-  `dev_server_busy`. Один воркерський слот робить це майже неможливим, але слот воркера — це
-  конфіг, а не інваріант.
-- **Повторний виклик тією самою задачею** продовжує лізинг і віддає той самий `baseUrl`,
-  не піднімаючи другий процес.
-- `stop_dev_server` — ввічливе звільнення; воркер викликає його після UI-перевірки. Пропущений виклик
-  не ламає нічого, бо є лізинг.
+- **The command comes from the config.** The model passes no arguments; `start_dev_server` accepts an
+  empty object. This is the defense against the "the agent decides what to run" anti-goal.
+- **A lease.** The process lives no longer than `ui.leaseMinutes`. The engine kills the whole process
+  tree on timeout, and also when the run finishes, when the task leaves the `Reviewing` stage, and at
+  engine startup (picking up orphans after a restart).
+- **One slot for the whole engine.** A second `start_dev_server` while someone else's is alive is
+  refused with `dev_server_busy`. A single worker slot makes this nearly impossible, but the worker
+  slot is config, not an invariant.
+- **A repeat call by the same task** extends the lease and returns the same `baseUrl`
+  without starting a second process.
+- `stop_dev_server` is a polite release; the worker calls it after UI verification. A missed call
+  breaks nothing, because the lease exists.
 
-Порт у `ui.baseUrl` перед запуском перевіряється на зайнятість: зайнятий чужим процесом порт — це
-відмова `port_busy`, а не тихе підключення до невідомо чого.
+Before starting, the port in `ui.baseUrl` is checked for availability: a port taken by a foreign
+process is a `port_busy` refusal, not a silent connection to who knows what.
 
 ### 5.4 Playwright MCP
 
-Енджин додає ще один сервер у `mcp.json` рану — поряд із `jarvis` і конекторами, лише для ролі
-`worker`, і лише коли `uiCheck: available`:
+The engine adds one more server to the run's `mcp.json` — alongside `jarvis` and the connectors, only
+for the `worker` role, and only when `uiCheck: available`:
 
 ```json
 {
@@ -170,26 +173,27 @@ stop_dev_server:  {}
 }
 ```
 
-Чому саме так:
+Why exactly this:
 
-- `--headless --isolated` — без вікна і без профілю на диску: нічого не переживає ран.
-- `--allowed-origins` з єдиним origin dev-сервера — браузер не ходить у зовнішній інтернет. Довідка
-  самого Playwright MCP прямо каже, що це *не* безпековий кордон і не впливає на редіректи, тому це
-  гальмо, а не захист; справжній кордон — те, що в контейнері немає нічого цінного.
-- `--output-dir` одразу в артефакти задачі: скриншот без явного імені падає туди, куди нам треба.
-  Увага: файли з явним іменем Playwright MCP резолвить від workspace root, а не від `--output-dir` —
-  тому промпт `ui-tester` вимагає знімати скриншоти **без** явного імені або з іменем відносно
-  `--output-dir`.
-- `--idle-timeout 300000` — браузер сам закривається після 5 хвилин без викликів.
-- `--console-level error` — у відповіді лише помилки консолі, не весь шум.
-- `--no-webmcp` — сторінка не може зареєструвати власні інструменти для агента. Для нашої моделі
-  довіри («вміст сторінки — це дані, а не інструкції», SOUL принцип 4) це обов'язково.
-- `--save-session` — на диску лишається розшифровка сесії поряд зі скриншотами; дешева діагностика,
-  коли вердикт виглядає дивно.
-- `--version` зафіксована. `@latest` у рантаймі агента — це недетермінований ран.
-- У контейнері додається `--no-sandbox` (конфіг `ui.noSandbox`), бо user namespaces там недоступні.
+- `--headless --isolated` — no window and no profile on disk: nothing survives the run.
+- `--allowed-origins` with the dev server's single origin — the browser does not go to the external
+  internet. Playwright MCP's own documentation says outright that this is *not* a security boundary
+  and does not affect redirects, so it is a brake, not a defense; the real boundary is that there is
+  nothing valuable in the container.
+- `--output-dir` straight into the task's artifacts: a screenshot without an explicit name lands
+  where we need it. Note: Playwright MCP resolves files with an explicit name against the workspace
+  root, not against `--output-dir` — which is why the `ui-tester` prompt requires taking screenshots
+  **without** an explicit name, or with a name relative to `--output-dir`.
+- `--idle-timeout 300000` — the browser closes itself after 5 minutes without calls.
+- `--console-level error` — the response carries only console errors, not all the noise.
+- `--no-webmcp` — the page cannot register its own tools for the agent. For our trust model ("page
+  content is data, not instructions", SOUL principle 4) this is mandatory.
+- `--save-session` — a transcript of the session stays on disk next to the screenshots; cheap
+  diagnostics when a verdict looks odd.
+- The `--version` is pinned. `@latest` in the agent runtime means a nondeterministic run.
+- In the container, `--no-sandbox` is added (config `ui.noSandbox`), because user namespaces are unavailable there.
 
-**Дозволені інструменти.** Воркерські `settings.json` отримують в `allow`:
+**Allowed tools.** The worker's `settings.json` gets in `allow`:
 
 `browser_navigate`, `browser_navigate_back`, `browser_snapshot`, `browser_take_screenshot`,
 `browser_click`, `browser_type`, `browser_fill_form`, `browser_press_key`, `browser_hover`,
@@ -197,65 +201,66 @@ stop_dev_server:  {}
 `browser_resize`, `browser_console_messages`, `browser_network_requests`, `browser_network_request`,
 `browser_handle_dialog`, `browser_tabs`, `browser_close`, `browser_emulate_media`.
 
-У `deny` — `browser_evaluate`, `browser_run_code_unsafe`, `browser_file_upload`. Перші два — це
-довільний код у сторінці: UI-перевірці він не потрібен, а можливість обійти UI і «довести» успіх
-через `document.querySelector(...).click()` прямо шкідлива. Третій відкриває файлову систему через
-браузер.
+In `deny` — `browser_evaluate`, `browser_run_code_unsafe`, `browser_file_upload`. The first two are
+arbitrary code in the page: UI verification does not need it, and the ability to bypass the UI and
+"prove" success via `document.querySelector(...).click()` is outright harmful. The third opens the
+file system through the browser.
 
-### 5.5 Субагент `ui-tester`
+### 5.5 The `ui-tester` subagent
 
-Новий файл `agent/agents/ui-tester.md`, `model: sonnet`, `tools: Read, Glob, Grep` плюс
-дозволені `mcp__playwright__browser_*`. **Без `Bash`, `Edit`, `Write`** — тестувальник не править код і
-не запускає процесів; він дивиться і доповідає. Скриншоти на диск кладе сам Playwright MCP.
+A new file `agent/agents/ui-tester.md`, `model: sonnet`, `tools: Read, Glob, Grep` plus the allowed
+`mcp__playwright__browser_*`. **No `Bash`, `Edit`, `Write`** — the tester does not fix code and does
+not start processes; it looks and reports. Playwright MCP itself puts the screenshots on disk.
 
-**Вхід** (воркер передає текстом): `baseUrl`, шлях до `spec.md`, нумерований список UI-сценаріїв,
-стеля сценаріїв (`ui.maxScenarios`), стеля скриншотів (`ui.maxScreenshots`), і дедлайн лізингу.
+**Input** (the worker passes it as text): `baseUrl`, the path to `spec.md`, a numbered list of UI
+scenarios, the scenario cap (`ui.maxScenarios`), the screenshot cap (`ui.maxScreenshots`), and the lease deadline.
 
-**Робота:** для кожного сценарію — навігація, дії, `browser_snapshot` для перевірки стану,
-`browser_take_screenshot` для свідчення, `browser_console_messages` і `browser_network_requests`
-після сценарію. Сценарії виконуються по порядку; закінчилися стелі або час — решта позначається
-`skipped`, а не вигадується.
+**Work:** for each scenario — navigation, actions, `browser_snapshot` to check state,
+`browser_take_screenshot` for evidence, `browser_console_messages` and `browser_network_requests`
+after the scenario. Scenarios run in order; when the caps or the time run out, the rest are marked
+`skipped`, not made up.
 
-**Вихід** — markdown рівно такої форми:
+**Output** — markdown of exactly this shape:
 
 ```
 verdict: pass | fail | inconclusive
 
 ## Scenarios
-1. <назва> — pass — критерій: <AC-id зі spec.md> — screenshot: screenshots/001-<...>.png
-   <один рядок: що бачив>
-2. <назва> — fail — критерій: <AC-id> — screenshot: screenshots/002-<...>.png
-   <що мало статися, що сталося>
-3. <назва> — skipped — причина: budget | lease expired
+1. <name> — pass — criterion: <AC-id from spec.md> — screenshot: screenshots/001-<...>.png
+   <one line: what was seen>
+2. <name> — fail — criterion: <AC-id> — screenshot: screenshots/002-<...>.png
+   <what should have happened, what happened>
+3. <name> — skipped — reason: budget | lease expired
 
 ## Findings
-- blocker — сценарій 2 — <що зламано> — <url або локатор> — <виправлення одним реченням>
+- blocker — scenario 2 — <what is broken> — <url or locator> — <one-sentence fix>
 - suggestion — ...
 
 ## Console
-- <рівень> <текст>   (або «чисто»)
+- <level> <text>   (or "clean")
 
 ## Network
-- <метод> <url> → <статус>   (або «без фейлів»)
+- <method> <url> → <status>   (or "no failures")
 ```
 
-`verdict: pass` — лише коли жоден сценарій не `fail` і немає `blocker`. `inconclusive` — коли сервер
-не відповів, лізинг скінчився або браузер не піднявся: це **не** `pass` і **не** `fail`.
+`verdict: pass` — only when no scenario is `fail` and there are no `blocker`s. `inconclusive` — when
+the server did not respond, the lease ran out, or the browser did not start: that is **not** `pass`
+and **not** `fail`.
 
-### 5.6 Що робить воркер із вердиктом
+### 5.6 What the worker does with the verdict
 
-- `pass` → далі до PR. Скриншоти вкладаються, сценарії йдуть у тіло PR.
-- `fail` → воркер переходить `Reviewing → Implementing`, править, і знову проходить Verifying і
-  Reviewing. Цей шлях уже існує і вже обмежений: кожен такий повернення витрачає раунд із
-  `limits.reviewRounds`, а коли вони закінчуються, енджин дає `rounds_exhausted`. **Нового лічильника
-  не додаємо.** Якщо раунди вичерпані, а UI-блокер лишився — він іде в тіло PR під «Open questions»
-  з скриншотом, а не замовчується.
-- `inconclusive` → воркер не крутить браузер далі. Одна повторна спроба (новий `start_dev_server`),
-  і якщо знову `inconclusive` — PR відкривається з явним рядком «UI-перевірка не вдалася: <причина>».
+- `pass` → on to the PR. Screenshots are attached, the scenarios go into the PR body.
+- `fail` → the worker transitions `Reviewing → Implementing`, fixes, and goes through Verifying and
+  Reviewing again. This path already exists and is already bounded: each such return spends a round
+  from `limits.reviewRounds`, and when they run out, the engine issues `rounds_exhausted`. **No new
+  counter is added.** If the rounds are exhausted and a UI blocker remains — it goes into the PR body
+  under "Open questions" with a screenshot, not silenced.
+- `inconclusive` → the worker does not keep spinning the browser. One retry (a new `start_dev_server`),
+  and if it is `inconclusive` again — the PR opens with an explicit line "UI verification failed: <reason>".
 
-### 5.7 Скриншоти в PR
+### 5.7 Screenshots in the PR
 
-Новий інструмент Jarvis MCP:
+A new Jarvis MCP tool:
 
 ```
 attach_image: { path: string, alt: string }
@@ -263,78 +268,79 @@ attach_image: { path: string, alt: string }
   | { ok: false, reason: string }
 ```
 
-`path` — відносно `<artifactsDir>`. Енджин:
+`path` is relative to `<artifactsDir>`. The engine:
 
-1. Резолвить шлях і відмовляє, якщо він виходить за межі каталогу артефактів задачі (`..`, симлінк,
-   абсолютний шлях).
-2. Перевіряє розширення (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`) і розмір (≤ `ui.maxImageMb`,
-   дефолт 5 МБ).
-3. Бере `repository_id` цільового репозиторію задачі (`GET /repos/{owner}/{repo}` → `.id`,
-   кешується на процес).
+1. Resolves the path and refuses if it escapes the task's artifacts directory (`..`, a symlink,
+   an absolute path).
+2. Checks the extension (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`) and the size (≤ `ui.maxImageMb`,
+   default 5 MB).
+3. Takes the `repository_id` of the task's target repository (`GET /repos/{owner}/{repo}` → `.id`,
+   cached per process).
 4. `POST https://uploads.github.com/user-attachments/assets?name=<file>&content_type=<mime>&repository_id=<id>`
-   з `Authorization: Bearer <той самий токен, що в CodeHost>`, `Accept: application/json`, сирі байти
-   в тілі. У відповіді — JSON із URL виду `https://github.com/user-attachments/assets/<uuid>`.
-5. Віддає `markdown: "![<alt>](<url>)"`.
+   with `Authorization: Bearer <the same token as in CodeHost>`, `Accept: application/json`, raw bytes
+   in the body. The response is JSON with a URL of the form `https://github.com/user-attachments/assets/<uuid>`.
+5. Returns `markdown: "![<alt>](<url>)"`.
 
-**Цей endpoint недокументований.** Офіційного API для вкладень GitHub не має: запит висить у
-community discussions роками, вкладення офіційно робляться тільки drag-and-drop у браузері. Ручка
-`uploads.github.com/user-attachments/assets` — та сама, якою користується веб-інтерфейс; автор
-статті, що її описує, зазначає, що раніше вона приймала лише cookie, а токен почав працювати
-нещодавно. Звідси три наслідки, які специфікація вимагає:
+**This endpoint is undocumented.** GitHub has no official API for attachments: the request has been
+sitting in community discussions for years, and attachments are officially made only by drag-and-drop
+in the browser. The `uploads.github.com/user-attachments/assets` endpoint is the same one the web
+interface uses; the author of the article describing it notes that it used to accept only a cookie,
+and the token started working recently. Hence three consequences the specification requires:
 
-- Уся робота з нею — в **одному адаптері** за портом, із власними тестами на фейк-`fetch`. Коли ручка
-  зламається, ламається одне місце.
-- `{ ok: false, reason }` — нормальна відповідь, не виняток. На `401/403/404/410/5xx` воркер пише в
-  тіло PR рядок `UI screenshots: upload failed (<reason>); files are in <artifactsDir>/screenshots/`
-  і **список імен файлів**. PR зі зламаними картинками — анти-ціль; PR із чесним рядком — ні.
-- Перша жива перевірка ручки — окремий крок плану (8.6), на справжньому PR у sandbox-репозиторії.
-  Токен у `~/.jarvis/.env` наразі віддає `Bad credentials` (STATUS.md, пункт 5), а новий токен
-  планується fine-grained; чи приймає ця ручка fine-grained PAT — не перевірено ніде, і це єдиний
-  справжній ризик фічі.
+- All work with it lives in **one adapter** behind a port, with its own tests on a fake `fetch`. When
+  the endpoint breaks, one place breaks.
+- `{ ok: false, reason }` is a normal response, not an exception. On `401/403/404/410/5xx` the worker
+  writes the line `UI screenshots: upload failed (<reason>); files are in <artifactsDir>/screenshots/`
+  into the PR body, plus the **list of file names**. A PR with broken images is an anti-goal; a PR
+  with an honest line is not.
+- The first live check of the endpoint is a separate plan step (11a), on a real PR in the sandbox
+  repository. The token in `~/.jarvis/.env` currently returns `Bad credentials` (STATUS.md, item 5),
+  and the new token is planned as fine-grained; whether this endpoint accepts a fine-grained PAT has
+  not been verified anywhere, and that is the feature's only real risk.
 
-**Тіло PR.** У `pr-body.md` з'являється секція між «Checks» і «Open questions»:
+**The PR body.** `pr-body.md` gains a section between "Checks" and "Open questions":
 
 ```markdown
 ## UI verification
 
 `chromium 1280x800`, dev server `http://127.0.0.1:5173`, verdict **pass**
 
-| # | Сценарій | Критерій | Результат |
+| # | Scenario | Criterion | Result |
 |---|----------|----------|-----------|
-| 1 | Створення задачі з чату | AC-3 | pass |
-| 2 | Банер бюджету при 90% | AC-7 | pass |
+| 1 | Create a task from chat | AC-3 | pass |
+| 2 | Budget banner at 90% | AC-7 | pass |
 
-![Створення задачі з чату](https://github.com/user-attachments/assets/…)
-![Банер бюджету при 90%](https://github.com/user-attachments/assets/…)
+![Create a task from chat](https://github.com/user-attachments/assets/…)
+![Budget banner at 90%](https://github.com/user-attachments/assets/…)
 ```
 
-### 5.8 Захист від петлі — повний список
+### 5.8 Loop protection — the full list
 
-| Межа | Значення | Хто нав'язує |
+| Bound | Value | Who enforces it |
 |---|---|---|
-| Один браузер одночасно | `limits.maxConcurrentWorkers: 1` + слот dev-сервера | енджин |
-| Життя dev-сервера | `ui.leaseMinutes` (дефолт 15) | енджин убиває дерево процесів |
-| Життя браузера без викликів | `--idle-timeout 300000` | Playwright MCP |
-| Кількість сценаріїв | `ui.maxScenarios` (дефолт 8) | промпт + воркер ріже список |
-| Кількість скриншотів | `ui.maxScreenshots` (дефолт 12) | `attach_image` відмовляє після стелі |
-| Повторні UI-раунди | `limits.reviewRounds` (3) | машина станів, `rounds_exhausted` |
-| Повтор після `inconclusive` | один | промпт воркера |
-| Турни й бюджет рану | `maxTurnsPerRun` 120, `maxBudgetUsdPerRun` $10 | `--max-turns`, `--max-budget-usd` |
-| Життя задачі | `taskTimeoutMinutes` 120 | таймер supervision |
-| Куди може ходити браузер | `--allowed-origins` = origin dev-сервера | Playwright MCP (гальмо, не кордон) |
+| One browser at a time | `limits.maxConcurrentWorkers: 1` + the dev-server slot | the engine |
+| Dev-server lifetime | `ui.leaseMinutes` (default 15) | the engine kills the process tree |
+| Browser lifetime without calls | `--idle-timeout 300000` | Playwright MCP |
+| Number of scenarios | `ui.maxScenarios` (default 8) | the prompt + the worker trims the list |
+| Number of screenshots | `ui.maxScreenshots` (default 12) | `attach_image` refuses past the cap |
+| Repeat UI rounds | `limits.reviewRounds` (3) | the state machine, `rounds_exhausted` |
+| Retry after `inconclusive` | one | the worker prompt |
+| Run turns and budget | `maxTurnsPerRun` 120, `maxBudgetUsdPerRun` $10 | `--max-turns`, `--max-budget-usd` |
+| Task lifetime | `taskTimeoutMinutes` 120 | the supervision timer |
+| Where the browser may go | `--allowed-origins` = the dev server's origin | Playwright MCP (a brake, not a boundary) |
 
-Головне тут: **жодна з цих меж не залежить від того, чи послухається модель.** Промптові межі
-(сценарії, повтор) — верхній, ввічливий шар; під ними лежать лізинг, слот, лічильник раундів і
-ліміти CLI, які відрубають інструмент незалежно від бажань агента.
+The key point here: **none of these bounds depends on whether the model obeys.** The prompt-level
+bounds (scenarios, retry) are the upper, polite layer; beneath them lie the lease, the slot, the
+round counter, and the CLI limits, which cut the tool off regardless of the agent's wishes.
 
-## 6. Конфіг
+## 6. Config
 
-Новий блок у `JarvisConfigSchema` (`shared/src/config.ts`), strict, усі поля з дефолтами:
+A new block in `JarvisConfigSchema` (`shared/src/config.ts`), strict, all fields with defaults:
 
 ```jsonc
 "ui": {
-  "enabled": false,                 // фіча вимкнена, доки власник не ввімкне
-  "devCommand": "pnpm dev",         // виконується у ворктрі задачі; тільки власник
+  "enabled": false,                 // the feature is off until the owner turns it on
+  "devCommand": "pnpm dev",         // runs in the task's worktree; owner only
   "baseUrl": "http://127.0.0.1:5173",
   "readyPath": "/",
   "readyTimeoutSeconds": 90,
@@ -342,190 +348,192 @@ community discussions роками, вкладення офіційно робл
   "maxScenarios": 8,
   "maxScreenshots": 12,
   "maxImageMb": 5,
-  "attachToPr": true,               // false → у PR лишаються лише імена файлів
-  "noSandbox": false,               // true в контейнері
+  "attachToPr": true,               // false → the PR carries only the file names
+  "noSandbox": false,               // true in the container
   "paths": ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.css", "**/*.scss", "**/*.html"]
 }
 ```
 
-`baseUrl` обмежений тим самим правилом, що `telemetry.otlpEndpoint`: http(s) на `127.0.0.1` або
-`localhost`. Dev-сервер агента, доступний не з лупбека, — це не фіча, це дірка.
+`baseUrl` is constrained by the same rule as `telemetry.otlpEndpoint`: http(s) on `127.0.0.1` or
+`localhost`. An agent's dev server reachable from anywhere but loopback is not a feature, it is a hole.
 
-`devCommand` **не** входить до `update_config`-дозволеного (ADR-0013 вже забороняє патчі в
-`repo.*`, `engine.*`; додаємо `ui.devCommand`, `ui.noSandbox` і `ui.paths` до того ж списку).
-Диспетчер не має права змінити команду, яку енджин потім виконає.
+`devCommand` is **not** part of what `update_config` is allowed to patch (ADR-0013 already forbids
+patches to `repo.*`, `engine.*`; we add `ui.devCommand`, `ui.noSandbox`, and `ui.paths` to the same
+list). The dispatcher has no right to change the command the engine will later execute.
 
-Усі значення — у `jarvis.config.example.json`.
+All values go into `jarvis.config.example.json`.
 
-**Відома межа:** `ui.devCommand` глобальний, а задача може мати власний `targetRepo` (ADR-0012). Це та
-сама межа, що й у `allowlist.autoAllowedCommands`, і свідомо не закривається тут. Якщо цільовий
-репозиторій піднімається іншою командою — власник править конфіг.
+**A known limitation:** `ui.devCommand` is global, while a task may have its own `targetRepo` (ADR-0012). This is
+the same limitation as in `allowlist.autoAllowedCommands`, and it is deliberately not closed here. If
+the target repository starts with a different command — the owner edits the config.
 
-## 7. Контейнер і сервер
+## 7. Container and server
 
 `docker/runtime/Dockerfile`:
 
-- До `USER jarvis`, під root: `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright` і
-  `npx playwright@<pin> install --with-deps chromium`. Каталог читабельний для `jarvis`.
-- `ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright` для рантайму.
-- `ui.noSandbox: true` у конфігу контейнера.
+- Before `USER jarvis`, as root: `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright` and
+  `npx playwright@<pin> install --with-deps chromium`. The directory is readable by `jarvis`.
+- `ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright` for the runtime.
+- `ui.noSandbox: true` in the container's config.
 
-`PLAYWRIGHT_BROWSERS_PATH` додається у `child-env.ts`, бо Playwright MCP — онук енджина (енджин →
-`claude` → MCP-сервер), і без цього він шукатиме браузер у `$HOME/.cache`.
+`PLAYWRIGHT_BROWSERS_PATH` is added in `child-env.ts`, because Playwright MCP is the engine's
+grandchild (engine → `claude` → MCP server), and without it, it would look for the browser in `$HOME/.cache`.
 
-Образ важчає приблизно на 400 МБ. Це ціна того, що фіча працює там, де система насправді живе.
-Провіженінг VPS (`docs/architecture/deployment.md`) отримує той самий крок.
+The image grows by roughly 400 MB. That is the price of the feature working where the system actually
+lives. VPS provisioning (`docs/architecture/deployment.md`) gets the same step.
 
-## 8. Критерії приймання
+## 8. Acceptance criteria
 
-**Конфіг**
+**Config**
 
-- AC-1. Якщо `ui` відсутній у `jarvis.config.json`, то конфіг валідний, `ui.enabled` є `false`, і
-  UI-перевірка не запускається.
-- AC-2. Якщо `ui.baseUrl` вказує на не-лупбек хост, то завантаження конфігу падає з повідомленням
-  про лупбек.
-- AC-3. Якщо `update_config` містить патч до `ui.devCommand`, `ui.noSandbox` або `ui.paths`, то
-  інструмент відмовляє і конфіг не змінюється.
+- AC-1. If `ui` is absent from `jarvis.config.json`, then the config is valid, `ui.enabled` is `false`, and
+  UI verification does not run.
+- AC-2. If `ui.baseUrl` points at a non-loopback host, then config loading fails with a message
+  about loopback.
+- AC-3. If `update_config` contains a patch to `ui.devCommand`, `ui.noSandbox`, or `ui.paths`, then
+  the tool refuses and the config does not change.
 
-**Run context і mcp.json**
+**Run context and mcp.json**
 
-- AC-4. Якщо `ui.enabled` є `true` і браузер установлений, то `uiCheck: available` у першому
-  повідомленні воркерського рану, а `mcp.json` рану містить сервер `playwright` із
-  `--headless`, `--isolated`, `--output-dir <artifactsDir>/screenshots` і `--allowed-origins` рівним
-  origin `ui.baseUrl`.
-- AC-5. Якщо `ui.enabled` є `false`, то `uiCheck: disabled: ui.enabled is false`, і в `mcp.json`
-  немає сервера `playwright`.
-- AC-6. Для ролі `dispatcher` сервера `playwright` у `mcp.json` немає за жодних налаштувань.
-- AC-7. `settings.json` воркерського рану містить `browser_*` з 5.4 в `allow`, а `browser_evaluate`,
-  `browser_run_code_unsafe`, `browser_file_upload` — у `deny`.
+- AC-4. If `ui.enabled` is `true` and the browser is installed, then `uiCheck: available` appears in
+  the first message of the worker run, and the run's `mcp.json` contains a `playwright` server with
+  `--headless`, `--isolated`, `--output-dir <artifactsDir>/screenshots`, and `--allowed-origins` equal
+  to the origin of `ui.baseUrl`.
+- AC-5. If `ui.enabled` is `false`, then `uiCheck: disabled: ui.enabled is false`, and `mcp.json`
+  has no `playwright` server.
+- AC-6. For the `dispatcher` role there is no `playwright` server in `mcp.json` under any settings.
+- AC-7. The worker run's `settings.json` contains the `browser_*` tools from 5.4 in `allow`, and `browser_evaluate`,
+  `browser_run_code_unsafe`, `browser_file_upload` in `deny`.
 
-**Dev-сервер**
+**Dev server**
 
-- AC-8. Якщо воркер викликає `start_dev_server`, то енджин запускає `ui.devCommand` у ворктрі саме
-  тієї задачі, яку назвав run-токен, і віддає `baseUrl` лише після того, як `readyPath` відповів
-  не-5xx.
-- AC-9. Якщо сервер не піднявся за `ui.readyTimeoutSeconds`, то інструмент відмовляє з
-  `dev_server_not_ready`, а процес убитий.
-- AC-10. Якщо `start_dev_server` викликає задача, поки живе лізинг іншої задачі, то відмова
-  `dev_server_busy`, і наявний процес не зачеплений.
-- AC-11. Якщо той самий воркер викликає `start_dev_server` повторно, то другого процесу не
-  з'являється, лізинг продовжується, `baseUrl` той самий.
-- AC-12. Якщо лізинг спливає, то енджин убиває все дерево процесів і пише подію в журнал задачі.
-- AC-13. Якщо ран завершується (успіхом, фейлом або скасуванням) з живим лізингом, то процес убитий
-  до того, як задача змінить стадію.
-- AC-14. Якщо енджин стартує і знаходить записаний лізинг без живого процесу, то запис прибирається;
-  якщо процес живий — убивається.
-- AC-15. Якщо порт `ui.baseUrl` зайнятий стороннім процесом, то `start_dev_server` відмовляє з
-  `port_busy` і нічого не запускає.
+- AC-8. If the worker calls `start_dev_server`, then the engine runs `ui.devCommand` in the worktree
+  of exactly the task named by the run token, and returns `baseUrl` only after `readyPath` has
+  responded with a non-5xx.
+- AC-9. If the server does not come up within `ui.readyTimeoutSeconds`, then the tool refuses with
+  `dev_server_not_ready`, and the process is killed.
+- AC-10. If a task calls `start_dev_server` while another task's lease is alive, then the refusal is
+  `dev_server_busy`, and the existing process is untouched.
+- AC-11. If the same worker calls `start_dev_server` again, then no second process
+  appears, the lease is extended, and the `baseUrl` is the same.
+- AC-12. If the lease expires, then the engine kills the whole process tree and writes an event to the task journal.
+- AC-13. If the run finishes (with success, failure, or cancellation) while a lease is alive, then the
+  process is killed before the task changes stage.
+- AC-14. If the engine starts and finds a recorded lease without a live process, then the record is removed;
+  if the process is alive — it is killed.
+- AC-15. If the port of `ui.baseUrl` is taken by a third-party process, then `start_dev_server` refuses with
+  `port_busy` and starts nothing.
 
-**Вкладення**
+**Attachments**
 
-- AC-16. Якщо `attach_image` отримує шлях за межі `<artifactsDir>` (у тому числі через `..` або
-  симлінк), то відмова, і жодного запиту до GitHub не йде.
-- AC-17. Якщо файл більший за `ui.maxImageMb` або має недозволене розширення, то відмова до запиту.
-- AC-18. Якщо GitHub віддає 2xx, то інструмент повертає `{ ok: true, url, markdown }`, де `markdown`
-  є `![alt](url)`.
-- AC-19. Якщо GitHub віддає 401, 403, 404, 410 або 5xx, то інструмент повертає `{ ok: false, reason }`
-  без винятку, і `reason` не містить токена.
-- AC-20. Якщо за задачу вже вкладено `ui.maxScreenshots` файлів, то наступний виклик відмовляє з
+- AC-16. If `attach_image` receives a path outside `<artifactsDir>` (including via `..` or a
+  symlink), then it refuses, and no request goes to GitHub.
+- AC-17. If the file is larger than `ui.maxImageMb` or has a disallowed extension, then it refuses before the request.
+- AC-18. If GitHub returns a 2xx, then the tool returns `{ ok: true, url, markdown }`, where `markdown`
+  is `![alt](url)`.
+- AC-19. If GitHub returns 401, 403, 404, 410, or a 5xx, then the tool returns `{ ok: false, reason }`
+  without throwing, and `reason` does not contain the token.
+- AC-20. If `ui.maxScreenshots` files have already been attached for the task, then the next call refuses with
   `screenshot_limit_reached`.
-- AC-21. Якщо `ui.attachToPr` є `false`, то `attach_image` відмовляє з `attachments_disabled`.
+- AC-21. If `ui.attachToPr` is `false`, then `attach_image` refuses with `attachments_disabled`.
 
-**Перевірка і PR**
+**Verification and PR**
 
-- AC-22. Якщо `uiCheck: available`, діфф торкається `ui.paths`, і у `spec.md` є видимий criterion, то
-  воркер викликає `ui-tester` рівно один раз за стадію Reviewing, після закриття блокерів `reviewer`.
-- AC-23. Якщо `ui-tester` вертає `verdict: fail` із блокером, то воркер не пушить гілку і переходить
-  у `Implementing`.
-- AC-24. Якщо раунди `limits.reviewRounds` вичерпані, а UI-блокер лишився, то PR відкривається, і цей
-  блокер стоїть у «Open questions» тіла PR зі скриншотом.
-- AC-25. Якщо `verdict` є `pass`, то тіло PR містить секцію «UI verification» з таблицею сценаріїв і
-  вкладеними картинками, по одній на сценарій зі скриншотом.
-- AC-26. Якщо вкладення не вдалося, то тіло PR містить рядок про невдачу з причиною і список імен
-  файлів, і жодного markdown-посилання на картинку.
-- AC-27. Якщо `uiCheck` є `disabled`, то тіло PR і `result.md` містять рядок із причиною (вимога
-  WRK-10 лишається в силі).
-- AC-28. Якщо `verdict` є `inconclusive` двічі підряд, то воркер не робить третьої спроби і відкриває
-  PR із явним рядком про невдалу перевірку.
+- AC-22. If `uiCheck: available`, the diff touches `ui.paths`, and `spec.md` has a visible criterion, then
+  the worker calls `ui-tester` exactly once per Reviewing stage, after the `reviewer` blockers are closed.
+- AC-23. If `ui-tester` returns `verdict: fail` with a blocker, then the worker does not push the branch and
+  transitions to `Implementing`.
+- AC-24. If the `limits.reviewRounds` rounds are exhausted and a UI blocker remains, then the PR opens, and that
+  blocker stands in the "Open questions" section of the PR body with a screenshot.
+- AC-25. If the `verdict` is `pass`, then the PR body contains a "UI verification" section with the scenario table and
+  embedded images, one per scenario with a screenshot.
+- AC-26. If an attachment failed, then the PR body contains a line about the failure with the reason and the list
+  of file names, and no markdown image link.
+- AC-27. If `uiCheck` is `disabled`, then the PR body and `result.md` contain a line with the reason (the WRK-10
+  requirement stays in force).
+- AC-28. If the `verdict` is `inconclusive` twice in a row, then the worker does not make a third attempt and opens
+  the PR with an explicit line about the failed check.
 
-## 9. Межові випадки
+## 9. Edge cases
 
-- **Застосунок вимагає логіну.** `ui-tester` не має куди взяти пароль і не повинен його шукати.
-  Сценарій позначається `skipped — auth required`, і це йде в «Open questions» PR. Логін через
-  `--storage-state` — наступна версія, не ця.
-- **Сторінка пише в консоль помилки, але сценарій проходить.** Це `suggestion`, не `blocker`, і воно
-  в секції «Console» PR. Не всі помилки консолі — регресія цього діффа.
-- **Dev-сервер із HMR падає посеред сценарію.** `browser_navigate` дає помилку → сценарій `fail` із
-  причиною `dev server died`, вердикт `inconclusive`, а не `fail`: ми не знаємо, чи винна зміна.
-- **Скриншот вийшов 0 байт.** `attach_image` відмовляє (розмір), сценарій лишається з текстовим
-  свідченням.
-- **Діфф торкається лише CSS-змінної в токенах дизайну.** Правило 5.1 дає `available`, але виразного
-  сценарію зі `spec.md` може не бути. Воркер усе одно викликає `ui-tester` — з одним сценарієм
-  «відкрити сторінку X, перевірити, що вона рендериться без помилок консолі, зняти скриншот». Один
-  сценарій — теж сценарій; порожнього виклику не буває.
-- **Два PR на ту саму задачу.** `attach_image` не прив'язаний до PR (GitHub-ручка приймає
-  `repository_id`, а не номер PR), тож URL живуть незалежно від PR і переживають його перестворення.
-- **Задача з `targetRepo`, відмінним від дефолтного.** `repository_id` береться з репозиторію задачі,
-  не з `repo` конфігу. Дев-команда — глобальна (див. 6).
+- **The application requires a login.** `ui-tester` has nowhere to get a password from and must not look
+  for one. The scenario is marked `skipped — auth required`, and that goes into the PR's "Open questions".
+  Login via `--storage-state` is the next version, not this one.
+- **The page writes errors to the console, but the scenario passes.** That is a `suggestion`, not a `blocker`, and it
+  goes into the PR's "Console" section. Not every console error is a regression of this diff.
+- **A dev server with HMR dies mid-scenario.** `browser_navigate` returns an error → the scenario is `fail` with
+  reason `dev server died`, the verdict is `inconclusive`, not `fail`: we do not know whether the change is to blame.
+- **A screenshot comes out as 0 bytes.** `attach_image` refuses (size), the scenario keeps its textual
+  evidence.
+- **The diff touches only a CSS variable in the design tokens.** Rule 5.1 yields `available`, but a distinct
+  scenario may be missing from `spec.md`. The worker still calls `ui-tester` — with a single scenario:
+  "open page X, check that it renders without console errors, take a screenshot". One
+  scenario is still a scenario; there is no such thing as an empty call.
+- **Two PRs for the same task.** `attach_image` is not tied to a PR (the GitHub endpoint takes a
+  `repository_id`, not a PR number), so the URLs live independently of the PR and survive its recreation.
+- **A task with a `targetRepo` different from the default.** The `repository_id` is taken from the task's repository,
+  not from the config's `repo`. The dev command is global (see 6).
 
-## 10. Відкриті питання
+## 10. Open questions
 
-1. **Чи приймає `uploads.github.com/user-attachments/assets` fine-grained PAT?** Невідомо. Статті
-   описують токен із `gh auth token` (OAuth-токен користувача), а STATUS.md планує fine-grained PAT,
-   звужений до одного репозиторію. Перевіряється кроком 11.6; якщо ні — власник вирішує між classic
-   PAT і `ui.attachToPr: false`.
-2. **Чи потрібен `--caps vision`?** Без нього модель працює зі `browser_snapshot`
-   (текстовим деревом доступності) і бачить картинку лише у відповіді `browser_take_screenshot`.
-   Для «чи поїхала верстка» цього може не вистачати. Рішення — після першого живого рану.
-3. **`npx -y` на кожен ран** тягне пакет із реєстру (або з кешу). У контейнері без мережі до npm це
-   фейл. Варіант — зафіксувати `@playwright/mcp` як залежність репозиторію і запускати локальний
-   бінарник. Схиляюся до другого, але це рішення про залежність і потребує рядка в ADR-0014.
+1. **Does `uploads.github.com/user-attachments/assets` accept a fine-grained PAT?** Unknown. The articles
+   describe a token from `gh auth token` (a user OAuth token), while STATUS.md plans a fine-grained PAT
+   scoped to a single repository. Verified by plan step 11a; if not — the owner decides between a classic
+   PAT and `ui.attachToPr: false`.
+2. **Is `--caps vision` needed?** Without it the model works with `browser_snapshot`
+   (the textual accessibility tree) and sees an image only in the `browser_take_screenshot` response.
+   For "did the layout break" that may not be enough. Decision — after the first live run.
+3. **`npx -y` on every run** pulls the package from the registry (or from the cache). In a container with no
+   network access to npm this is a failure. The alternative is to pin `@playwright/mcp` as a repository
+   dependency and run the local binary. I lean toward the latter, but that is a dependency decision and
+   needs a line in ADR-0014.
 
-## 11. План реалізації
+## 11. Implementation plan
 
-Порядок такий, що кожен крок перевіряється сам по собі.
+The order is such that each step can be verified on its own.
 
-1. **Конфіг.** Блок `ui` у `shared/src/config.ts`, лупбек-правило для `baseUrl`, заборонені патчі в
-   `update_config`, `jarvis.config.example.json`. Тести: `shared/src/config.test.ts`,
+1. **Config.** The `ui` block in `shared/src/config.ts`, the loopback rule for `baseUrl`, forbidden patches in
+   `update_config`, `jarvis.config.example.json`. Tests: `shared/src/config.test.ts`,
    `engine/.../update-config`.
-2. **Порт і адаптер dev-сервера.** `application/ports/dev-server.ts` (`start`, `stop`, `status`),
-   адаптер на `node:child_process` із убиванням групи процесів, лізингом і підбором сиріт на старті.
-   Юніт-тести на фейк-спавні; `port_busy` і `dev_server_not_ready` — окремими тестами.
-3. **Інструменти `start_dev_server` / `stop_dev_server`.** Схеми в `shared/src/mcp.ts`, `toolsByRole`,
-   роут у `presentation/http/routes/agent-tools.ts`, реєстрація в `presentation/mcp/server.ts`.
-4. **Порт і адаптер вкладень.** `uploadAttachment` у `CodeHost` + реалізація в `GitHubCodeHost` на
-   інжектованому `fetch`, із редактором токена. Тести на фейк-`fetch`: 2xx, 401, 404, 5xx.
-5. **Інструмент `attach_image`.** Схема, перевірки шляху/розміру/розширення, лічильник скриншотів на
-   задачу, `{ ok: false, reason }` замість винятку.
-6. **Run context і `mcp.json`.** Рядок `uiCheck` у `workerFirstMessage`; сервер `playwright` у
-   `buildMcpConfig` з флагами 5.4; `browser_*` у `allow`/`deny` в `buildWorkerSettings`;
-   `PLAYWRIGHT_BROWSERS_PATH` у `child-env.ts`. Тести — наявні `run-files.test.ts`,
-   `run-prompt`-тести.
-7. **Агент.** `agent/agents/ui-tester.md`; переписаний розділ WRK-10 у `agent/prompts/worker.md`
-   (коли, кого кликати, що з вердиктом, що в PR); секція «UI verification» у шаблоні `pr-body`.
-8. **Контейнер.** Chromium із `--with-deps` у `docker/runtime/Dockerfile`, `PLAYWRIGHT_BROWSERS_PATH`,
-   крок у `docs/architecture/deployment.md`.
-9. **ADR.** `0014-ui-verification-with-playwright-mcp.md` — один запис на все: інструмент, субагент,
-   dev-сервер за лізингом, пін версії, а також скриншоти в PR (недокументована ручка, чому вона,
-   фолбек, що робити, коли зламається).
-10. **e2e.** Сценарій у `web/e2e` на фейковому `claude`: задача доходить до PR Open, і в `result.md`
-    є секція UI-перевірки. Сам браузер тут не піднімається — перевіряється пайплайн, не Playwright.
-11. **Жива перевірка.** На `burnjohn/jarvis-sandbox`: (а) `attach_image` на справжньому PR із новим
-    токеном — відповідь на питання 10.1; (б) один UI-таск від початку до кінця, у контейнері.
+2. **Dev-server port and adapter.** `application/ports/dev-server.ts` (`start`, `stop`, `status`), an
+   adapter on `node:child_process` with process-group killing, the lease, and orphan pickup at startup.
+   Unit tests on a fake spawn; `port_busy` and `dev_server_not_ready` as separate tests.
+3. **The `start_dev_server` / `stop_dev_server` tools.** Schemas in `shared/src/mcp.ts`, `toolsByRole`,
+   a route in `presentation/http/routes/agent-tools.ts`, registration in `presentation/mcp/server.ts`.
+4. **Attachments port and adapter.** `uploadAttachment` in `CodeHost` + an implementation in `GitHubCodeHost` on
+   an injected `fetch`, with the token redactor. Tests on a fake `fetch`: 2xx, 401, 404, 5xx.
+5. **The `attach_image` tool.** The schema, path/size/extension checks, a per-task screenshot
+   counter, `{ ok: false, reason }` instead of an exception.
+6. **Run context and `mcp.json`.** The `uiCheck` line in `workerFirstMessage`; the `playwright` server in
+   `buildMcpConfig` with the flags from 5.4; `browser_*` in `allow`/`deny` in `buildWorkerSettings`;
+   `PLAYWRIGHT_BROWSERS_PATH` in `child-env.ts`. Tests — the existing `run-files.test.ts` and the
+   `run-prompt` tests.
+7. **The agent.** `agent/agents/ui-tester.md`; a rewritten WRK-10 section in `agent/prompts/worker.md`
+   (when, whom to call, what to do with the verdict, what goes into the PR); the "UI verification" section in the
+   `pr-body` template.
+8. **The container.** Chromium with `--with-deps` in `docker/runtime/Dockerfile`, `PLAYWRIGHT_BROWSERS_PATH`,
+   a step in `docs/architecture/deployment.md`.
+9. **ADR.** `0014-ui-verification-with-playwright-mcp.md` — one record for everything: the tool, the subagent,
+   the leased dev server, the version pin, and also the screenshots in the PR (the undocumented endpoint, why
+   it, the fallback, what to do when it breaks).
+10. **e2e.** A scenario in `web/e2e` on a fake `claude`: a task reaches PR Open, and `result.md`
+    contains a UI verification section. The browser itself is not started here — this tests the pipeline, not Playwright.
+11. **Live check.** On `burnjohn/jarvis-sandbox`: (a) `attach_image` on a real PR with the new
+    token — the answer to question 10.1; (b) one UI task end to end, in the container.
 
-Крок 11 — єдиний, який не можна зробити з коду, і єдиний, що відповідає на головний ризик фічі.
+Step 11 is the only one that cannot be done from code, and the only one that answers the feature's main risk.
 
-## Джерела
+## Sources
 
-- `agent/prompts/worker.md` — WRK-10, стадії Reviewing і PR
+- `agent/prompts/worker.md` — WRK-10, the Reviewing and PR stages
 - `engine/src/infrastructure/claude/run-files.ts` — `buildMcpConfig`, `buildWorkerSettings`
-- `engine/src/application/runs/run-prompt.ts` — блок «Run context»
-- `shared/src/config.ts`, `shared/src/mcp.ts` — конфіг і контракти інструментів
+- `engine/src/application/runs/run-prompt.ts` — the "Run context" block
+- `shared/src/config.ts`, `shared/src/mcp.ts` — the config and tool contracts
 - `engine/src/domain/task.ts` — `TRANSITIONS`, `reviewRounds`, `rounds_exhausted`
-- ADR-0003 (тільки CLI), ADR-0004 (інструменти як MCP-сервер енджина), ADR-0005 (ліміти в конфігу),
-  ADR-0009 (агент як плагін), ADR-0016 (рантайм-образ), ADR-0012 (per-task repo), ADR-0013 (межі
-  `update_config`)
-- `npx @playwright/mcp@0.0.84 --help` і `tools/list`, перевірено локально 2026-11-08
+- ADR-0003 (CLI only), ADR-0004 (tools as an engine MCP server), ADR-0005 (limits in config),
+  ADR-0009 (agent as a plugin), ADR-0016 (runtime image), ADR-0012 (per-task repo), ADR-0013 (bounds
+  of `update_config`)
+- `npx @playwright/mcp@0.0.84 --help` and `tools/list`, checked locally on 2026-11-08
 - [Programmatically upload attachments to GitHub Issues, Pull Requests, and Comments](https://island94.org/2026/08/programmatically-upload-attachments-to-github-issues-pull-requests-comments)
 - [Comment API for uploading images/attachments · community discussion #28219](https://github.com/orgs/community/discussions/28219)
 - [Playwright MCP configuration options](https://playwright.dev/mcp/configuration/options)

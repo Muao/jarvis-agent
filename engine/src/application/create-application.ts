@@ -70,6 +70,8 @@ import { StatusCard } from './tasks/status-card.js';
 import { SubmitSpec } from './tasks/submit-spec.js';
 import { TaskWriter } from './tasks/task-writer.js';
 import { AttachImage } from './ui/attach-image.js';
+import { CommentOnPr } from './ui/comment-on-pr.js';
+import { TrustPullRequestHead } from './ui/trust-pull-request-head.js';
 import { StartDevServer } from './ui/start-dev-server.js';
 import { StopDevServer } from './ui/stop-dev-server.js';
 
@@ -129,6 +131,7 @@ export interface Application {
   readonly startDevServer: StartDevServer;
   readonly stopDevServer: StopDevServer;
   readonly attachImage: AttachImage;
+  readonly commentOnPr: CommentOnPr;
   readonly scheduler: RunScheduler;
   readonly resolveRunIdentity: ResolveRunIdentity;
   readonly stopRun: StopRun;
@@ -179,6 +182,7 @@ export function createApplication(ports: ApplicationPorts): Application {
     runner: ports.runner,
     worktrees,
     artifacts,
+    codeHost: ports.codeHost,
     writer,
     messages,
     registry,
@@ -196,6 +200,21 @@ export function createApplication(ports: ApplicationPorts): Application {
   const deps = { uow, notifiers, clock, writer, messages };
   const waiters = new PermissionWaiters();
   const expirePermission = new ExpirePermission({ ...deps, waiters, eventLog });
+  const requestPermission = new RequestPermission({ ...deps, ids, config, eventLog });
+  const awaitPermission = new AwaitPermission({
+    uow,
+    clock,
+    logger: ports.logger,
+    waiters,
+    expire: expirePermission,
+  });
+  // ADR-0018: the gate in front of running a pull request's own code; it can wait on the owner.
+  const trustHead = new TrustPullRequestHead({
+    ...deps,
+    config,
+    codeHost: ports.codeHost,
+    permissions: { request: requestPermission, await: awaitPermission },
+  });
 
   const expireOrphanedPermissions = new ExpireOrphanedPermissions({
     uow,
@@ -226,21 +245,25 @@ export function createApplication(ports: ApplicationPorts): Application {
     setTaskTargetRepo: new SetTaskTargetRepo({ ...deps, repos: ports.repos }),
     remember: new Remember({ profile: ports.profile }),
     updateConfig: new UpdateConfig({ ...deps, config }),
-    startDevServer: new StartDevServer({ ...deps, devServers: ports.devServers, worktrees }),
+    startDevServer: new StartDevServer({
+      ...deps,
+      devServers: ports.devServers,
+      worktrees,
+      trustHead,
+    }),
     stopDevServer: new StopDevServer({ ...deps, devServers: ports.devServers }),
     attachImage: new AttachImage({ ...deps, config, artifacts, codeHost: ports.codeHost }),
+    commentOnPr: new CommentOnPr({
+      ...deps,
+      codeHost: ports.codeHost,
+      permissions: { request: requestPermission, await: awaitPermission },
+    }),
     scheduler,
     resolveRunIdentity: new ResolveRunIdentity(registry),
     stopRun: new StopRun({ ...deps, liveRuns }),
     sendToSession: new SendToSession(deps),
-    requestPermission: new RequestPermission({ ...deps, ids, config, eventLog }),
-    awaitPermission: new AwaitPermission({
-      uow,
-      clock,
-      logger: ports.logger,
-      waiters,
-      expire: expirePermission,
-    }),
+    requestPermission,
+    awaitPermission,
     answerPermission: new AnswerPermission({ ...deps, waiters, eventLog }),
     expirePermission,
     pollPullRequests: new PollPullRequests({

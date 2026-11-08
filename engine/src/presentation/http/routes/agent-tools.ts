@@ -84,4 +84,7 @@ export const toolCalls: Readonly<Partial<Record<ToolName, Call>>> = {
   attach_image: tool(schemas.attach_image, (app, identity, input) =>
     app.attachImage.execute(identity, input),
   ),
+  comment_on_pr: tool(schemas.comment_on_pr, (app, identity, input) =>
+    app.commentOnPr.execute(identity, input),
+  ),
 };

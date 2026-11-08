@@ -4,6 +4,7 @@ import type { WorktreeManager } from '../ports/worktree-manager.js';
 import type { RunIdentity } from '../run-identity.js';
 import type { TaskDeps } from '../tasks/deps.js';
 import { loadWorkerTask } from '../tasks/guards.js';
+import { worktreeFor } from '../tasks/worktree-for.js';
 import { transact } from '../transaction.js';
 import type { TrustPullRequestHead } from './trust-pull-request-head.js';
 
@@ -30,14 +31,7 @@ export class StartDevServer {
           `the dev server is for the UI check in Reviewing; task ${found.id} is ${found.stage}`,
         );
       }
-      const worktree =
-        found.kind === 'ui_check' && found.pr !== null
-          ? await this.deps.worktrees.createForPullRequest(
-              found.id,
-              found.targetRepo,
-              found.pr.number,
-            )
-          : await this.deps.worktrees.create(found.id, found.targetRepo);
+      const worktree = await worktreeFor(this.deps.worktrees, found);
       return { task: found, cwd: worktree.path };
     });
 

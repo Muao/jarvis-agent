@@ -5,340 +5,479 @@ owner: Ivan Lapa
 plan: TBD — after UI design and engine spec
 ---
 
-# Abstract Project Spec — Jarvis: персональний агент від задачі до PR
-
-Oct 26, 2026 · @Ivan · Оновлено 2026-11-08: CON-03/04/10 і «Поза скоупом» приведені до прийнятих
-ADR-0012/0020/0024/0025 (сервер, кілька репозиторіїв, learned facts, Infisical).
-
-## Мета і межі
-
-**Jarvis** — персональний AI-агент для розробки, який працює на ноутбуці власника через його підписку Claude Code. Власник ставить задачу в чаті, а Jarvis доводить її до перевіреного pull request і супроводжує PR, доки не виконано умови: CI зелений, зауваження рев'юера виправлено, підсумок надіслано.
-
-Прототип потрібен для двох речей:
-
-- **Вебінар.** Наскрізна демонстрація «від задачі до перевіреного PR» (концепт вебінару: `docs/webinar/webinar-concept.md`, v2).
-- **Основа для курсу й експериментів.** Учасник може запустити PoC на своїй підписці й розібрати кожну складову.
-
-Головний флоу:
-
-1. Власник пише задачу в чаті з посиланнями на дизайн (Claude Design) і матеріали (Notion, Google Docs). Кожне нове повідомлення відкриває тред, і вся подальша розмова про задачу йде в ньому.
-2. Jarvis збирає контекст, пише специфікацію і план та надсилає їх у тред на підтвердження.
-3. Після підтвердження реалізує фічу в окремій гілці, проганяє перевірки, робить рев'ю й відкриває draft PR від імені свого GitHub-акаунта.
-4. Стежить за CI і рев'ю, виправляє падіння та зауваження, повідомляє в тред.
-5. Merge робить людина.
-
-Ітерації:
-
-- **Ітерація 1.** Engine (двіжок), локальна база в Docker і вебзастосунок, який одночасно є чатом з агентом та адмінкою: задачі, стан, логи, консолі запусків, дебаг. Сюди ж входять SDD-флоу, конектори, нагляд за CI і ліміти в конфігу.
-- **Ітерація 2.** Slack: той самий чат через треди Slack. Повідомлення відкриває тред, агент відповідає в ньому ж.
+# Abstract Project Spec — Jarvis: a personal agent from task to PR
+
+Oct 26, 2026 · @Ivan · Updated 2026-11-08: CON-03/04/10 and "Out of scope" aligned with the
+accepted ADR-0012/0013/0015/0016 (server, multiple repositories, learned facts, Infisical).
+
+## Goal and boundaries
+
+**Jarvis** is a personal AI development agent that runs on the owner's laptop through their
+Claude Code subscription. The owner submits a task in chat, and Jarvis carries it to a verified
+pull request and shepherds the PR until the conditions are met: CI is green, reviewer comments
+are fixed, and the summary has been sent.
+
+The prototype serves two purposes:
+
+- **The webinar.** An end-to-end demonstration of "from task to verified PR" (webinar concept:
+  `docs/webinar/webinar-concept.md`, v2).
+- **A foundation for the course and experiments.** A participant can run the PoC on their own
+  subscription and take apart every component.
+
+The main flow:
+
+1. The owner writes a task in chat with links to the design (Claude Design) and materials
+   (Notion, Google Docs). Each new message opens a thread, and all further conversation about the
+   task happens in it.
+2. Jarvis gathers context, writes a specification and a plan, and sends them to the thread for
+   confirmation.
+3. After confirmation, it implements the feature on a separate branch, runs the checks, performs
+   a review, and opens a draft PR from its own GitHub account.
+4. It watches CI and review, fixes failures and comments, and reports to the thread.
+5. A human does the merge.
+
+Iterations:
+
+- **Iteration 1.** The Engine, a local database in Docker, and a web app that is both the chat
+  with the agent and the admin UI: tasks, state, logs, run consoles, debugging. This also covers
+  the SDD flow, connectors, CI supervision, and limits in the config.
+- **Iteration 2.** Slack: the same chat through Slack threads. A message opens a thread, and the
+  agent replies in that same thread.
+
+This document describes **what** Jarvis must be able to do. Technical decisions live in
+`docs/decisions/architecture/` (all `accepted`; the current list is in that directory's README),
+the architecture description is in `docs/architecture/README.md`, and the design brief is in
+`docs/specs/web-ui-design.md`.
+
+## Constraints
+
+- **CON-01. Subscription only.** All model calls go through the official `claude` CLI in print
+  mode, logged in with the owner's account. No API key and no Agent SDK. If `ANTHROPIC_API_KEY`
+  is present in the environment, Jarvis does not start (ADR-0003).
+- **CON-02. One person.** One installation serves one owner on their subscription.
+- **CON-03. One machine, no public access.** Jarvis runs on a single machine of the owner's: on
+  the laptop or on a VPS reachable only through Tailscale (ADR-0016). The Engine, the web app,
+  and Postgres (Docker) listen on loopback only; there is no public address.
+- **CON-04. Repositories by allowlist.** The agent works with GitHub repositories from
+  `repos.allow` or the owner's own repositories (`repos.allowOwnerRepos`), cloned on demand
+  (ADR-0012); a task may carry its own `targetRepo`. Every repository must fulfil the contract:
+  an `AGENTS.md` with the check commands (tests, lint, typecheck) and the dev-server command, and
+  CI on GitHub Actions. Jarvis is not required to discover commands in an arbitrary repository.
+- **CON-05. Free Slack (iteration 2).** The Slack bot runs on the free plan via Socket Mode and
+  occupies one app slot.
+- **CON-06. Max 5x plan.** We assume Claude Max at $100. The goal is to show that everything
+  works without burning the whole limit. By default one worker at a time; the daily budget and
+  run limits are set in the config (LIM-\*).
+- **CON-07. No new paid services.** Nothing beyond the Claude Code subscription, GitHub, and free
+  Slack.
+- **CON-08. Live demo with a recording as backup.** The main flow runs live; edge cases can be
+  shown from a recording.
+- **CON-09. Separate GitHub account.** Jarvis pushes, opens PRs, and comments from its own
+  account with its own token (ADR-0007).
+- **CON-10. Secrets only in Infisical.** Infisical is the single source of secrets;
+  `~/.jarvis/.env` is only a local fallback, and committed and deployed files contain no values
+  (ADR-0015).
+- **CON-11. Connectors via own MCP servers.** Notion and Google Docs are connected through MCP
+  servers with tokens configured by Jarvis, not through claude.ai account connectors.
+
+## Glossary
+
+Names in the product are in English.
+
+| Name                 | Meaning                                                                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `Jarvis`             | The agent as a whole: engine, web app, Claude runs, watcher, database                                                                 |
+| `Owner`              | The agent's owner: submits tasks, answers questions, does the merge                                                                   |
+| `Engine`             | A long-lived Node service. Holds state, launches Claude, watches GitHub, serves the API and live events to the web app                |
+| `Thread`             | A conversation: the first `Owner` message and everything that happens in it afterwards. In Slack, a thread                            |
+| `Message`            | A message in a thread: from the `Owner`, from Jarvis, or a system one (decision card, question, permission, status)                   |
+| `Dispatcher`         | The Claude role that understands `Owner` messages, creates and manages tasks, and replies in the thread. Writes no code. One session per thread |
+| `Worker`             | The Claude role that executes one `Task` in its own `Worktree`                                                                        |
+| `Subagent`           | A specialized role inside the worker: `Context Researcher`, `Plan Verifier`, `Implementer`, `Reviewer`                                |
+| `Run`                | One launch of the `claude` process for the dispatcher or a worker. Has an event stream, usage, and a result                           |
+| `Console`            | The live view of a `Run` in the web app: model text, tool calls, results, errors                                                      |
+| `Task`               | A unit of work: from the message to the end of PR follow-up                                                                           |
+| `Task Stage`         | `Intake`, `Context`, `Spec Review`, `Implementing`, `Verifying`, `Reviewing`, `PR Open`, `Fixing`, `Done`, `Blocked`, `Failed`, `Cancelled` |
+| `Worktree`           | A separate git working copy and a `jarvis/<task-id>` branch for one `Task`                                                            |
+| `Watcher`            | The part of the engine that polls GitHub on a timer and turns CI and review changes into events without involving the model           |
+| `SDD Artifacts`      | `context.md`, `spec.md`, `plan.md`, `tasks.md`, `result.md` in the task folder                                                        |
+| `Task Journal`       | The chronology of the task's events in the database                                                                                   |
+| `Profile`            | `SOUL.md` (the agent's role and principles) and `USER.md` (the owner's preferences)                                                   |
+| `Agent Definition`   | A Claude Code plugin in the repository's `agent/` folder: `SOUL.md`, role prompts, subagents, skills, templates, permission rules     |
+| `Jarvis Home`        | The `~/.jarvis` folder: `USER.md`, config, `.env`, MCP servers, worktrees, task artifacts                                             |
+| `Config`             | The `~/.jarvis/jarvis.config.json` file: repository, limits, models, allowlist, connector boundaries. No secrets                      |
+| `Connector`          | Access to an external source: Notion, Google Docs                                                                                     |
+| `Design Source`      | A design from Claude Design, passed as a link or a handoff                                                                            |
+| `Check`              | A local check: tests, lint, typecheck                                                                                                 |
+| `Permission Request` | Claude's request for permission to run a tool, shown to the `Owner` in the thread                                                     |
+| `Usage`              | An estimate of run cost in dollars based on CLI data. A brake, not an exact subscription meter                                        |
+
+## Users and key scenarios
 
-Цей документ описує, **що** має вміти Jarvis. Технічні рішення лежать у `docs/decisions/architecture/` (усі `accepted`; актуальний перелік — у README того каталогу), опис архітектури — у `docs/architecture/README.md`, бриф для дизайну — у `docs/specs/web-ui-design.md`.
+There is a single actor — the `Owner`. In iteration 1 they work in the web app, in iteration 2
+also in Slack. Other people may be reviewers on GitHub but do not talk to Jarvis directly.
+
+| ID    | Scenario                                                                    | Iteration |
+| ----- | --------------------------------------------------------------------------- | --------- |
+| UC-01 | Submit a task in chat with links to the design and materials                | 1         |
+| UC-02 | Receive the spec and plan and confirm or correct them                       | 1         |
+| UC-03 | Answer the agent's question when it lacks a decision                        | 1         |
+| UC-04 | Receive a draft PR with a summary and check results                         | 1         |
+| UC-05 | Leave a comment on the PR and get a fix as a new commit                     | 1         |
+| UC-06 | Learn the CI result and get the failure fixed                               | 1         |
+| UC-07 | Run two tasks (concurrently if the config allows; otherwise queued)         | 1         |
+| UC-08 | Ask for task status in chat                                                 | 1         |
+| UC-09 | Cancel a task                                                               | 1         |
+| UC-10 | Ask a knowledge question with no code involved and get an answer with sources | 1       |
+| UC-11 | Restart Jarvis and continue tasks without losses                            | 1         |
+| UC-12 | Approve or reject an agent action                                           | 1         |
+| UC-13 | Change the `Profile` and see the behavior change in the next task           | 1         |
+| UC-14 | See all tasks, their state, and the journal                                 | 1         |
+| UC-15 | Watch a live console of the dispatcher or a worker                          | 1         |
+| UC-16 | Debug a task: stop a run, retry a stage, send the worker a message          | 1         |
+| UC-17 | See usage and limits, and the pause when the budget is exhausted            | 1         |
+| UC-18 | Hold the same conversation in a Slack thread                                | 2         |
 
-## Обмеження (Constraints)
+## Requirements: conversation with the Owner (chat → Slack)
 
-- **CON-01. Лише підписка.** Усі виклики моделі йдуть через офіційний CLI `claude` у print-режимі, залогінений обліковим записом власника. Без API-ключа й Agent SDK. Якщо в середовищі є `ANTHROPIC_API_KEY`, Jarvis не стартує (ADR-0003).
-- **CON-02. Одна людина.** Одна інсталяція обслуговує одного власника на його підписці.
-- **CON-03. Одна машина, без публічного доступу.** Jarvis працює на одній машині власника: на ноутбуці або на VPS, доступному лише через Tailscale (ADR-0016). Engine, вебзастосунок і Postgres (Docker) слухають тільки loopback; публічної адреси немає.
-- **CON-04. Репозиторії за allowlist.** Агент працює з GitHub-репозиторіями з `repos.allow` або власними репозиторіями власника (`repos.allowOwnerRepos`), клонованими на вимогу (ADR-0012); задача може нести свій `targetRepo`. Кожен репозиторій має виконувати контракт: `AGENTS.md` з командами перевірок (тести, lint, typecheck) і запуску dev-сервера, CI у GitHub Actions. Виявляти команди в довільному репозиторії Jarvis не мусить.
-- **CON-05. Безкоштовний Slack (ітерація 2).** Slack-бот працює на безкоштовному тарифі через Socket Mode і займає один слот застосунку.
-- **CON-06. Тариф Max 5x.** Розраховуємо на Claude Max за $100. Мета — показати, що все працює, не витративши весь ліміт. За замовчуванням один воркер одночасно, денний бюджет і ліміти запусків задано в конфігу (LIM-*).
-- **CON-07. Без нових платних сервісів.** Нічого понад підписку Claude Code, GitHub і безкоштовний Slack.
-- **CON-08. Демо наживо із записом про запас.** Головний флоу йде наживо; граничні випадки можна показати із запису.
-- **CON-09. Окремий GitHub-акаунт.** Jarvis пушить, відкриває PR і коментує від свого акаунта зі своїм токеном (ADR-0007).
-- **CON-10. Секрети лише в Infisical.** Єдине джерело секретів — Infisical; `~/.jarvis/.env` — лише локальний fallback, а закомічені й задеплоєні файли не містять значень (ADR-0015).
-- **CON-11. Конектори через власні MCP-сервери.** Notion і Google Docs підключаються MCP-серверами з токенами, які налаштовує Jarvis, а не конекторами акаунта claude.ai.
+In iteration 1 the channel is the web chat, in iteration 2 Slack. The requirements are the same
+for both unless stated otherwise (ADR-0006).
+
+**SLK-01. Message intake.** A new `Owner` message creates a `Thread`. A reply in the thread is
+appended to it. In Slack: a DM to the bot or a mention creates a thread; a message in the thread
+is a continuation.
 
-## Глосарій
+**SLK-02. Reply in the thread.** Jarvis replies only in the thread the message came from. Each
+task lives in its own thread.
 
-Назви в продукті англійською; специфікація українською.
+**SLK-03. Sender allowlist (Slack).** Messages from a user not on the allowlist are dropped
+without a reply. The check is by user identifier, not by channel. The web app is local and has no
+authorization (ADM-07).
 
-| Назва | Значення |
-| --- | --- |
-| `Jarvis` | Агент цілком: engine, вебзастосунок, запуски Claude, watcher, база |
-| `Owner` | Власник агента: ставить задачі, відповідає на питання, робить merge |
-| `Engine` | Довгоживучий Node-сервіс. Тримає стан, запускає Claude, стежить за GitHub, віддає API і живі події вебзастосунку |
-| `Thread` | Розмова: перше повідомлення `Owner` і все, що далі відбувається в ній. У Slack — тред |
-| `Message` | Повідомлення в треді: від `Owner`, від Jarvis або системне (картка рішення, питання, дозвіл, статус) |
-| `Dispatcher` | Роль Claude, яка розуміє повідомлення `Owner`, створює й веде задачі та відповідає в треді. Код не пише. Одна сесія на тред |
-| `Worker` | Роль Claude, яка виконує одну `Task` у своєму `Worktree` |
-| `Subagent` | Спеціалізована роль усередині воркера: `Context Researcher`, `Plan Verifier`, `Implementer`, `Reviewer` |
-| `Run` | Один запуск процесу `claude` для диспетчера чи воркера. Має потік подій, використання й результат |
-| `Console` | Живий вигляд `Run` у вебзастосунку: текст моделі, виклики інструментів, результати, помилки |
-| `Task` | Одиниця роботи: від повідомлення до завершення супроводу PR |
-| `Task Stage` | `Intake`, `Context`, `Spec Review`, `Implementing`, `Verifying`, `Reviewing`, `PR Open`, `Fixing`, `Done`, `Blocked`, `Failed`, `Cancelled` |
-| `Worktree` | Окрема git-робоча копія й гілка `jarvis/<task-id>` для однієї `Task` |
-| `Watcher` | Частина engine, яка за таймером опитує GitHub і перетворює зміни CI та рев'ю на події без участі моделі |
-| `SDD Artifacts` | `context.md`, `spec.md`, `plan.md`, `tasks.md`, `result.md` у папці задачі |
-| `Task Journal` | Хронологія подій задачі в базі |
-| `Profile` | `SOUL.md` (роль і принципи агента) та `USER.md` (вподобання власника) |
-| `Agent Definition` | Плагін Claude Code у папці `agent/` репозиторію: `SOUL.md`, промпти ролей, субагенти, скіли, шаблони, правила дозволів |
-| `Jarvis Home` | Папка `~/.jarvis`: `USER.md`, конфіг, `.env`, MCP-сервери, worktrees, артефакти задач |
-| `Config` | Файл `~/.jarvis/jarvis.config.json`: репозиторій, ліміти, моделі, allowlist, межі конекторів. Без секретів |
-| `Connector` | Доступ до зовнішнього джерела: Notion, Google Docs |
-| `Design Source` | Дизайн із Claude Design, переданий посиланням або handoff |
-| `Check` | Локальна перевірка: тести, lint, typecheck |
-| `Permission Request` | Запит Claude на дозвіл виконати інструмент, який показується `Owner` у треді |
-| `Usage` | Оцінка вартості запусків у доларах за даними CLI. Це гальмо, а не точний лічильник підписки |
+**SLK-04. No public address (Slack).** The bot connects to Slack from the laptop via Socket Mode.
 
-## Користувачі та ключові сценарії
+**SLK-05. Permissions.** When any run (dispatcher or worker) asks for permission, a card appears
+in the task's thread: the tool, a description, the arguments, and `Allow` / `Deny` buttons. With
+no response within the time from the config, the request is denied.
 
-Актор один — `Owner`. В ітерації 1 він працює у вебзастосунку, в ітерації 2 ще й у Slack. Інші люди можуть бути рев'юерами в GitHub, але з Jarvis напряму не спілкуються.
+**SLK-06. Decision buttons.** Confirming the spec and plan and answering multiple-choice
+questions are available as buttons as well as text.
 
-| ID | Сценарій | Ітерація |
-| --- | --- | --- |
-| UC-01 | Поставити задачу в чаті з посиланнями на дизайн і матеріали | 1 |
-| UC-02 | Отримати spec і план та підтвердити або виправити їх | 1 |
-| UC-03 | Відповісти на питання агента, коли йому бракує рішення | 1 |
-| UC-04 | Отримати draft PR із підсумком і результатами перевірок | 1 |
-| UC-05 | Залишити коментар у PR і отримати правку новим комітом | 1 |
-| UC-06 | Дізнатися про результат CI й отримати виправлення падіння | 1 |
-| UC-07 | Вести дві задачі (одночасно, якщо дозволяє конфіг; інакше черга) | 1 |
-| UC-08 | Запитати статус задач у чаті | 1 |
-| UC-09 | Скасувати задачу | 1 |
-| UC-10 | Поставити запитання до знань без коду й отримати відповідь із джерелами | 1 |
-| UC-11 | Перезапустити Jarvis і продовжити задачі без втрат | 1 |
-| UC-12 | Підтвердити або відхилити дію агента | 1 |
-| UC-13 | Змінити `Profile` і побачити зміну поведінки в наступній задачі | 1 |
-| UC-14 | Побачити всі задачі, їхній стан і журнал | 1 |
-| UC-15 | Подивитися живу консоль диспетчера чи воркера | 1 |
-| UC-16 | Дебажити задачу: зупинити запуск, повторити етап, надіслати воркеру повідомлення | 1 |
-| UC-17 | Бачити використання й ліміти та паузу, коли бюджет вичерпано | 1 |
-| UC-18 | Вести ту саму розмову в Slack-треді | 2 |
+**SLK-07. Progress without noise.** Task progress is updated in a single status message in the
+thread. A new message appears only when a human action is needed or there is a result.
 
-## Вимоги: розмова з Owner (чат → Slack)
+## Requirements: Dispatcher
 
-В ітерації 1 канал — вебчат, в ітерації 2 — Slack. Вимоги однакові для обох, якщо не сказано інакше (ADR-0006).
+**DSP-01. Task intake.** When a message is a code-change request, the dispatcher creates a
+`Task`, the engine creates a `Worktree` and a `jarvis/<task-id>` branch, and a reply arrives in
+the thread: what was taken on, the branch, and what will count as done.
 
-**SLK-01. Прийом повідомлень.** Нове повідомлення `Owner` створює `Thread`. Відповідь у треді додається до нього. У Slack: DM боту або згадка створює тред; повідомлення в треді — продовження.
+**DSP-02. Worker launch.** The engine launches a worker in the task's `Worktree` with the links
+from the message, the `Profile`, and the artifacts folder.
 
-**SLK-02. Відповідь у треді.** Jarvis відповідає лише в тред, з якого прийшло повідомлення. Кожна задача живе у своєму треді.
+**DSP-03. No code.** The dispatcher does not change code or repository files. It only has tools
+for managing tasks and replying to the thread (ADR-0004).
 
-**SLK-03. Allowlist відправників (Slack).** Повідомлення від користувача не з allowlist відкидаються без відповіді. Перевірка йде за ідентифікатором користувача, а не каналу. Вебзастосунок локальний і без авторизації (ADM-07).
+**DSP-04. Reply routing.** An `Owner` reply in a task's thread reaches that task's worker: into
+the current run if one is in progress, or into the next one.
 
-**SLK-04. Без публічної адреси (Slack).** Бот підключається до Slack із ноутбука через Socket Mode.
+**DSP-05. Status on request.** On a "status" request, the dispatcher replies with the list of
+active tasks: the stage, what it is waiting for, a link to the PR.
 
-**SLK-05. Дозволи.** Коли будь-який запуск (диспетчер чи воркер) просить дозвіл, у треді задачі з'являється картка: інструмент, опис, аргументи, кнопки `Allow` / `Deny`. Без відповіді за час із конфігу запит відхиляється.
+**DSP-06. Cancellation.** On a cancel command, the engine stops the run, moves the task to
+`Cancelled`, and a message arrives in the thread about what remains: the branch, the PR. Jarvis
+does not delete the branch or the PR.
 
-**SLK-06. Кнопки рішень.** Підтвердження spec і плану та відповіді на питання з варіантами доступні кнопками, а також текстом.
+**DSP-07. Knowledge questions.** If a message is a question with no code-change request, the
+dispatcher answers with sources from the `Connector` and the repository. It creates no `Task`.
 
-**SLK-07. Прогрес без шуму.** Прогрес задачі оновлюється в одному статусному повідомленні треду. Нове повідомлення з'являється, лише коли потрібна дія людини або є результат.
+**DSP-08. Worker run limit.** No more than `limits.maxConcurrentWorkers` workers run at once (1
+by default). A task in `PR Open` or `Blocked` occupies no slot: there is no process, and when a
+CI event, a review event, or an `Owner` reply arrives, the engine launches the worker again,
+resuming the session. If the slots are taken, the task or event is queued and a message with its
+position arrives in the thread.
 
-## Вимоги: Dispatcher
+**DSP-09. Hangs.** If a run produces no events for more than 10 minutes or waits for a
+permission longer than the config allows, a message appears in the thread with what it stopped
+on.
 
-**DSP-01. Прийом задачі.** Коли повідомлення — запит на зміну коду, диспетчер створює `Task`, engine створює `Worktree` і гілку `jarvis/<task-id>`, а в тред приходить відповідь: що взято, гілка, що вважатиметься готовим.
+## Requirements: Worker and the SDD flow
 
-**DSP-02. Запуск воркера.** Engine запускає воркера в `Worktree` задачі з посиланнями з повідомлення, `Profile` і папкою артефактів.
+**WRK-01. Context.** The worker gathers context from the `Design Source`, the `Connector`, and
+the repository and writes `context.md`: the sources used with links, the extracted requirements,
+the open questions.
 
-**DSP-03. Без коду.** Диспетчер не змінює код і файли репозиторію. Він має лише інструменти керування задачами й відповіді в тред (ADR-0004).
+**WRK-02. Specification.** The worker writes `spec.md`: what we are implementing, the
+boundaries, the acceptance criteria. Every requirement references its source.
 
-**DSP-04. Маршрутизація відповідей.** Відповідь `Owner` у треді задачі потрапляє до воркера цієї задачі: у поточний запуск, якщо він іде, або в наступний.
+**WRK-03. Plan.** The worker writes `plan.md` and `tasks.md`. The `Plan Verifier` checks the
+plan for conformance to the spec and the repository rules.
 
-**DSP-05. Статус на запит.** На запит «статус» диспетчер відповідає списком активних задач: етап, на що чекає, посилання на PR.
+**WRK-04. Confirmation.** The task moves to `Spec Review`, and the spec and plan (briefly, with
+a link to the files) go to the thread. Implementation starts only after the `Owner` confirms. A
+comment instead of a confirmation sends the worker back to revising the spec or the plan.
 
-**DSP-06. Скасування.** На команду скасування engine зупиняє запуск, переводить задачу в `Cancelled`, а в тред приходить повідомлення про те, що лишилося: гілка, PR. Гілку й PR Jarvis не видаляє.
+**WRK-05. Questions.** If sources contradict each other or a decision that changes the task's
+scope is missing, the worker asks one specific question in the thread, and the task moves to
+`Blocked` until the answer arrives. The worker does not guess.
 
-**DSP-07. Питання до знань.** Якщо повідомлення — питання без запиту на зміну коду, диспетчер відповідає з джерелами з `Connector` і репозиторію. `Task` не створює.
+**WRK-06. Implementation.** The worker implements the tasks from `tasks.md` in the `Worktree`
+and updates their statuses.
 
-**DSP-08. Ліміт запусків воркерів.** Одночасно працює не більше `limits.maxConcurrentWorkers` воркерів (за замовчуванням 1). Задача в `PR Open` або `Blocked` слот не займає: процесу немає, а коли приходить подія CI, рев'ю чи відповідь `Owner`, engine запускає воркера знову, відновлюючи сесію. Якщо слоти зайняті, задача чи подія стає в чергу, і в тред приходить повідомлення про позицію.
+**WRK-07. Checks.** After implementation the worker runs the `Check` from the repository's
+`AGENTS.md`. If a check is red, it fixes and retries, but no more than `limits.checkRetries`
+attempts.
 
-**DSP-09. Зависання.** Якщо запуск довше 10 хвилин не дає подій або чекає на дозвіл довше, ніж дозволяє конфіг, у треді з'являється повідомлення з тим, на чому він зупинився.
+**WRK-08. Review.** The `Reviewer` checks the diff for conformance to the spec, the acceptance
+criteria, and the repository rules. Blocking-level findings the worker fixes before opening the
+PR.
 
-## Вимоги: Worker і SDD-флоу
+**WRK-09. PR.** The worker pushes the branch and opens a draft PR from the Jarvis account. The
+description covers: what was done, the sources, the check results, the open questions. Then it
+writes `result.md`.
 
-**WRK-01. Контекст.** Воркер збирає контекст із `Design Source`, `Connector` і репозиторію та пише `context.md`: використані джерела з посиланнями, витягнуті вимоги, відкриті питання.
+**WRK-10. Visual verification.** For interface changes, the worker opens the page in a browser
+and compares it with the `Design Source`. A screenshot is attached to the PR.
 
-**WRK-02. Специфікація.** Воркер пише `spec.md`: що реалізуємо, межі, критерії приймання. Кожна вимога посилається на джерело.
+**WRK-11. Limit.** If the checks do not pass after all attempts or the task has exceeded
+`limits.taskTimeoutMinutes`, the task moves to `Failed`, and a report arrives in the thread: the
+error, the actions taken, the questions.
 
-**WRK-03. План.** Воркер пише `plan.md` і `tasks.md`. `Plan Verifier` перевіряє план на відповідність spec і правилам репозиторію.
+## Requirements: Context and connectors
 
-**WRK-04. Підтвердження.** Задача переходить у `Spec Review`, а spec і план (коротко, з посиланням на файли) йдуть у тред. Реалізація починається лише після підтвердження `Owner`. Коментар замість підтвердження повертає воркера до правки spec або плану.
+**CTX-01. Claude Design.** The worker receives the design via a link or a handoff from Claude
+Design and uses it as the source of structure, copy, and appearance.
 
-**WRK-05. Питання.** Якщо джерела суперечать одне одному або бракує рішення, яке змінює обсяг задачі, воркер ставить одне конкретне питання в тред, а задача переходить у `Blocked`, доки не прийде відповідь. Воркер не вгадує.
+**CTX-02. Notion.** The worker searches and reads pages within the provided root page.
 
-**WRK-06. Реалізація.** Воркер реалізує задачі з `tasks.md` у `Worktree` й оновлює їхні статуси.
+**CTX-03. Google Docs.** The worker searches and reads documents within the provided folder or
+document.
 
-**WRK-07. Перевірки.** Після реалізації воркер запускає `Check` з `AGENTS.md` репозиторію. Якщо перевірка червона, виправляє й повторює, але не більше `limits.checkRetries` спроб.
+**CTX-04. Search boundaries.** The worker searches only in the sources and boundaries set in the
+task or the config.
 
-**WRK-08. Рев'ю.** `Reviewer` перевіряє diff на відповідність spec, критеріям приймання й правилам репозиторію. Зауваження рівня «блокує» воркер виправляє до відкриття PR.
+**CTX-05. Missing access.** If a source is unavailable, the worker reports it in the thread, and
+the task moves to `Blocked`. Pretending the source was read is not allowed.
 
-**WRK-09. PR.** Воркер пушить гілку й відкриває draft PR від акаунта Jarvis. В описі: що зроблено, джерела, результати перевірок, відкриті питання. Потім пише `result.md`.
+## Requirements: PR and CI
 
-**WRK-10. Візуальна перевірка.** Для змін в інтерфейсі воркер відкриває сторінку в браузері й порівнює її з `Design Source`. Скриншот додається до PR.
+**CI-01. Supervision.** After the PR is opened, the task moves to `PR Open`, and the `Watcher`
+starts following that PR's CI and review.
 
-**WRK-11. Ліміт.** Якщо перевірки не проходять після всіх спроб або задача перевищила `limits.taskTimeoutMinutes`, задача переходить у `Failed`, а в тред приходить звіт: помилка, виконані дії, питання.
+**CI-02. No model while waiting.** While the status has not changed, the `Watcher` does not
+launch the model and writes nothing to the thread.
 
-## Вимоги: Context і конектори
+**CI-03. CI result.** When all checks of the current commit have finished, the actual result
+arrives in the thread.
 
-**CTX-01. Claude Design.** Воркер отримує дизайн за посиланням або handoff із Claude Design і використовує його як джерело структури, текстів і вигляду.
+**CI-04. CI failure.** If CI is red, the worker reads the log, determines the cause, and tries
+to fix it with a new commit, for no more than `limits.ciFixRounds` rounds. After that the task
+moves to `Blocked` with an explanation.
 
-**CTX-02. Notion.** Воркер шукає й читає сторінки в межах наданої кореневої сторінки.
+**CI-05. Review comments.** When an allowed reviewer leaves a comment or requests changes, the
+worker makes the edits, pushes a new commit, and writes to the thread what was changed. No more
+than `limits.reviewRounds` rounds.
 
-**CTX-03. Google Docs.** Воркер шукає й читає документи в межах наданої папки чи документа.
+**CI-06. Allowed comments only.** The worker reacts only to comments from people on
+`allowlist.githubReviewers`. Comments from the Jarvis account and other bots it ignores.
 
-**CTX-04. Межі пошуку.** Воркер шукає лише в джерелах і межах, заданих у задачі або конфігу.
+**CI-07. New commit.** After every push the `Watcher` follows the CI of the new commit. Statuses
+of old commits it ignores.
 
-**CTX-05. Відсутній доступ.** Якщо джерело недоступне, воркер повідомляє про це в тред, а задача переходить у `Blocked`. Вдавати, що джерело прочитано, не можна.
+**CI-08. Completion.** When CI is green and the review is approved (or the `Owner` wrote
+"done"), the task moves to `Done`, and the final summary arrives in the thread. Jarvis does not
+merge.
 
-## Вимоги: PR і CI
+**CI-09. Missed events.** If the laptop was asleep, after waking the `Watcher` compares the
+current statuses with the saved ones and processes each change exactly once.
 
-**CI-01. Нагляд.** Після відкриття PR задача переходить у `PR Open`, а `Watcher` починає стежити за CI і рев'ю цього PR.
+## Requirements: state
 
-**CI-02. Без моделі в очікуванні.** Поки статус не змінився, `Watcher` не запускає модель і нічого не пише в тред.
+**ST-01. Source of truth.** The database holds the threads, messages, tasks with their stage,
+branch, PR, and what the task is waiting for, as well as the runs and their events (ADR-0008).
 
-**CI-03. Результат CI.** Коли всі перевірки актуального коміту завершились, у тред приходить фактичний результат.
+**ST-02. Single writer.** Only the engine changes state. Models change it only through Jarvis
+tools (ADR-0004), and write artifacts as files into the task folder.
 
-**CI-04. Падіння CI.** Якщо CI червоний, воркер читає лог, визначає причину й пробує виправити новим комітом, не більше `limits.ciFixRounds` раундів. Після цього задача переходить у `Blocked` з поясненням.
+**ST-03. Journal.** Every stage change, message, CI or review event lands in the `Task Journal`
+together with the state change.
 
-**CI-05. Коментарі рев'ю.** Коли дозволений рев'юер залишає коментар або просить зміни, воркер вносить правки, пушить новий коміт і пише в тред, що змінено. Не більше `limits.reviewRounds` раундів.
+**ST-04. Recovery.** After an engine restart, all unfinished tasks continue without `Owner`
+involvement. Runs that were interrupted resume from the last completed stage.
 
-**CI-06. Лише дозволені коментарі.** Воркер реагує лише на коментарі людей з `allowlist.githubReviewers`. Коментарі акаунта Jarvis та інших ботів ігнорує.
+**ST-05. Worker recovery.** If a worker process crashed, the engine restarts it, resuming the
+session, taking into account the artifacts in the task folder.
 
-**CI-07. Новий коміт.** Після кожного push `Watcher` стежить за CI нового коміту. Статуси старих комітів ігнорує.
+**ST-06. Thread memory.** The dispatcher keeps a short summary of the thread: what was asked,
+what was decided, the open questions. The full history is not loaded into context every time.
 
-**CI-08. Завершення.** Коли CI зелений і рев'ю схвалене (або `Owner` написав «готово»), задача переходить у `Done`, а в тред приходить фінальний підсумок. Merge Jarvis не робить.
+## Requirements: Profile
 
-**CI-09. Пропущені події.** Якщо ноутбук спав, після пробудження `Watcher` порівнює поточні статуси зі збереженими й обробляє кожну зміну один раз.
+**PRF-01. SOUL.md.** The agent's role, principles, and style apply in every task.
 
-## Вимоги: стан
+**PRF-02. USER.md.** The owner's preferences — language, level of detail, format of the plan,
+the summary, and the PR — apply in messages and artifacts.
 
-**ST-01. Джерело правди.** База містить треди, повідомлення, задачі з етапом, гілкою, PR, тим, на що задача чекає, а також запуски та їхні події (ADR-0008).
+**PRF-03. Profile change.** A `Profile` change takes effect from the next run without restarting
+Jarvis.
 
-**ST-02. Один записувач.** Стан змінює лише engine. Моделі змінюють його тільки через інструменти Jarvis (ADR-0004), а артефакти пишуть файлами в папку задачі.
+**PRF-04. Project rules kept separate.** Code and architecture rules come from the repository's
+documentation, not from the `Profile`.
 
-**ST-03. Журнал.** Кожна зміна етапу, повідомлення, подія CI чи рев'ю потрапляє в `Task Journal` разом зі зміною стану.
+## Requirements: Config and limits
 
-**ST-04. Відновлення.** Після перезапуску engine всі незавершені задачі продовжуються без участі `Owner`. Запуски, які обірвалися, відновлюються з останнього завершеного етапу.
+**LIM-01. Separate config.** The repository, limits, models per role, allowlist, and connector
+boundaries are set in `~/.jarvis/jarvis.config.json`. No secrets there (ADR-0005).
 
-**ST-05. Відновлення воркера.** Якщо процес воркера впав, engine перезапускає його, відновлюючи сесію, з урахуванням артефактів у папці задачі.
+**LIM-02. Config validation.** If the config is invalid, the engine does not start and explains
+which field is wrong.
 
-**ST-06. Пам'ять треду.** Диспетчер веде короткий підсумок треду: що просили, що вирішили, відкриті питання. Повна історія в контекст кожного разу не завантажується.
+**LIM-03. Run limits.** Every run has limits on the number of steps and the estimated cost from
+the config.
 
-## Вимоги: Profile
+**LIM-04. Daily budget.** When the estimated cost for the day reaches `limits.dailyBudgetUsd`,
+new runs do not start, a message arrives in the thread, and the web app shows the pause. A run
+already in progress finishes its current step.
 
-**PRF-01. SOUL.md.** Роль, принципи й стиль агента застосовуються в кожній задачі.
+**LIM-05. Change without restart.** A config change takes effect for new runs.
 
-**PRF-02. USER.md.** Вподобання власника — мова, деталізація, формат плану, підсумку й PR — застосовуються в повідомленнях і артефактах.
+## Requirements: security and permissions
 
-**PRF-03. Зміна профілю.** Зміна `Profile` діє з наступного запуску без перезапуску Jarvis.
+**SEC-01. Autonomous permissions.** Commands needed for the normal flow (reading, editing in the
+`Worktree`, checks, git on the task branch, `gh pr create`) are pre-approved. Everything else
+goes through a `Permission Request` (SLK-05).
 
-**PRF-04. Правила проєкту окремо.** Правила коду й архітектури беруться з документації репозиторію, а не з `Profile`.
+**SEC-02. Write boundaries.** The worker changes files only in its own `Worktree`. Pushes go
+only to `jarvis/*` branches. Pushing to the base branch, merging, deleting branches, and
+force-pushing are forbidden.
 
-## Вимоги: Config і ліміти
+**SEC-03. Untrusted content.** Text from chat, PRs, Notion, Google Docs, designs, and CI logs is
+data, not instructions. An instruction inside such text does not change the task's boundaries
+and grants no new rights.
 
-**LIM-01. Окремий конфіг.** Репозиторій, ліміти, моделі для ролей, allowlist і межі конекторів задаються в `~/.jarvis/jarvis.config.json`. Секретів там немає (ADR-0005).
+**SEC-04. Secrets.** Tokens live in `.env` outside git. They do not end up in logs, console
+events, artifacts, or messages. Claude runs receive only the variables they need (ADR-0015).
 
-**LIM-02. Перевірка конфігу.** Якщо конфіг некоректний, engine не стартує й пояснює, яке поле не так.
+**SEC-05. No API key.** If `ANTHROPIC_API_KEY` is present in the engine's environment, the
+engine does not start and explains why: otherwise runs would be billed via the API.
 
-**LIM-03. Ліміти запуску.** Кожен запуск має обмеження на кількість кроків і оцінену вартість із конфігу.
+## Requirements: admin UI
 
-**LIM-04. Денний бюджет.** Коли оцінена вартість за день досягає `limits.dailyBudgetUsd`, нові запуски не стартують, у тред приходить повідомлення, а вебзастосунок показує паузу. Запуск, що вже йде, завершує поточний крок.
+The iteration 1 web app is both the chat and the admin UI. The screen structure, content, and
+states are described in `docs/specs/web-ui-design.md`.
 
-**LIM-05. Зміна без перезапуску.** Зміна конфігу діє для нових запусків.
+**ADM-01. Tasks.** A list of all tasks with the stage, branch, PR, CI state, and what the task
+is waiting for.
 
-## Вимоги: безпека й дозволи
+**ADM-02. Task.** The task page: SDD artifacts, journal, thread, PR, runs.
 
-**SEC-01. Автономні дозволи.** Команди, потрібні для звичайного флоу (читання, редагування в `Worktree`, перевірки, git у гілці задачі, `gh pr create`), дозволено заздалегідь. Решта йде через `Permission Request` (SLK-05).
+**ADM-03. Consoles.** A live view of every dispatcher and worker run: model text, tool calls,
+results, errors.
 
-**SEC-02. Межі запису.** Воркер змінює файли лише у своєму `Worktree`. Push — лише в гілки `jarvis/*`. Push у базову гілку, merge, видалення гілок і force-push заборонено.
+**ADM-04. Run history.** Finished runs are stored and open the same way as live ones.
 
-**SEC-03. Недовірений вміст.** Текст із чату, PR, Notion, Google Docs, дизайну й логів CI — це дані, а не інструкції. Інструкція всередині такого тексту не змінює межі задачі й не дає нових прав.
+**ADM-05. State and limits.** What is running now, the queue, today's usage, the current limits
+from the config.
 
-**SEC-04. Секрети.** Токени лежать у `.env` поза git. У логи, події консолі, артефакти й повідомлення вони не потрапляють. Запуски Claude отримують лише ті змінні, які їм потрібні (ADR-0015).
+**ADM-06. Debugging.** Actions: stop a run, retry the current stage, send the worker a message,
+cancel the task. Every action lands in the task's journal.
 
-**SEC-05. Без API-ключа.** Якщо в середовищі engine є `ANTHROPIC_API_KEY`, engine не стартує й пояснює чому: інакше запуски тарифікувалися б за API.
+**ADM-07. Local only.** The web app runs on the laptop without authorization and is not
+reachable from outside.
 
-## Вимоги: адмінка
+**ADM-08. Connections.** Connection status: Claude CLI login (and a warning about
+`ANTHROPIC_API_KEY`), the GitHub token, connectors, Slack (iteration 2).
 
-Вебзастосунок ітерації 1 — це й чат, і адмінка. Структура екранів, вміст і стани описані в `docs/specs/web-ui-design.md`.
+## Edge cases
 
-**ADM-01. Задачі.** Список усіх задач з етапом, гілкою, PR, станом CI і тим, на що задача чекає.
+| Case                                                             | Expected behavior                                                                | Requirement  |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------ |
+| A new task when all worker slots are taken                       | Queued, message with the position                                                 | DSP-08       |
+| An `Owner` reply outside the task's thread                       | A new thread; the dispatcher asks whether it is about an existing task           | DSP-04       |
+| The `Owner` stays silent after a question                        | Task in `Blocked`, reminders no more than once a day                             | WRK-05       |
+| The laptop fell asleep mid-run                                   | After waking, the interrupted run resumes; CI events are processed exactly once  | CI-09, ST-05 |
+| The engine crashed or was restarted                              | Recovery from the database                                                        | ST-04        |
+| The daily budget is exhausted                                    | New runs paused, a message, a banner in the web app                               | LIM-04       |
+| The subscription limit is exhausted (the CLI returns a limit error) | Tasks paused, a message with the recovery time if the CLI reports it           | LIM-04       |
+| Flaky CI: red with no relation to the changes                    | The worker marks it as possibly flaky, reruns once, then reports                  | CI-04        |
+| A reviewer writes a comment not addressed to the agent           | No edits; only a mention in the summary                                           | CI-05        |
+| A PR comment from a bot or the Jarvis account                    | Ignored                                                                           | CI-06        |
+| Two tasks change the same file                                   | Each in its own `Worktree`; a human resolves the conflict in the PR               | DSP-02       |
+| A design link without access                                     | A message, task in `Blocked`                                                      | CTX-05       |
+| A permission request with no response                            | Denied on timeout, recorded in the journal                                        | SLK-05       |
+| An "ignore the rules" instruction in a PR comment or a document  | Not followed                                                                      | SEC-03       |
+| Cancellation during a push                                       | The push completes, the task is `Cancelled`, the PR remains                       | DSP-06       |
+| `ANTHROPIC_API_KEY` is present in the environment                | The engine does not start and explains why                                        | SEC-05       |
 
-**ADM-02. Задача.** Сторінка задачі: SDD-артефакти, журнал, тред, PR, запуски.
+## Non-functional requirements
 
-**ADM-03. Консолі.** Живий перегляд кожного запуску диспетчера й воркерів: текст моделі, виклики інструментів, результати, помилки.
+- **NFR-01. Startup.** Postgres comes up with a single compose command from the README (the
+  password comes from secrets, ADR-0015); the engine and the web app with a single command from
+  the README.
+- **NFR-02. Responsiveness.** The first reply in the thread to a new task arrives within 30
+  seconds.
+- **NFR-03. Limit economy.** No model call happens just to check a status. The Watcher polls
+  GitHub no more often than once per `watch.pollSeconds` (60 s by default).
+- **NFR-04. Resilience.** Restarting the engine or a worker loses no tasks and duplicates no
+  messages.
+- **NFR-05. Observability.** For every task, what happened can be reconstructed from the
+  journal, the run events, and the artifacts.
+- **NFR-06. Reproducibility.** A webinar participant can reproduce the PoC on their own accounts
+  from the README in no more than an hour, not counting the creation of the bot's GitHub
+  account.
+- **NFR-07. Task duration.** The demo task (one page) goes from the message to the draft PR in
+  20–40 minutes.
+- **NFR-08. Live web app.** New run events appear in the console in under a second.
 
-**ADM-04. Історія запусків.** Завершені запуски зберігаються й відкриваються так само, як живі.
+## Out of scope
 
-**ADM-05. Стан і ліміти.** Що зараз працює, черга, використання за день, поточні ліміти з конфігу.
+- Supervising long jobs (backfills, migrations, pipelines, releases) — a next step.
+- A second engine (Codex) as a worker or reviewer — a next step.
+- Multiple owners, authorization, team use.
+- Self-directed behavior changes beyond what is allowed: the dispatcher writes only to
+  `## Learned` in `USER.md` and to the allowed config fields at the owner's explicit request
+  (ADR-0013).
+- Merge, deploy, branch deletion.
+- Ticket systems (Jira, Linear) as input.
+- CI triage for other people's PRs and `main`.
+- Attaching to a live terminal (TTY) session: the console shows structured run events.
 
-**ADM-06. Дебаг.** Дії: зупинити запуск, повторити поточний етап, надіслати воркеру повідомлення, скасувати задачу. Кожна дія потрапляє в журнал задачі.
+## Open questions
 
-**ADM-07. Лише локально.** Вебзастосунок працює на ноутбуці без авторизації й не доступний ззовні.
+### Closed by the owner's decisions (2026-10-26)
 
-**ADM-08. Підключення.** Стан підключень: вхід у Claude CLI (і попередження про `ANTHROPIC_API_KEY`), токен GitHub, конектори, Slack (ітерація 2).
+- [x] Channel for the first iteration → the web app (chat + admin UI); Slack with threads in
+      iteration 2.
+- [x] Whose name on the PR → a separate Jarvis account with its own token (CON-09).
+- [x] Plan → Max 5x; the goal is to show it works without burning the whole limit (CON-06).
+- [x] Where the admin UI lives → in this repository, iteration 1.
+- [x] Limits → a separate config (LIM-01).
+- [x] Secrets → `.env` for now (CON-10).
+- [x] Design → the owner makes it themselves from the `web-ui-design.md` brief.
+- [x] Connectors → own MCP servers with tokens (CON-11).
+- [x] Where the agent's data lives → the definition in `agent/` (git), personal and working data
+      in `~/.jarvis`, state in Postgres (ADR-0009, ADR-0008).
 
-## Граничні випадки
+### For the owner
 
-| Випадок | Очікувана поведінка | Вимога |
-| --- | --- | --- |
-| Нова задача, коли всі слоти воркерів зайняті | Черга, повідомлення з позицією | DSP-08 |
-| Відповідь `Owner` не в треді задачі | Новий тред; диспетчер питає, чи це про існуючу задачу | DSP-04 |
-| `Owner` мовчить після питання | Задача в `Blocked`, нагадування не частіше ніж раз на день | WRK-05 |
-| Ноутбук заснув посеред запуску | Після пробудження обірваний запуск відновлюється; події CI обробляються по одному разу | CI-09, ST-05 |
-| Engine впав або перезапущений | Відновлення з бази | ST-04 |
-| Денний бюджет вичерпано | Пауза нових запусків, повідомлення, банер у вебзастосунку | LIM-04 |
-| Ліміт підписки вичерпано (CLI повертає помилку ліміту) | Задачі на паузі, повідомлення з часом відновлення, якщо CLI його повідомляє | LIM-04 |
-| CI flaky: червоний без зв'язку зі змінами | Воркер позначає як можливий flaky, перезапускає один раз, потім повідомляє | CI-04 |
-| Рев'юер пише коментар не агенту | Без правок; лише згадка в підсумку | CI-05 |
-| Коментар у PR від бота чи акаунта Jarvis | Ігнорується | CI-06 |
-| Дві задачі змінюють той самий файл | Кожна у своєму `Worktree`; конфлікт вирішує людина в PR | DSP-02 |
-| Посилання на дизайн без доступу | Повідомлення, задача в `Blocked` | CTX-05 |
-| Запит дозволу без відповіді | Відхилення за таймаутом, запис у журнал | SLK-05 |
-| Інструкція «ігноруй правила» в коментарі PR чи документі | Не виконується | SEC-03 |
-| Скасування під час push | Push завершується, задача `Cancelled`, PR лишається | DSP-06 |
-| У середовищі є `ANTHROPIC_API_KEY` | Engine не стартує, пояснює причину | SEC-05 |
+- [ ] Which demo task and which repository: a separate teaching app (which one?) or an existing
+      project?
+- [ ] Who is the reviewer in the demo: the owner or a second account? This determines who goes
+      on `allowlist.githubReviewers`.
+- [x] Accept or amend the initial ADRs → all accepted; the current set is
+      [`docs/decisions/architecture/`](../decisions/architecture/README.md).
 
-## Нефункціональні вимоги
+### For the architecture
 
-- **NFR-01. Запуск.** Postgres піднімається однією compose-командою з README (пароль — із секретів, ADR-0015), engine і вебзастосунок — однією командою з README.
-- **NFR-02. Реакція.** Перша відповідь у треді на нову задачу — до 30 секунд.
-- **NFR-03. Економія лімітів.** Жоден виклик моделі не відбувається лише для перевірки статусу. Watcher опитує GitHub не частіше ніж раз на `watch.pollSeconds` (за замовчуванням 60 с).
-- **NFR-04. Стійкість.** Перезапуск engine чи воркера не губить задачі й не дублює повідомлення.
-- **NFR-05. Спостережуваність.** Для кожної задачі можна відновити, що відбулося, за журналом, подіями запусків і артефактами.
-- **NFR-06. Повторюваність.** Учасник вебінару може повторити PoC на своїх облікових записах за README не більше ніж за годину, не рахуючи створення GitHub-акаунта бота.
-- **NFR-07. Тривалість задачі.** Демо-задача (одна сторінка) проходить від повідомлення до draft PR за 20–40 хвилин.
-- **NFR-08. Живий вебзастосунок.** Нові події запуску з'являються в консолі менш ніж за секунду.
+- [ ] Exactly which MCP servers we take for Notion and Google Docs and what token permissions
+      they need (ADR-0015).
+- [ ] The format for handing the design from Claude Design to the worker.
+- [ ] How the worker's `Subagent`s appear in the console: separate streams or nested events.
 
-## Поза скоупом
+### To verify before the start
 
-- Нагляд за довгими джобами (backfill, міграції, пайплайни, релізи) — наступний крок.
-- Другий рушій (Codex) як воркер або рев'юер — наступний крок.
-- Кілька власників, авторизація, командне використання.
-- Самостійні зміни поведінки поза дозволеним: диспетчер пише лише в `## Learned` у `USER.md` і в
-  дозволені поля конфігу на явне прохання власника (ADR-0013).
-- Merge, деплой, видалення гілок.
-- Тікет-системи (Jira, Linear) як вхід.
-- CI triage для чужих PR і `main`.
-- Підключення до живого терміналу (TTY) сесії: консоль показує структуровані події запуску.
-
-## Відкриті питання
-
-### Закриті рішеннями власника (2026-10-26)
-
-- [x] Канал першої ітерації → вебзастосунок (чат + адмінка); Slack із тредами в ітерації 2.
-- [x] Від чийого імені PR → окремий акаунт Jarvis зі своїм токеном (CON-09).
-- [x] Тариф → Max 5x; мета — показати, що працює, не витративши весь ліміт (CON-06).
-- [x] Де адмінка → у цьому репозиторії, ітерація 1.
-- [x] Ліміти → окремий конфіг (LIM-01).
-- [x] Секрети → `.env` поки що (CON-10).
-- [x] Дизайн → власник робить сам за брифом `web-ui-design.md`.
-- [x] Конектори → власні MCP-сервери з токенами (CON-11).
-- [x] Де дані агента → визначення в `agent/` (git), особисте й робоче в `~/.jarvis`, стан у Postgres (ADR-0009, ADR-0008).
-
-### Для власника
-
-- [ ] Яка демо-задача й який репозиторій: окремий навчальний застосунок (який?) чи існуючий проєкт?
-- [ ] Хто рев'юер у демо: власник чи другий акаунт? Від цього залежить, хто в `allowlist.githubReviewers`.
-- [ ] Прийняти чи змінити ADR-0001…0010.
-
-### Для архітектури
-
-- [ ] Які саме MCP-сервери для Notion і Google Docs беремо та які права токенів їм потрібні (ADR-0015).
-- [ ] Формат передачі дизайну з Claude Design у воркера.
-- [ ] Як `Subagent` воркера відображаються в консолі: окремі потоки чи вкладені події.
-
-### Перевірити до старту
-
-- [ ] Повний прогін демо-задачі: скільки оціненої вартості й частки ліміту Max 5x він з'їдає.
-- [ ] Права fine-grained PAT для читання check runs (можливо, знадобиться classic PAT або інший спосіб).
-- [ ] Socket Mode на безкоштовному Slack (ітерація 2).
+- [ ] A full run of the demo task: how much estimated cost and what share of the Max 5x limit it
+      consumes.
+- [ ] Fine-grained PAT permissions for reading check runs (a classic PAT or another approach may
+      be needed).
+- [ ] Socket Mode on free Slack (iteration 2).

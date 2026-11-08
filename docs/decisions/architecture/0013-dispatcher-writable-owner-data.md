@@ -41,7 +41,8 @@ run, PRF-03) and over free-form config data.
 
 ### 2. Config edits: `update_config(patch)` on explicit owner request, limits included
 
-Chosen over "safe tunables only" (owner decision: «Усі, включно бюджети/таймаути» — explicitly
+Chosen over "safe tunables only" (owner decision: «Усі, включно бюджети/таймаути» — "all of them,
+budgets and timeouts included" — explicitly
 accepting that "only a human can raise the ceiling" from ADR-0005 no longer holds, in exchange for not
 leaving the chat).
 

@@ -1,4 +1,4 @@
-import type { TaskStage } from '@jarvis/shared';
+import type { TaskStage, TaskKind } from '@jarvis/shared';
 import {
   createTask,
   createThread,
@@ -48,6 +48,14 @@ const PATH_TO: Readonly<Partial<Record<TaskStage, readonly TaskStage[]>>> = {
   Fixing: ['Context', 'Spec Review', 'Implementing', 'Verifying', 'PR Open', 'Fixing'],
 };
 
+/** ADR-0018: the short path a `ui_check` task takes; it has no Spec Review and no Implementing. */
+const UI_CHECK_PATH_TO: Readonly<Partial<Record<TaskStage, readonly TaskStage[]>>> = {
+  Intake: [],
+  Context: ['Context'],
+  Reviewing: ['Context', 'Reviewing'],
+  Done: ['Context', 'Reviewing', 'Done'],
+};
+
 export interface SeededTask {
   readonly thread: Thread;
   readonly task: Task;
@@ -88,6 +96,9 @@ export interface TestApp extends Application {
       stage?: TaskStage;
       threadId?: string;
       targetRepo?: { owner: string; name: string } | null;
+      /** ADR-0018: `ui_check` seeds a task that only checks `pr`, on its own short stage path. */
+      kind?: TaskKind;
+      pr?: { number: number; url: string };
     }): Promise<SeededTask>;
   };
   /** Forget the notifications recorded so far, so a test sees only what the use case under test sent. */
@@ -180,15 +191,22 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
           });
     const task = await uow.run(async (tx) => {
       const id = await tx.tasks.nextId();
+      const kind = options.kind ?? 'build';
       let current = createTask({
         id,
         threadId: thread.id,
         title: 'Seeded task',
-        branch: `jarvis/${id}`,
+        branch: kind === 'ui_check' ? `jarvis-check/${id}` : `jarvis/${id}`,
         at: clock.now(),
         targetRepo: options.targetRepo ?? null,
+        kind,
+        pr: options.pr ?? null,
       });
-      for (const to of PATH_TO[stage] ?? []) {
+      const path = kind === 'ui_check' ? UI_CHECK_PATH_TO[stage] : PATH_TO[stage];
+      if (path === undefined) {
+        throw new Error(`seed: a ${kind} task cannot be seeded in ${stage}`);
+      }
+      for (const to of path) {
         const moved = transition(current, to, {
           cause: to === 'Context' ? 'worker_started' : 'stage_reported',
           at: clock.now(),

@@ -1,3 +1,4 @@
+import type { TaskKind } from '@jarvis/shared';
 import type { Thread } from '../../domain/index.js';
 import type { TestApp } from './build-test-app.js';
 
@@ -7,12 +8,22 @@ import type { TestApp } from './build-test-app.js';
  */
 export async function createTaskInNewThread(
   app: TestApp,
-  input: { title?: string; description?: string } = {},
+  input: {
+    title?: string;
+    description?: string;
+    /** ADR-0018: `ui_check` plus `pr` creates a task that only checks an existing pull request. */
+    kind?: TaskKind;
+    pr?: string;
+    repo?: string;
+  } = {},
 ): Promise<{ thread: Thread; taskId: string }> {
   const thread = await app.seed.thread();
   const created = await app.createTask.execute(app.identity.dispatcher(thread.id), {
     title: input.title ?? 'Add endpoint',
     description: input.description ?? 'Add a health endpoint.',
+    ...(input.kind === undefined ? {} : { kind: input.kind }),
+    ...(input.pr === undefined ? {} : { pr: input.pr }),
+    ...(input.repo === undefined ? {} : { repo: input.repo }),
   });
   return { thread, taskId: created.taskId };
 }

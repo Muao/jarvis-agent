@@ -77,6 +77,12 @@ export const toolInputSchemas = {
    * Arguments the Claude CLI passes to `--permission-prompt-tool`. Built by the CLI, not the
    * model, so unknown extra fields are dropped instead of rejected.
    */
+  /**
+   * ADR-0018: one comment on the task's pull request, posted only after the owner approves it in
+   * the thread. The body is the whole comment, markdown included.
+   */
+  comment_on_pr: z.strictObject({ body: z.string().min(1) }),
+
   approve: z.object({
     tool_name: z.string().min(1),
     input: z.record(z.string(), z.unknown()),
@@ -110,6 +116,7 @@ export const toolsByRole = {
     'start_dev_server',
     'stop_dev_server',
     'attach_image',
+    'comment_on_pr',
     'approve',
   ],
 } as const satisfies Record<Role, readonly ToolName[]>;

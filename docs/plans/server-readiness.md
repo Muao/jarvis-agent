@@ -128,7 +128,7 @@ dispatcher run with `--model haiku` answers in the web chat served from the cont
 
 ---
 
-## Phase 2: server readiness (ADR-0016/0016 TODOs, health, liveness)
+## Phase 2: server readiness (ADR-0015/0016 TODOs, health, liveness)
 
 ### Task 2.1: deploy files in the repo
 

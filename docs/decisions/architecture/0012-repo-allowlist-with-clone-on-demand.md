@@ -56,7 +56,8 @@ allow-list or repos owned by the owner's own GitHub account, nothing wider.
   gains a `repos` map keyed by `"owner/name"`; the top-level array stays as the default repo's list
   (unchanged for existing single-repo configs). A dispatcher-facing MCP tool (same shape as
   `set_task_target_repo`) lets the owner, from chat, ask Jarvis to add a command to the *current task's
-  target repo's* allow-list — e.g. "дозволь `pnpm test` у QuickBlog" — so the owner no longer edits
+  target repo's* allow-list — e.g. "дозволь `pnpm test` у QuickBlog" ("allow `pnpm test` in
+  QuickBlog") — so the owner no longer edits
   `jarvis.config.json` by hand per repo. This is a deliberately accepted widening of the permission-gate
   boundary (see Consequences): the dispatcher can grant run-without-asking rights to itself, scoped to one
   repo's command allow-list, never to `repos.allow`/`allowOwnerRepos` themselves (those stay owner-edited
