@@ -1,7 +1,6 @@
 import type { LogContext, Logger } from '../../application/ports/logger.js';
 
 export type LogLevel = 'error' | 'warn' | 'info';
-type Level = LogLevel;
 
 /** A line is written when its level is at least as severe as the configured one. */
 const SEVERITY: Readonly<Record<LogLevel, number>> = { error: 0, warn: 1, info: 2 };
@@ -43,7 +42,7 @@ export class ConsoleLogger implements Logger {
     this.log('error', message, context);
   }
 
-  private log(level: Level, message: string, context: LogContext = {}): void {
+  private log(level: LogLevel, message: string, context: LogContext = {}): void {
     if (SEVERITY[level] > SEVERITY[this.options.level ?? 'info']) return;
     let line: string;
     try {

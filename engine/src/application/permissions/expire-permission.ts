@@ -61,6 +61,12 @@ export class ExpirePermission {
     });
     if (expired === null) return;
     this.deps.waiters.settle(permissionId);
+    this.deps.notifiers.logger.info(`permission for ${expired.tool} ${expired.status}`, {
+      event: 'permission.answered',
+      runId: expired.runId,
+      threadId: expired.threadId,
+      ...(expired.taskId === null ? {} : { taskId: expired.taskId }),
+    });
     await recordPermissionEvent({ ...this.deps, logger: this.deps.notifiers.logger }, expired);
   }
 }

@@ -94,8 +94,9 @@ export class RunSink implements RunListener {
       role: run.role,
       costUsd: run.costUsd,
       turns: run.turns,
-      durationMs:
-        run.finishedAt === null ? 0 : Date.parse(run.finishedAt) - Date.parse(run.startedAt),
+      ...(run.finishedAt === null
+        ? {}
+        : { durationMs: Date.parse(run.finishedAt) - Date.parse(run.startedAt) }),
     });
     await notifiers.events.publish({ type: 'run', id: run.id });
     if (run.taskId !== null) await notifiers.events.publish({ type: 'task', id: run.taskId });

@@ -60,18 +60,34 @@ describe('first message of a worker run ("Run context")', () => {
 
     const events = a.logger.infos.map((i) => i.context['event']);
     expect(events).toEqual(['task.stage', 'run.started', 'run.finished']);
-    expect(a.logger.infos[1]?.context).toMatchObject({
-      event: 'run.started',
+    const [stage, started, finished] = a.logger.infos;
+    const run = [...a.db.tables.runs.values()].find((r) => r.taskId === taskId);
+    expect(run).toBeDefined();
+    expect(stage?.context).toEqual({
+      event: 'task.stage',
       taskId,
+      threadId: run?.threadId,
+    });
+    expect(started?.context).toEqual({
+      event: 'run.started',
+      runId: run?.id,
+      sessionId: run?.sessionId,
+      taskId,
+      threadId: run?.threadId,
       role: 'worker',
       model: 'sonnet',
     });
-    const finished = a.logger.infos[2]?.context ?? {};
-    expect(finished).toMatchObject({ event: 'run.finished', taskId, role: 'worker' });
-    expect(finished).toHaveProperty('costUsd');
-    expect(finished).toHaveProperty('turns');
-    expect(finished).toHaveProperty('durationMs');
-    expect(finished).not.toHaveProperty('stopReason');
+    expect(finished?.context).toEqual({
+      event: 'run.finished',
+      runId: run?.id,
+      sessionId: run?.sessionId,
+      taskId,
+      threadId: run?.threadId,
+      role: 'worker',
+      costUsd: run?.costUsd,
+      turns: run?.turns,
+      durationMs: Date.parse(run?.finishedAt ?? '') - Date.parse(run?.startedAt ?? ''),
+    });
   });
 
   it('reads USER.md fresh for every run and delivers pending owner messages exactly once', async () => {

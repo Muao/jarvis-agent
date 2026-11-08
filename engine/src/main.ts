@@ -1,16 +1,20 @@
 // Process entry point (ADR-0003 composition root): start the engine on the owner's laptop.
 import { createContainer, type Container } from './container.js';
-import { assertSubscriptionOnly, StartupError } from './infrastructure/config/index.js';
-
+import { assertSubscriptionOnly, loadEnv, StartupError } from './infrastructure/config/index.js';
+import type { LogLevel } from './infrastructure/logging/console-logger.js';
 import { startTimers, type RunningTimers } from './presentation/timers/index.js';
 
-// Fastify's own request logging; the engine's lifecycle lines use JARVIS_LOG_LEVEL (ConsoleLogger).
-// At info it would write two lines per HTTP request, which the SPA makes constantly.
-const LOG_LEVEL = 'warn';
+// Fastify's own request logging is independent of the application's lifecycle lines (ConsoleLogger,
+// JARVIS_LOG_LEVEL). At info it would write two lines per HTTP request, which the SPA makes constantly,
+// so it follows the variable only in the quiet direction: error -> error, anything else -> warn.
+const fastifyLevel = (level: LogLevel): 'error' | 'warn' => (level === 'error' ? 'error' : 'warn');
 
 async function main(): Promise<void> {
   assertSubscriptionOnly(process.env);
-  const container = await createContainer({ env: process.env, logger: { level: LOG_LEVEL } });
+  const container = await createContainer({
+    env: process.env,
+    logger: { level: fastifyLevel(loadEnv(process.env).logLevel) },
+  });
   const timers: { current: RunningTimers | undefined } = { current: undefined };
   stopOnSignal(container, timers);
 

@@ -114,7 +114,18 @@ describe('answering and awaiting', () => {
       'permission.requested',
       'permission.answered',
     ]);
-    expect(lifecycle[1]?.context).toMatchObject({ runId: identity.runId, taskId });
+    expect(lifecycle[0]?.context).toEqual({
+      event: 'permission.requested',
+      runId: identity.runId,
+      threadId: thread.id,
+      taskId,
+    });
+    expect(lifecycle[1]?.context).toEqual({
+      event: 'permission.answered',
+      runId: identity.runId,
+      threadId: thread.id,
+      taskId,
+    });
     expect(app.db.tables.runEvents.get(identity.runId)?.at(-1)).toMatchObject({
       payload: { decision: 'allow' },
     });
@@ -196,6 +207,10 @@ describe('timeout (SLK-05)', () => {
     });
     expect(app.db.tables.runEvents.get(identity.runId)?.at(-1)).toMatchObject({
       payload: { decision: 'timeout' },
+    });
+    expect(app.logger.infos.at(-1)).toEqual({
+      message: 'permission for Bash timeout',
+      context: { event: 'permission.answered', runId: identity.runId, threadId: thread.id, taskId },
     });
   });
 

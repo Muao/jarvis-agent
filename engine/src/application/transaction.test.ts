@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildTestApp } from './testing/build-test-app.js';
+import { transact } from './transaction.js';
 
 describe('after-commit effects are best-effort', () => {
   it('a failing owner channel is logged, the use case succeeds and the other effects still run', async () => {
@@ -52,5 +53,31 @@ describe('after-commit effects are best-effort', () => {
 
     expect(app.logger.entries).toEqual([]);
     expect(app.owner.delivered).toEqual([]);
+  });
+
+  it('writes an info line only after the transaction committed', async () => {
+    const app = buildTestApp();
+    const deps = {
+      uow: app.uow,
+      notifiers: { owner: app.owner, events: app.events, runs: app.runs, logger: app.logger },
+    };
+
+    await expect(
+      transact(deps, async (_tx, outbox) => {
+        outbox.info('task T-1 moved Intake -> Context', { event: 'task.stage', taskId: 'T-1' });
+        throw new Error('rolled back');
+      }),
+    ).rejects.toThrow('rolled back');
+    expect(app.logger.infos).toEqual([]);
+
+    await transact(deps, async (_tx, outbox) => {
+      outbox.info('task T-1 moved Intake -> Context', { event: 'task.stage', taskId: 'T-1' });
+    });
+    expect(app.logger.infos).toEqual([
+      {
+        message: 'task T-1 moved Intake -> Context',
+        context: { event: 'task.stage', taskId: 'T-1' },
+      },
+    ]);
   });
 });

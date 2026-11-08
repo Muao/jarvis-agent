@@ -9,7 +9,10 @@ export interface JarvisEnv {
   readonly databaseUrl: string;
   /** Interface the API binds to; loopback unless the runtime image sets `JARVIS_LISTEN_HOST` (ADR-0017). */
   readonly listenHost: string;
-  /** Lowest severity the engine writes; `JARVIS_LOG_LEVEL`, default `info` (ADR-0018). */
+  /**
+   * Lowest severity of the application's own JSON lines (lifecycle events, warnings, errors); `JARVIS_LOG_LEVEL`,
+   * default `info` (ADR-0018). Fastify's request log is configured separately in main.ts.
+   */
   readonly logLevel: LogLevel;
   /** Healthchecks.io style ping URL; it carries a token, so it is a secret. Absent: no heartbeat (ADR-0018). */
   readonly heartbeatUrl?: string;

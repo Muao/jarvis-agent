@@ -116,6 +116,7 @@ beforeAll(async () => {
       JARVIS_HOME: home,
       PATH: process.env['PATH'],
       HOME: process.env['HOME'],
+      JARVIS_LOG_LEVEL: 'warn',
     },
     port: 0,
     runnerEnv: { JARVIS_FAKE_SCENARIO: 'flow' },
