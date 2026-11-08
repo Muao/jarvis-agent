@@ -1,0 +1,15 @@
+[Unit]
+Description=Jarvis web (vite preview)
+After=jarvis-engine.service
+Wants=jarvis-engine.service
+
+[Service]
+User=jarvis
+WorkingDirectory=/home/jarvis/jarvis
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/env pnpm --filter @jarvis/web exec vite preview
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

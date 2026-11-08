@@ -1,7 +1,7 @@
 # Deployment
 
-How to run Jarvis on a server (ADR-0015) with secrets from Infisical (ADR-0016). Status: plan; the
-steps marked **TODO** need code changes that are not made yet.
+How to run Jarvis on a server (ADR-0015) with secrets from Infisical (ADR-0016). Unit files, the
+Infisical wrapper and the `vite preview` block are in [`deploy/`](../../deploy/README.md).
 
 ```mermaid
 flowchart LR
@@ -75,25 +75,12 @@ docker compose up -d
 pnpm install --frozen-lockfile && pnpm --filter @jarvis/web build
 ```
 
-**TODO** (code): `web/vite.config.ts` needs a `preview` block (`127.0.0.1:5180`, the `/api` proxy, `allowedHosts: ['.ts.net']`), and a wrapper script that logs in to Infisical with the machine identity and runs `infisical run --env=prod -- <cmd>`.
+The units are `deploy/systemd/jarvis-engine.service` and `jarvis-web.service`; the wrapper is `scripts/with-secrets.sh`
+(logs in to Infisical with the machine identity and runs `infisical run --env=prod -- <cmd>`; without
+`INFISICAL_CLIENT_ID` it runs the command unchanged). Install:
 
-`/etc/systemd/system/jarvis-engine.service` (sketch; `jarvis-web.service` is the same with `pnpm --filter @jarvis/web exec vite preview`):
-
-```ini
-[Unit]
-Description=Jarvis engine
-After=network-online.target docker.service
-Wants=network-online.target
-
-[Service]
-User=jarvis
-WorkingDirectory=/home/jarvis/jarvis
-EnvironmentFile=/etc/jarvis/infisical.env
-ExecStart=/home/jarvis/jarvis/scripts/with-secrets.sh pnpm --filter @jarvis/engine start
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
+```sh
+sudo cp deploy/systemd/jarvis-*.service /etc/systemd/system/ && sudo systemctl daemon-reload
 ```
 
 Then `systemctl enable --now jarvis-engine jarvis-web` and `tailscale serve --bg 5180`. Open

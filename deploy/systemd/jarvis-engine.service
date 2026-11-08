@@ -1,0 +1,17 @@
+[Unit]
+Description=Jarvis engine
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+User=jarvis
+WorkingDirectory=/home/jarvis/jarvis
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/jarvis/infisical.env
+ExecStart=/home/jarvis/jarvis/scripts/with-secrets.sh pnpm --filter @jarvis/engine start
+ExecStartPost=/usr/bin/curl -fsS --retry 10 --retry-connrefused http://127.0.0.1:4310/api/health
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
