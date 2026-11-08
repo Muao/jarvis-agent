@@ -11,3 +11,4 @@ export * from './api/sessions.js';
 export * from './api/overview.js';
 export * from './api/config.js';
 export * from './api/connections.js';
+export * from './api/health.js';

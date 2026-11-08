@@ -19,6 +19,7 @@ import {
   FakeClock,
   FakeConfigStatus,
   FakeConnectionChecks,
+  FakeDatabasePing,
   FakeProfileFiles,
   FakeProfileStore,
   FakeRepoInfo,
@@ -68,6 +69,7 @@ export interface TestApp extends Application {
   readonly repoInfo: FakeRepoInfo;
   readonly profileFiles: FakeProfileFiles;
   readonly connections: FakeConnectionChecks;
+  readonly database: FakeDatabasePing;
   /** Run identities as presentation would resolve them from a run token. */
   readonly identity: {
     dispatcher(threadId: string): RunIdentity;
@@ -115,6 +117,7 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
   const repoInfo = new FakeRepoInfo();
   const profileFiles = new FakeProfileFiles();
   const connections = new FakeConnectionChecks();
+  const database = new FakeDatabasePing();
 
   const application = createApplication({
     uow,
@@ -132,6 +135,8 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
     repoInfo,
     profileFiles,
     connections,
+    database,
+    version: '0.0.0-test',
     logger,
     ...(options.realRuns === true ? {} : { coordinator: runs }),
   });
@@ -209,6 +214,7 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
     repoInfo,
     profileFiles,
     connections,
+    database,
     identity: {
       dispatcher: (threadId) => ({ runId: 'run-d', role: 'dispatcher', threadId }),
       worker: (task) => ({

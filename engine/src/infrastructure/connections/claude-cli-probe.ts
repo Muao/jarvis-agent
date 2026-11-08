@@ -123,6 +123,7 @@ export function claudeCliProbe(deps: {
         status: 'failed',
         summary: `Login expired on ${expiresOn}. Run \`claude\` and /login.`,
         subscription,
+        loginExpired: true,
         details: [...loginDetails, detail('Expired', expiresOn)],
       };
     }

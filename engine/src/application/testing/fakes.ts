@@ -11,6 +11,7 @@ import type { ArtifactFile, ArtifactStore } from '../ports/artifact-store.js';
 import type { Clock } from '../ports/clock.js';
 import type { ConfigProvider, ConfigStatus } from '../ports/config-provider.js';
 import type { ConnectionChecks, ConnectionOutcome } from '../ports/connection-checks.js';
+import type { DatabasePing } from '../ports/database-ping.js';
 import type { ProfileFile, ProfileFiles } from '../ports/profile-files.js';
 import type { RepoCommands, RepoInfo } from '../ports/repo-info.js';
 import type { EventBus } from '../ports/event-bus.js';
@@ -265,6 +266,8 @@ export class FakeConnectionChecks implements ConnectionChecks {
   billing = false;
   readonly outcomes = new Map<ConnectionId, ConnectionOutcome>();
   readonly checked: ConnectionId[] = [];
+  /** What `last` returns; `check` fills it, a test may set it directly. */
+  readonly cached = new Map<ConnectionId, ConnectionOutcome>();
 
   billingEnvDetected(): boolean {
     return this.billing;
@@ -272,9 +275,26 @@ export class FakeConnectionChecks implements ConnectionChecks {
 
   async check(id: ConnectionId): Promise<ConnectionOutcome> {
     this.checked.push(id);
-    return (
-      this.outcomes.get(id) ?? { status: 'not_configured', summary: 'Not configured', details: [] }
-    );
+    const outcome = this.outcomes.get(id) ?? {
+      status: 'not_configured',
+      summary: 'Not configured',
+      details: [],
+    };
+    this.cached.set(id, outcome);
+    return outcome;
+  }
+
+  last(id: ConnectionId): ConnectionOutcome | null {
+    return this.cached.get(id) ?? null;
+  }
+}
+
+/** A database that answers, or rejects when `failing` is set. */
+export class FakeDatabasePing implements DatabasePing {
+  failing = false;
+
+  async ping(): Promise<void> {
+    if (this.failing) throw new Error('connection refused');
   }
 }
 

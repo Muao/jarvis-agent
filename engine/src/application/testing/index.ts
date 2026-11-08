@@ -8,6 +8,7 @@ export {
   FakeClock,
   FakeConfigStatus,
   FakeConnectionChecks,
+  FakeDatabasePing,
   FakeProfileFiles,
   FakeProfileStore,
   FakeRepoInfo,

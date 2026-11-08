@@ -1,6 +1,7 @@
 import {
   ArtifactDtoSchema,
   ConfigDtoSchema,
+  HealthSchema,
   ConnectionsDtoSchema,
   OverviewDtoSchema,
   SendSessionMessageResultSchema,
@@ -439,5 +440,51 @@ describe('errors', () => {
 
     expect(res.statusCode).toBe(500);
     expect(res.json()).toEqual({ code: 'internal', message: 'db password [redacted] failed' });
+  });
+});
+
+describe('GET /api/health', () => {
+  it('answers 200 with the running runs counted and claude unknown before the first probe', async () => {
+    const { http, app } = start({ realRuns: true });
+    await createTaskInNewThread(app);
+
+    const res = await http.inject({ method: 'GET', url: '/api/health' });
+
+    expect(res.statusCode).toBe(200);
+    const health = HealthSchema.parse(res.json());
+    expect(health).toMatchObject({
+      status: 'ok',
+      database: 'ok',
+      claude: 'unknown',
+      activeRuns: (await app.uow.run((tx) => tx.runs.listRunning())).length,
+      version: '0.0.0-test',
+    });
+    expect(health.activeRuns).toBe(1);
+    expect(app.connections.checked).toEqual([]);
+  });
+
+  it('answers 503 with database failed when the ping rejects', async () => {
+    const { http, app } = start();
+    app.database.failing = true;
+
+    const res = await http.inject({ method: 'GET', url: '/api/health' });
+
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toMatchObject({ status: 'failed', database: 'failed' });
+  });
+
+  it.each([
+    ['ok', 'ok', 200],
+    ['warning', 'degraded', 200],
+    ['failed', 'degraded', 200],
+  ] as const)('maps a cached claude %s to status %s', async (claude, status, code) => {
+    const { http, app } = start();
+    app.connections.cached.set('claude', { status: claude, summary: '', details: [] });
+
+    const res = await http.inject({ method: 'GET', url: '/api/health' });
+
+    expect(res.statusCode).toBe(code);
+    expect(res.json()).toMatchObject({ status, claude });
+    expect(app.connections.checked).toEqual([]);
   });
 });

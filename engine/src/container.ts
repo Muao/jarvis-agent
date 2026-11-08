@@ -20,12 +20,19 @@ import {
   FileConfigProvider,
   jarvisHome,
   loadEnv,
+  readEngineVersion,
   StartupError,
   type EnvSource,
   type JarvisEnv,
 } from './infrastructure/config/index.js';
 import { createConnectionChecks, execFileWith } from './infrastructure/connections/index.js';
-import { createDatabase, createPool, migrate, PgUnitOfWork } from './infrastructure/db/index.js';
+import {
+  createDatabase,
+  createPool,
+  migrate,
+  PgDatabasePing,
+  PgUnitOfWork,
+} from './infrastructure/db/index.js';
 import { runGit } from './infrastructure/git/run-git.js';
 import { GitWorktreeManager } from './infrastructure/git/git-worktree-manager.js';
 import { CodeHostError, GitHubCodeHost, parseRemote } from './infrastructure/github/index.js';
@@ -200,6 +207,12 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
   });
 
   const clock = new SystemClock();
+  const connections = createConnectionChecks({
+    config: provider,
+    env: options.env,
+    github,
+    clock,
+  });
   const app = createApplication({
     uow: new PgUnitOfWork(createDatabase(pool)),
     ids: new CryptoIdGenerator(),
@@ -222,7 +235,9 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
       soul: join(AGENT_DIR, 'SOUL.md'),
       user: home.userFile,
     }),
-    connections: createConnectionChecks({ config: provider, env: options.env, github, clock }),
+    connections,
+    database: new PgDatabasePing(pool),
+    version: readEngineVersion(),
     owner: new WebOwnerChannel(hub),
     events: hub,
   });
@@ -240,6 +255,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
       config: provider,
       onConfigChange: (listener) => provider.onChange(() => listener()),
       logger,
+      checks: connections,
     },
     async listen() {
       try {

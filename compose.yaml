@@ -46,7 +46,7 @@ services:
       - node-modules-engine:/home/jarvis/jarvis/engine/node_modules
       - node-modules-web:/home/jarvis/jarvis/web/node_modules
     healthcheck:
-      test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:4310/api/overview >/dev/null']
+      test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:4310/api/health >/dev/null']
       interval: 5s
       timeout: 3s
       retries: 30

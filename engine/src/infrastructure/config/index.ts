@@ -9,3 +9,4 @@ export {
 export { jarvisHome, ensureHome, type JarvisHome } from './jarvis-home.js';
 export { FileConfigProvider, type FileConfigProviderOptions } from './file-config-provider.js';
 export { createRedactor } from './redact.js';
+export { readEngineVersion } from './engine-version.js';

@@ -70,7 +70,7 @@ docker compose --profile server run --rm engine sh -c \
 docker compose --profile server run --rm engine claude        # /login, paste code; credentials land in claude-home
 docker compose --profile server run --rm engine claude -p "ping"
 docker compose --profile server up -d
-curl -s http://127.0.0.1:4310/api/overview                     # /api/health arrives with the health task
+curl -s http://127.0.0.1:4310/api/health
 ```
 
 The Linux `node_modules` lives in Docker volumes and is not the host's, so the first `build` plus `up` installs dependencies once (every start re-runs a fast `pnpm install --frozen-lockfile`).

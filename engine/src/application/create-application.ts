@@ -10,6 +10,7 @@ import { RequestPermission } from './permissions/request-permission.js';
 import { GetArtifact } from './queries/get-artifact.js';
 import { GetConfig } from './queries/get-config.js';
 import { GetConnections } from './queries/get-connections.js';
+import { GetHealth } from './queries/get-health.js';
 import { GetOverview } from './queries/get-overview.js';
 import { GetRunEvents } from './queries/get-run-events.js';
 import { GetSession } from './queries/get-session.js';
@@ -38,6 +39,7 @@ import type { Clock } from './ports/clock.js';
 import type { CodeHost } from './ports/code-host.js';
 import type { ConfigProvider, ConfigStatus } from './ports/config-provider.js';
 import type { ConnectionChecks } from './ports/connection-checks.js';
+import type { DatabasePing } from './ports/database-ping.js';
 import type { Logger } from './ports/logger.js';
 import type { IdGenerator } from './ports/id-generator.js';
 import type { ProfileFiles } from './ports/profile-files.js';
@@ -77,6 +79,10 @@ export interface ApplicationPorts extends Omit<Notifiers, 'runs'> {
   readonly repoInfo: RepoInfo;
   readonly profileFiles: ProfileFiles;
   readonly connections: ConnectionChecks;
+  /** Is the database reachable (`GET /api/health`). */
+  readonly database: DatabasePing;
+  /** The engine's version, read once at start-up. */
+  readonly version: string;
   /**
    * What the task and conversation use cases ask for runs. The `RunScheduler` by default; tests
    * that only check what was asked pass a recording one so no process is involved.
@@ -124,11 +130,13 @@ export interface Application {
   readonly getOverview: GetOverview;
   readonly getConfig: GetConfig;
   readonly getConnections: GetConnections;
+  readonly getHealth: GetHealth;
 }
 
 /** Wires the use cases of conversation/, tasks/, runs/, permissions/, code-host/, supervision/ and recovery/ over the given ports. */
 export function createApplication(ports: ApplicationPorts): Application {
   const { uow, ids, clock, config, worktrees, artifacts } = ports;
+  const startedAt = clock.now();
   const messages = new ThreadMessages({ ids, clock });
   const statusCard = new StatusCard({ messages, config });
   const writer = new TaskWriter({ clock, statusCard });
@@ -151,6 +159,7 @@ export function createApplication(ports: ApplicationPorts): Application {
     registry,
     liveRuns,
     eventLog,
+    connections: ports.connections,
   });
   const notifiers: Notifiers = {
     owner: ports.owner,
@@ -235,5 +244,13 @@ export function createApplication(ports: ApplicationPorts): Application {
       profile: ports.profileFiles,
     }),
     getConnections: new GetConnections({ checks: ports.connections, clock }),
+    getHealth: new GetHealth({
+      database: ports.database,
+      checks: ports.connections,
+      uow,
+      clock,
+      startedAt,
+      version: ports.version,
+    }),
   };
 }

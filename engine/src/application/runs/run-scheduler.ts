@@ -1,6 +1,7 @@
 import { canStartRun } from '../../domain/index.js';
 import type { BodyOf } from '../conversation/message-bodies.js';
 import type { ThreadMessages } from '../conversation/thread-messages.js';
+import type { ConnectionChecks } from '../ports/connection-checks.js';
 import type { QueuedWorkerRun, RunCoordinator, WorkerRunReason } from '../ports/run-coordinator.js';
 import { transact, type Notifiers } from '../transaction.js';
 import { startOfLocalDay } from './local-day.js';
@@ -11,15 +12,19 @@ export interface RunSchedulerDeps extends Omit<StartRunDeps, 'notifiers'> {
   readonly notifiers: Omit<Notifiers, 'runs'>;
   readonly messages: ThreadMessages;
   readonly liveRuns: LiveRuns;
+  /** The last claude probe; a run never starts while it says the login has expired. */
+  readonly connections: Pick<ConnectionChecks, 'last'>;
 }
 
-type FillResult = 'idle' | 'budget_reached';
+type FillResult = 'idle' | 'budget_reached' | 'login_expired';
 
 /**
  * Decides when `claude` processes start (DSP-08, LIM-04, LIM-05).
  *  - Worker work (task start / resume / retry) waits in a FIFO queue for one of
  *    `limits.maxConcurrentWorkers` slots; the limit is read each time a slot is handed out.
  *  - Dispatcher turns take no slot but run one at a time per thread.
+ *  - Nothing starts while the last claude probe says the login has expired; the work stays queued
+ *    and the thread is told once per day.
  *  - Before every start the day's estimated cost is checked; when the budget is used up nothing
  *    starts, the thread is told once per day, and the work stays queued until `resumeQueued()`.
  * All decisions run one after another, so asking twice can never start two processes.
@@ -29,6 +34,8 @@ export class RunScheduler implements RunCoordinator {
   private readonly dispatcherPending = new Set<string>();
   /** Thread id -> the day (local midnight) it was last told the budget is used up. */
   private readonly budgetNoticeDay = new Map<string, string>();
+  /** Thread id -> the day it was last told the claude login has expired. */
+  private readonly loginNoticeDay = new Map<string, string>();
   private readonly startRun: StartRun;
   private readonly notifiers: Notifiers;
   private tail: Promise<unknown> = Promise.resolve();
@@ -42,8 +49,8 @@ export class RunScheduler implements RunCoordinator {
     return this.exclusive(async () => {
       this.dispatcherPending.add(threadId);
       const result = await this.fill();
-      if (result === 'budget_reached' && this.dispatcherPending.has(threadId)) {
-        await this.noticeBudgetReached(threadId, null);
+      if (result !== 'idle' && this.dispatcherPending.has(threadId)) {
+        await this.noticeNotStarted(result, threadId, null);
       }
     });
   }
@@ -58,8 +65,8 @@ export class RunScheduler implements RunCoordinator {
       if (position < 0) return;
       const threadId = await this.threadOf(taskId);
       if (threadId === null) return;
-      if (result === 'budget_reached') {
-        await this.noticeBudgetReached(threadId, taskId);
+      if (result !== 'idle') {
+        await this.noticeNotStarted(result, threadId, taskId);
       } else {
         await this.postSystem(threadId, taskId, `Queued — position ${position + 1}`);
       }
@@ -121,8 +128,10 @@ export class RunScheduler implements RunCoordinator {
 
   private async fill(): Promise<FillResult> {
     const { liveRuns, config } = this.deps;
+    this.loginExpired();
     for (const threadId of [...this.dispatcherPending]) {
       if (liveRuns.dispatcherOf(threadId) !== undefined) continue;
+      if (this.loginExpired()) return 'login_expired';
       if (!(await this.budgetLeft())) return 'budget_reached';
       this.dispatcherPending.delete(threadId);
       await this.attempt(threadId, null, () =>
@@ -133,6 +142,7 @@ export class RunScheduler implements RunCoordinator {
       this.workerQueue.length > 0 &&
       liveRuns.workerCount() < config.current().limits.maxConcurrentWorkers
     ) {
+      if (this.loginExpired()) return 'login_expired';
       if (!(await this.budgetLeft())) return 'budget_reached';
       const taskId = this.workerQueue.shift()?.taskId;
       if (taskId === undefined) break;
@@ -163,6 +173,35 @@ export class RunScheduler implements RunCoordinator {
     const { uow, clock, config } = this.deps;
     const spent = await uow.run((tx) => tx.runs.costSince(startOfLocalDay(clock.now())));
     return canStartRun(spent, config.current().limits).ok;
+  }
+
+  private loginExpired(): boolean {
+    const expired = this.deps.connections.last('claude')?.loginExpired === true;
+    // A recurrence of the expiry later the same day must tell the threads again.
+    if (!expired) this.loginNoticeDay.clear();
+    return expired;
+  }
+
+  private noticeNotStarted(
+    reason: Exclude<FillResult, 'idle'>,
+    threadId: string,
+    taskId: string | null,
+  ): Promise<void> {
+    return reason === 'login_expired'
+      ? this.noticeLoginExpired(threadId, taskId)
+      : this.noticeBudgetReached(threadId, taskId);
+  }
+
+  /** Once per day and thread, like the budget notice. */
+  private async noticeLoginExpired(threadId: string, taskId: string | null): Promise<void> {
+    const day = startOfLocalDay(this.deps.clock.now());
+    if (this.loginNoticeDay.get(threadId) === day) return;
+    this.loginNoticeDay.set(threadId, day);
+    await this.postSystem(
+      threadId,
+      taskId,
+      'The claude login has expired. Nothing new starts; queued work resumes once you log in again (run `claude` and /login on the machine).',
+    );
   }
 
   /** LIM-04: once per day and thread, so a busy queue does not flood the chat. */

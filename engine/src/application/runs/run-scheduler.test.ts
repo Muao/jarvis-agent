@@ -172,6 +172,69 @@ describe('RunScheduler daily budget (LIM-04)', () => {
   });
 });
 
+describe('RunScheduler expired claude login', () => {
+  const expired = {
+    status: 'failed',
+    summary: 'Login expired',
+    details: [],
+    loginExpired: true,
+  } as const;
+
+  it('starts nothing, keeps the work queued and tells the thread once', async () => {
+    const a = app();
+    a.connections.cached.set('claude', expired);
+
+    const { taskId, thread } = await createTaskInNewThread(a);
+    await a.scheduler.requestWorkerRun(taskId);
+
+    expect(a.runner.processes).toHaveLength(0);
+    expect(await a.scheduler.isQueued(taskId)).toBe(true);
+    expect(systemTexts(a, thread.id)).toHaveLength(1);
+    expect(systemTexts(a, thread.id)[0]).toContain('claude login has expired');
+
+    a.connections.cached.set('claude', { status: 'ok', summary: 'Logged in', details: [] });
+    await a.scheduler.resumeQueued();
+
+    expect(a.runner.live.map((p) => p.spec.taskId)).toEqual([taskId]);
+  });
+
+  it('tells the thread again when the expiry recurs after it was fixed', async () => {
+    const a = app();
+    a.connections.cached.set('claude', expired);
+    const { taskId, thread } = await createTaskInNewThread(a);
+    expect(systemTexts(a, thread.id)).toHaveLength(1);
+
+    a.connections.cached.set('claude', { status: 'ok', summary: 'Logged in', details: [] });
+    await a.scheduler.resumeQueued();
+    await a.runner.forTask(taskId)?.succeed();
+    a.connections.cached.set('claude', expired);
+    const next = await createTaskInNewThread(a);
+
+    expect(systemTexts(a, next.thread.id)[0]).toContain('claude login has expired');
+    await a.scheduler.requestWorkerRun(taskId);
+    expect(a.runner.processes).toHaveLength(1);
+  });
+
+  it('holds dispatcher turns too', async () => {
+    const a = app();
+    a.connections.cached.set('claude', expired);
+
+    const posted = await a.postOwnerMessage.execute({ text: 'status?' });
+
+    expect(a.runner.forThread(posted.threadId, 'dispatcher')).toBeUndefined();
+    expect(systemTexts(a, posted.threadId)).toHaveLength(1);
+  });
+
+  it('does not stop work for a failed probe that is not an expiry', async () => {
+    const a = app();
+    a.connections.cached.set('claude', { status: 'failed', summary: 'timeout', details: [] });
+
+    const { taskId } = await createTaskInNewThread(a);
+
+    expect(a.runner.live.map((p) => p.spec.taskId)).toEqual([taskId]);
+  });
+});
+
 describe('RunScheduler dispatcher turns (DSP-04)', () => {
   it('runs turns of one thread one at a time and later messages in the next turn', async () => {
     const a = app();

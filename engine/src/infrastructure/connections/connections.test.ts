@@ -1,5 +1,6 @@
 import { ConnectionIdSchema, type ConnectionId } from '@jarvis/shared';
 import { describe, expect, it, vi } from 'vitest';
+import type { ConnectionOutcome } from '../../application/ports/connection-checks.js';
 import { FakeClock, StaticConfigProvider } from '../../application/testing/index.js';
 import type { ConnectionChecker, GitHubConnectionStatus } from '../github/index.js';
 import { createConnectionChecks } from './create-connection-checks.js';
@@ -127,6 +128,7 @@ describe('Claude CLI check', () => {
 
       expect(outcome.status).toBe('failed');
       expect(outcome.summary).toBe('Login expired on 2026-10-31. Run `claude` and /login.');
+      expect(outcome.loginExpired).toBe(true);
       expectNoAccountData(outcome);
     });
 
@@ -335,6 +337,88 @@ describe('ProbedConnectionChecks', () => {
         summary: 'Check failed: no answer within 500 ms',
         details: [],
       });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('remembers the last outcome per connection, and has none before the first check', async () => {
+    const connections = new ProbedConnectionChecks({
+      probes: probes({}),
+      billingEnvDetected: () => false,
+    });
+
+    expect(connections.last('github')).toBeNull();
+    const outcome = await connections.check('github');
+
+    expect(connections.last('github')).toBe(outcome);
+    expect(connections.last('notion')).toBeNull();
+  });
+
+  it('remembers a timed-out probe as failed without the login-expired flag', async () => {
+    vi.useFakeTimers();
+    try {
+      const connections = new ProbedConnectionChecks({
+        probes: probes({ claude: () => new Promise(() => undefined) }),
+        billingEnvDetected: () => false,
+        timeoutMs: 100,
+      });
+      const pending = connections.check('claude');
+      await vi.advanceTimersByTimeAsync(100);
+      await pending;
+
+      expect(connections.last('claude')).toMatchObject({ status: 'failed' });
+      expect(connections.last('claude')?.loginExpired).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps the expired-login verdict through a timeout, an exception and a failed answer, and clears it on ok', async () => {
+    vi.useFakeTimers();
+    try {
+      const expired = {
+        status: 'failed' as const,
+        summary: 'Login expired',
+        loginExpired: true,
+        details: [],
+      };
+      let next: () => Promise<ConnectionOutcome> = async () => expired;
+      const connections = new ProbedConnectionChecks({
+        probes: { ...probes({}), claude: () => next() },
+        billingEnvDetected: () => false,
+        timeoutMs: 100,
+      });
+      await connections.check('claude');
+      const first = connections.last('claude');
+      expect(first?.loginExpired).toBe(true);
+
+      next = () => new Promise(() => undefined);
+      const timedOut = connections.check('claude');
+      await vi.advanceTimersByTimeAsync(100);
+      expect((await timedOut).status).toBe('failed');
+      expect(connections.last('claude')).toBe(first);
+
+      next = async () => {
+        throw new Error('spawn ENOENT');
+      };
+      expect((await connections.check('claude')).status).toBe('failed');
+      expect(connections.last('claude')).toBe(first);
+
+      next = async () => ({ status: 'failed' as const, summary: 'unparsable', details: [] });
+      await connections.check('claude');
+      expect(connections.last('claude')).toBe(first);
+
+      next = async () => ({ status: 'warning' as const, summary: 'soon', details: [] });
+      await connections.check('claude');
+      expect(connections.last('claude')?.loginExpired).toBeUndefined();
+
+      next = async () => expired;
+      await connections.check('claude');
+      next = async () => ({ status: 'ok', summary: 'ok', details: [] });
+      await connections.check('claude');
+      expect(connections.last('claude')).toMatchObject({ status: 'ok' });
+      expect(connections.last('claude')?.loginExpired).toBeUndefined();
     } finally {
       vi.useRealTimers();
     }

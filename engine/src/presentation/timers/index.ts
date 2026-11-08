@@ -1,8 +1,10 @@
-// Background timers of the engine (T13): PR watcher and supervision, started after the API is listening.
+// Background timers of the engine (T13): PR watcher, supervision and the claude probe refresh, started after the API is listening.
 import type { Application } from '../../application/index.js';
 import type { ConfigProvider } from '../../application/ports/config-provider.js';
+import type { ConnectionChecks } from '../../application/ports/connection-checks.js';
 import type { Logger } from '../../application/ports/logger.js';
 import { createPrWatcher } from '../watcher/watcher.js';
+import { createClaudeProbeRefresh } from './claude-probe.js';
 import type { TimerApi } from './interval-job.js';
 import { createSupervision } from './supervision.js';
 
@@ -10,6 +12,8 @@ export interface TimerDeps {
   readonly config: ConfigProvider;
   readonly onConfigChange: (listener: () => void) => () => void;
   readonly logger: Logger;
+  /** Only `check('claude')` is called, to keep `/api/health` and the run gate fed. */
+  readonly checks: Pick<ConnectionChecks, 'check'>;
   readonly timers?: TimerApi;
 }
 
@@ -29,11 +33,13 @@ export function startTimers(app: Application, deps: TimerDeps): RunningTimers {
     config: deps.config,
   });
   const supervision = createSupervision({ ...common, app, onConfigChange: deps.onConfigChange });
+  const claudeProbe = createClaudeProbeRefresh({ ...common, checks: deps.checks });
   watcher.start();
   supervision.start();
+  claudeProbe.start();
   return {
     async stop() {
-      await Promise.all([watcher.stop(), supervision.stop()]);
+      await Promise.all([watcher.stop(), supervision.stop(), claudeProbe.stop()]);
     },
   };
 }
