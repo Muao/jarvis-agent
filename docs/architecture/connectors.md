@@ -38,7 +38,10 @@ invalidates refresh tokens after 7 days, so the server would silently lose acces
 1. Create the OAuth client (type *Desktop app*) in the owner's Google Cloud project; publish the consent screen
    (internal use, no verification needed when only the owner's account uses it).
 2. Run the server's authorisation once on the laptop; it opens the browser, the owner grants access, the server
-   writes its token file.
+   writes its token file. **For Google Docs, run it read-only, never with the server's defaults** (they grant
+   write access to Drive, Docs, Sheets, Slides and Calendar, and the scopes cannot be narrowed later). First
+   export `GOOGLE_DRIVE_MCP_CLIENT_ID` and `GOOGLE_DRIVE_MCP_CLIENT_SECRET` from the OAuth client of step 1, then
+   run the exact command in "Google Docs" under "Per connector" below, with `GOOGLE_DRIVE_MCP_SCOPES` set.
 3. Copy the refresh token (and client id/secret) into Infisical `dev` **and** `prod`; delete the local token
    file if the server can read the values from env; otherwise keep it under `~/.jarvis` on the laptop only.
 4. Reference the variables in `~/.jarvis/mcp/servers.json` as `${VAR}` for each variable the server
@@ -47,9 +50,10 @@ invalidates refresh tokens after 7 days, so the server would silently lose acces
 The laptop and the server share one refresh token; Google allows that. Rotation: revoke the token in the Google
 account, repeat steps 2–3, `systemctl restart jarvis-engine`.
 
-Preferred over OAuth entirely, when the server can read it from a variable: a **service account** (key in
-Infisical, Drive folder shared with its e-mail as *Viewer*; no browser, no expiry). The chosen Google Docs server
-cannot (see "Per connector"), so Google Docs uses way 1.
+Preferred over OAuth entirely, when the server can read it from a variable: a **service account**. Its JSON key
+goes to Infisical (`GOOGLE_SERVICE_ACCOUNT_JSON`, base64), the Drive folder is shared with the service account's
+e-mail as *Viewer*; no browser, no expiry, revoked by deleting the key. The chosen Google Docs server cannot read
+it from a variable (see "Per connector"), so Google Docs uses way 1.
 
 ## Way 2 (fallback): authorise on the server through an SSH tunnel
 
@@ -113,7 +117,7 @@ GOOGLE_DRIVE_MCP_SCOPES=https://www.googleapis.com/auth/drive.readonly,https://w
   npx -y @piotr-agier/google-drive-mcp@2.13.0 auth
 ```
 
-The refresh token lands in `~/.config/google-drive-mcp/tokens.json`. Copy it by hand into Infisical `dev` and
+Export the client id and secret first (see the open item below). The refresh token lands in `~/.config/google-drive-mcp/tokens.json`. Copy it by hand into Infisical `dev` and
 `prod` (the project documents no export command), together with the client id and secret.
 
 **The version is pinned deliberately.** This process holds a Google refresh token, and `npx -y` without a version
@@ -129,3 +133,6 @@ the source and the task goes to `Blocked` (CTX-05).
 - whether `drive.readonly` alone suffices for the Docs API, or `documents.readonly` is also required;
 - whether publishing the consent screen to "In production" needs verification for these scopes;
 - whether the server needs a writable home directory in external-token mode.
+- how `auth` obtains the OAuth client id and secret: the steps say to export `GOOGLE_DRIVE_MCP_CLIENT_ID` and
+  `GOOGLE_DRIVE_MCP_CLIENT_SECRET` first, which is the plausible reading and is not confirmed; if `auth` prompts for
+  them or wants a downloaded client-secret JSON instead, fix the steps.
