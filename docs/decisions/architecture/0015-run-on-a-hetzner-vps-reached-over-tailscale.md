@@ -1,10 +1,10 @@
 ---
-status: accepted
+status: superseded
 date: 2026-11-02
 decision-makers: []  # owner chose Hetzner VPS + Tailscale 2026-11-02; drafted by Claude
 scope: ["compose.yaml", "web/vite.config.ts", "docs/architecture/deployment.md"]
 supersedes: []
-superseded-by: []
+superseded-by: ["0025"]
 ---
 
 # ADR-0015: Run Jarvis on a Hetzner VPS as systemd services, reached only over Tailscale

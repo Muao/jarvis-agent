@@ -9,7 +9,7 @@ export interface ArtifactFile {
   readonly updatedAt: IsoTime | null;
 }
 
-/** One file under a task's artifacts directory, read as bytes (ADR-0023: PR screenshots). */
+/** One file under a task's artifacts directory, read as bytes (ADR-0022: PR screenshots). */
 export interface ArtifactBlob {
   /** The file's base name, safe to send as an upload name. */
   readonly name: string;
@@ -29,7 +29,7 @@ export interface ArtifactStore {
   /**
    * Any file under the task's artifacts directory, by a relative path, as bytes. Rejects a path
    * that leaves the directory, a type that is not an image, and a file that does not exist
-   * (ADR-0023). Used for the screenshots of the UI check, never for the SDD artifacts.
+   * (ADR-0022). Used for the screenshots of the UI check, never for the SDD artifacts.
    */
   readImage(taskId: string, relativePath: string): Promise<ArtifactBlob>;
 }

@@ -50,7 +50,7 @@ describe('FileArtifactStore', () => {
     expect(all.filter((a) => a.exists).map((a) => a.name)).toEqual(['context.md']);
   });
 
-  describe('readImage (ADR-0023)', () => {
+  describe('readImage (ADR-0022)', () => {
     const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
     beforeEach(() => {

@@ -1,10 +1,10 @@
 ---
-status: accepted
+status: superseded
 date: 2026-11-08
 decision-makers: ["Ivan Lapa"]  # owner accepted 2026-11-08; drafted by Claude
 scope: ["engine/src/infrastructure/claude/**", "engine/src/infrastructure/logging/**", "engine/src/presentation/timers/**", "shared/src/config.ts", "deploy/alloy/**", "jarvis.config*.json"]
 supersedes: []
-superseded-by: []
+superseded-by: ["0025"]
 ---
 
 # ADR-0018: Observe the unattended server from parts that already exist: journald, Claude Code's own OTel export, one Alloy agent, Grafana Cloud

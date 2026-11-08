@@ -1,10 +1,10 @@
 ---
-status: accepted
+status: superseded
 date: 2026-11-02
 decision-makers: []  # owner chose a secret manager (Infisical / Doppler) 2026-11-02; Claude picked Infisical; awaiting Ivan Lapa
 scope: [".env.example", "engine/package.json", "docs/architecture/deployment.md"]
 supersedes: []
-superseded-by: []
+superseded-by: ["0024"]
 ---
 
 # ADR-0016: Keep secrets in Infisical and inject them with `infisical run`; `~/.jarvis/.env` stays as the local fallback

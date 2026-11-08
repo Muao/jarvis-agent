@@ -16,7 +16,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** `patch` wins; nested objects merge key-by-key instead of replacing the whole object (ADR-0021). */
+/** `patch` wins; nested objects merge key-by-key instead of replacing the whole object (ADR-0020). */
 function deepMerge(
   base: Record<string, unknown>,
   patch: Record<string, unknown>,
@@ -100,7 +100,7 @@ export class FileConfigProvider implements ConfigProvider {
   }
 
   /**
-   * ADR-0021: merges `patch` into the raw on-disk config (not the in-memory defaulted one),
+   * ADR-0020: merges `patch` into the raw on-disk config (not the in-memory defaulted one),
    * validates the whole result, and writes only if it parses. The file watcher picks up this
    * write like any other edit; `this.config` is updated here too so the caller gets the fresh
    * value immediately instead of waiting for the debounced reload.

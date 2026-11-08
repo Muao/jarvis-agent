@@ -29,7 +29,7 @@ export const toolInputSchemas = {
   /** ADR-0020: appends one bullet to `## Learned` in USER.md so a fact survives into new threads. */
   remember: z.strictObject({ fact: z.string().min(1) }),
   /**
-   * ADR-0021: a partial update to `jarvis.config.json`, merged and validated against
+   * ADR-0020: a partial update to `jarvis.config.json`, merged and validated against
    * `JarvisConfigSchema` before writing. Patches to `repo.*`, `repos.allow`,
    * `repos.allowOwnerRepos`, `engine.*` are always rejected.
    */
@@ -56,7 +56,7 @@ export const toolInputSchemas = {
   start_dev_server: z.strictObject({}),
   stop_dev_server: z.strictObject({}),
   /**
-   * ADR-0023. `path` is relative to the task's artifacts directory and may not leave it.
+   * ADR-0022. `path` is relative to the task's artifacts directory and may not leave it.
    */
   attach_image: z.strictObject({
     path: z.string().min(1),

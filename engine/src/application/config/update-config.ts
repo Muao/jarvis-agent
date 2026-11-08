@@ -12,7 +12,7 @@ export interface UpdateConfigInput {
 }
 
 /**
- * ADR-0021: fields other ADRs already locked down, or that would change the identity of the
+ * ADR-0020: fields other ADRs already locked down, or that would change the identity of the
  * running engine. Listed as full dotted paths, never silently stripped: a patch touching any of
  * these rejects the whole call.
  */
@@ -47,7 +47,7 @@ export interface UpdateConfigDeps extends TransactionDeps {
 }
 
 /**
- * ADR-0021: dispatcher-only. Merges `patch` into `jarvis.config.json` and validates the whole
+ * ADR-0020: dispatcher-only. Merges `patch` into `jarvis.config.json` and validates the whole
  * result against `JarvisConfigSchema`, same validation path as a manual edit (ADR-0006); writes
  * only if it parses. Never touches `repo.path`, `repo.remote`, `repo.baseBranch`, `repos.allow`,
  * `repos.allowOwnerRepos`, `engine.port`, `engine.claudeBinary`, `ui.devCommand`, `ui.noSandbox`

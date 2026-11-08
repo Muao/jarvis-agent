@@ -125,7 +125,7 @@ export interface Application {
   readonly setTaskTargetRepo: SetTaskTargetRepo;
   readonly remember: Remember;
   readonly updateConfig: UpdateConfig;
-  /** ADR-0022 / ADR-0023: the worker's UI check. */
+  /** ADR-0022: the worker's UI check. */
   readonly startDevServer: StartDevServer;
   readonly stopDevServer: StopDevServer;
   readonly attachImage: AttachImage;

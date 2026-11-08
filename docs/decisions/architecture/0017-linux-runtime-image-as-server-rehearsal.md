@@ -1,10 +1,10 @@
 ---
-status: accepted
+status: superseded
 date: 2026-11-08
 decision-makers: ["Ivan Lapa"]  # owner accepted 2026-11-08; drafted by Claude
 scope: ["compose.yaml", "docker/runtime/**", "README.md", "docs/architecture/deployment.md"]
 supersedes: []
-superseded-by: []
+superseded-by: ["0025"]
 ---
 
 # ADR-0017: Rehearse the server setup in a Linux runtime image on the laptop; production stays bare systemd

@@ -99,7 +99,7 @@ export const JarvisConfigSchema = z.strictObject({
       maxScenarios: positiveInt(8),
       maxScreenshots: positiveInt(12),
       maxImageMb: positiveNumber(5),
-      /** ADR-0023: false leaves screenshot file names in the PR instead of inline images. */
+      /** ADR-0022: false leaves screenshot file names in the PR instead of inline images. */
       attachToPr: z.boolean().default(true),
       /** Chromium cannot use user namespaces inside the runtime container (ADR-0017). */
       noSandbox: z.boolean().default(false),

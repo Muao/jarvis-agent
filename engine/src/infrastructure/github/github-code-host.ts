@@ -58,7 +58,7 @@ const ACTIONS_APP_SLUG = 'github-actions';
 const RERUNNABLE: readonly string[] = ['failure', 'timed_out'];
 const RUN_ID = /\/actions\/runs\/(\d+)/;
 /**
- * ADR-0023. GitHub documents no API for comment attachments; this is the endpoint its own web
+ * ADR-0022. GitHub documents no API for comment attachments; this is the endpoint its own web
  * UI posts to when an image is dropped into a PR body. It can change or start refusing tokens
  * without notice, which is why every failure here becomes `{ ok: false, reason }`.
  */
@@ -279,7 +279,7 @@ export class GitHubCodeHost implements CodeHost, ConnectionChecker {
   }
 
   /**
-   * ADR-0023. Uploads one image the way the GitHub web UI does and returns the
+   * ADR-0022. Uploads one image the way the GitHub web UI does and returns the
    * `github.com/user-attachments/assets/...` URL to embed in a PR body. Never throws: the caller
    * (and through it the agent) gets a reason and writes a plain line into the PR instead.
    */
@@ -319,7 +319,7 @@ export class GitHubCodeHost implements CodeHost, ConnectionChecker {
         ok: false,
         reason: this.redact(
           `GitHub refused the upload with ${response.status}${body === '' ? '' : `: ${body.slice(0, 200)}`}. ` +
-            'This endpoint is undocumented (ADR-0023); the token may not be accepted for it.',
+            'This endpoint is undocumented (ADR-0022); the token may not be accepted for it.',
         ),
       };
     }

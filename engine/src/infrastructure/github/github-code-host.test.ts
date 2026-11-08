@@ -315,7 +315,7 @@ describe('GitHubCodeHost errors', () => {
   });
 });
 
-describe('GitHubCodeHost.uploadAttachment (ADR-0023)', () => {
+describe('GitHubCodeHost.uploadAttachment (ADR-0022)', () => {
   const UPLOAD = 'POST /user-attachments/assets';
   const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
   const upload = { name: 'shot.png', contentType: 'image/png', bytes };

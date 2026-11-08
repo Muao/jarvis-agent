@@ -351,7 +351,7 @@ community discussions роками, вкладення офіційно робл
 `baseUrl` обмежений тим самим правилом, що `telemetry.otlpEndpoint`: http(s) на `127.0.0.1` або
 `localhost`. Dev-сервер агента, доступний не з лупбека, — це не фіча, це дірка.
 
-`devCommand` **не** входить до `update_config`-дозволеного (ADR-0021 вже забороняє патчі в
+`devCommand` **не** входить до `update_config`-дозволеного (ADR-0020 вже забороняє патчі в
 `repo.*`, `engine.*`; додаємо `ui.devCommand`, `ui.noSandbox` і `ui.paths` до того ж списку).
 Диспетчер не має права змінити команду, яку енджин потім виконає.
 
@@ -505,9 +505,9 @@ community discussions роками, вкладення офіційно робл
    (коли, кого кликати, що з вердиктом, що в PR); секція «UI verification» у шаблоні `pr-body`.
 8. **Контейнер.** Chromium із `--with-deps` у `docker/runtime/Dockerfile`, `PLAYWRIGHT_BROWSERS_PATH`,
    крок у `docs/architecture/deployment.md`.
-9. **ADR.** `0022-ui-verification-with-playwright-mcp.md` (інструмент, субагент, dev-сервер за
-   лізингом, пін версії) і `0023-pr-screenshots-via-github-user-attachments.md` (недокументована
-   ручка, чому вона, фолбек, що робити, коли зламається).
+9. **ADR.** `0022-ui-verification-with-playwright-mcp.md` — один запис на все: інструмент, субагент,
+   dev-сервер за лізингом, пін версії, а також скриншоти в PR (недокументована ручка, чому вона,
+   фолбек, що робити, коли зламається).
 10. **e2e.** Сценарій у `web/e2e` на фейковому `claude`: задача доходить до PR Open, і в `result.md`
     є секція UI-перевірки. Сам браузер тут не піднімається — перевіряється пайплайн, не Playwright.
 11. **Жива перевірка.** На `burnjohn/jarvis-sandbox`: (а) `attach_image` на справжньому PR із новим
@@ -523,7 +523,7 @@ community discussions роками, вкладення офіційно робл
 - `shared/src/config.ts`, `shared/src/mcp.ts` — конфіг і контракти інструментів
 - `engine/src/domain/task.ts` — `TRANSITIONS`, `reviewRounds`, `rounds_exhausted`
 - ADR-0004 (тільки CLI), ADR-0005 (інструменти як MCP-сервер енджина), ADR-0006 (ліміти в конфігу),
-  ADR-0011 (агент як плагін), ADR-0017 (рантайм-образ), ADR-0019 (per-task repo), ADR-0021 (межі
+  ADR-0011 (агент як плагін), ADR-0017 (рантайм-образ), ADR-0019 (per-task repo), ADR-0020 (межі
   `update_config`)
 - `npx @playwright/mcp@0.0.84 --help` і `tools/list`, перевірено локально 2026-11-08
 - [Programmatically upload attachments to GitHub Issues, Pull Requests, and Comments](https://island94.org/2026/08/programmatically-upload-attachments-to-github-issues-pull-requests-comments)

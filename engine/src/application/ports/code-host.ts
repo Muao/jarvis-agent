@@ -9,7 +9,7 @@ export interface RepoTarget {
   readonly name: string;
 }
 
-/** One image the agent wants inline in a PR body (ADR-0023). */
+/** One image the agent wants inline in a PR body (ADR-0022). */
 export interface AttachmentUpload {
   readonly name: string;
   readonly contentType: string;
@@ -19,7 +19,7 @@ export interface AttachmentUpload {
 }
 
 /**
- * ADR-0023: the upload goes through an endpoint GitHub does not document, so failure is an
+ * ADR-0022: the upload goes through an endpoint GitHub does not document, so failure is an
  * ordinary answer the agent can work around, not an exception.
  */
 export type AttachmentResult =
@@ -37,6 +37,6 @@ export interface CodeHost {
   botLogin(): Promise<string>;
   /** Ask the host to run the failed checks of `headSha` again (flaky CI, CI-04). */
   rerunFailedChecks(prNumber: number, headSha: string, repo?: RepoTarget): Promise<void>;
-  /** Uploads an image and returns the URL to embed in a PR body (ADR-0023). */
+  /** Uploads an image and returns the URL to embed in a PR body (ADR-0022). */
   uploadAttachment(upload: AttachmentUpload): Promise<AttachmentResult>;
 }

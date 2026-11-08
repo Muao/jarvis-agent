@@ -1,14 +1,16 @@
 # Architecture
 
-How Jarvis is meant to be built. Status: design, nothing implemented yet. The _why_ behind each choice is in
-[`../decisions/architecture/`](../decisions/architecture/README.md) (all `proposed`); behaviour is in
+How Jarvis is built. Status: iteration 1 is implemented (engine, web, server readiness); the current
+state and the live-proof gaps are in [`../../STATUS.md`](../../STATUS.md). The _why_ behind each choice
+is in [`../decisions/architecture/`](../decisions/architecture/README.md) (`accepted`); behaviour is in
 [`../specs/abstract-project-spec.md`](../specs/abstract-project-spec.md); the UI brief is in
 [`../specs/web-ui-design.md`](../specs/web-ui-design.md).
 
 ## System context
 
-Everything runs on the owner's laptop. The engine is one Node process; it spawns `claude` processes and
-talks to GitHub. Postgres runs in Docker. Slack arrives in iteration 2.
+Everything runs on one machine: the owner's laptop, or a VPS reached only over Tailscale (ADR-0025).
+The engine is one Node process; it spawns `claude` processes and talks to GitHub. Postgres runs in
+Docker. Slack arrives in iteration 2.
 
 ```mermaid
 flowchart LR

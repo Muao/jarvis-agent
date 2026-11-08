@@ -4,7 +4,7 @@ export interface ConfigProvider {
   /** The current validated config; a use case reads it once per call. */
   current(): JarvisConfig;
   /**
-   * ADR-0021: merges `patch` into the on-disk config and validates the whole result against
+   * ADR-0020: merges `patch` into the on-disk config and validates the whole result against
    * `JarvisConfigSchema` before writing; throws (no write) when the merged result does not
    * parse. The caller is responsible for rejecting patches to fields that stay owner-edited
    * only before calling this.

@@ -109,7 +109,7 @@ describe('stop_dev_server (ADR-0022)', () => {
   });
 });
 
-describe('attach_image (ADR-0023)', () => {
+describe('attach_image (ADR-0022)', () => {
   const attach = (app: TestApp, task: { id: string; threadId: string }, path: string) =>
     app.attachImage.execute(app.identity.worker(task as never), { path, alt: 'the task card' });
 

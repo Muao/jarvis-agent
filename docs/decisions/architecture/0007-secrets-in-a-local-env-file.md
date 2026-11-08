@@ -1,10 +1,10 @@
 ---
-status: accepted
+status: superseded
 date: 2026-10-26
 decision-makers: []  # owner: ".env at least temporarily" 2026-10-26; drafted by Claude
 scope: [".env.example", "engine/src/infrastructure/config/**", "compose.yaml"]
 supersedes: []
-superseded-by: []
+superseded-by: ["0024"]
 ---
 
 # ADR-0007: Keep secrets in `~/.jarvis/.env` loaded with Node's `--env-file`, with a path to a secret manager later
