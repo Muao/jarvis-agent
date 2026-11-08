@@ -12,11 +12,13 @@ import {
   TaskDtoSchema,
   ThreadDetailDtoSchema,
   ThreadDtoSchema,
+  UsageReportSchema,
   type AnswerMessageBody,
   type AnswerPermissionBody,
   type ArtifactName,
   type PostMessageBody,
   type SendSessionMessageBody,
+  type UsageQuery,
 } from '@jarvis/shared';
 import { get, post, postVoid } from './client';
 import { keys } from './keys';
@@ -82,6 +84,13 @@ export const useOverview = () =>
 
 export const useConfig = () =>
   useQuery({ queryKey: keys.config, queryFn: () => get('/config', ConfigDtoSchema) });
+
+/** `GET /api/usage`: cost over a window. Omitted `from`/`to` mean the engine's default (last 7 days). */
+export const useUsageReport = (query: UsageQuery) =>
+  useQuery({
+    queryKey: keys.usage(query),
+    queryFn: () => get('/usage', UsageReportSchema, query),
+  });
 
 export const useConnections = () =>
   useQuery({

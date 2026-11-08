@@ -13,6 +13,7 @@ const MAIN_NAV = [
 ] as const;
 
 const SERVICE_NAV = [
+  { to: '/usage', label: 'Usage' },
   { to: '/config', label: 'Config' },
   { to: '/connections', label: 'Connections' },
 ] as const;

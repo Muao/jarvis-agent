@@ -32,6 +32,10 @@ export const routes: RouteObject[] = [
         lazy: async () => ({ Component: (await import('../features/sessions')).SessionPage }),
       },
       {
+        path: 'usage',
+        lazy: async () => ({ Component: (await import('../features/usage')).UsagePage }),
+      },
+      {
         path: 'config',
         lazy: async () => ({ Component: (await import('../features/config')).ConfigPage }),
       },

@@ -19,6 +19,8 @@ export const keys = {
     all: ['runs'] as const,
     events: (runId: string) => ['runs', 'events', runId] as const,
   },
+  usage: (params: { groupBy: string; from?: string; to?: string }) =>
+    ['usage', params.groupBy, params.from ?? null, params.to ?? null] as const,
   overview: ['overview'] as const,
   config: ['config'] as const,
   connections: ['connections'] as const,
