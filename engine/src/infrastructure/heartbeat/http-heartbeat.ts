@@ -13,17 +13,22 @@ export type FetchFn = (
  * The URL carries a token, so no error thrown from here ever contains it.
  */
 export class HttpHeartbeat implements Heartbeat {
-  private readonly base: string;
+  private readonly okUrl: string;
+  private readonly failUrl: string;
 
   constructor(
     url: string,
     private readonly fetchFn: FetchFn = fetch,
   ) {
-    this.base = url.replace(/\/+$/, '');
+    this.okUrl = url;
+    // `/fail` goes on the path: a query string (`?create=1`) and a fragment stay where they are.
+    const failUrl = new URL(url);
+    failUrl.pathname = `${failUrl.pathname.replace(/\/+$/, '')}/fail`;
+    this.failUrl = failUrl.toString();
   }
 
   async beat(outcome: 'ok' | 'fail'): Promise<void> {
-    const url = outcome === 'ok' ? this.base : `${this.base}/fail`;
+    const url = outcome === 'ok' ? this.okUrl : this.failUrl;
     let status: number;
     try {
       const response = await this.fetchFn(url, {

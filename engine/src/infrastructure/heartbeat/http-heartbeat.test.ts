@@ -27,6 +27,24 @@ describe('HttpHeartbeat', () => {
     expect(calls[0]?.url).toBe(`${URL_WITH_TOKEN}/fail`);
   });
 
+  it('puts /fail on the path and keeps the query string and fragment', async () => {
+    const { fn, calls } = fakeFetch();
+    await new HttpHeartbeat('https://hc-ping.example/ping/abc?create=1#frag', fn).beat('fail');
+    expect(calls[0]?.url).toBe('https://hc-ping.example/ping/abc/fail?create=1#frag');
+  });
+
+  it('does not double the slash when the path ends in one, with a query too', async () => {
+    const { fn, calls } = fakeFetch();
+    await new HttpHeartbeat('https://hc-ping.example/ping/abc/?create=1', fn).beat('fail');
+    expect(calls[0]?.url).toBe('https://hc-ping.example/ping/abc/fail?create=1');
+  });
+
+  it('pings the URL unchanged for ok, query included', async () => {
+    const { fn, calls } = fakeFetch();
+    await new HttpHeartbeat('https://hc-ping.example/ping/abc?create=1', fn).beat('ok');
+    expect(calls[0]?.url).toBe('https://hc-ping.example/ping/abc?create=1');
+  });
+
   it('gives each request a timeout signal', async () => {
     const { fn, calls } = fakeFetch();
     const spy = vi.spyOn(AbortSignal, 'timeout');

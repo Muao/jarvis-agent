@@ -95,6 +95,38 @@ describe('heartbeat timer', () => {
     await timer.stop();
   });
 
+  it('stop() with a fetch in flight completes once the request timeout aborts it', async () => {
+    const abort = new AbortController();
+    const spy = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(abort.signal);
+    const hanging: FetchFn = (_url, init) =>
+      new Promise((_resolve, reject) => {
+        init.signal.addEventListener('abort', () =>
+          reject(new DOMException('aborted', 'TimeoutError')),
+        );
+      });
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const timers = new FakeTimers();
+    const timer = createHeartbeatTimer({
+      health: health('ok'),
+      heartbeat: new HttpHeartbeat(SECRET_URL, hanging),
+      logger,
+      timers,
+    });
+    timer.start();
+    timers.fire(HEARTBEAT_INTERVAL_MS);
+    let stopped = false;
+    const stopping = timer.stop().then(() => (stopped = true));
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(stopped).toBe(false);
+    abort.abort();
+    await stopping;
+    expect(logger.warn).toHaveBeenCalledWith('heartbeat failed', {
+      event: 'heartbeat.failed',
+      reason: 'request did not complete (TimeoutError)',
+    });
+    spy.mockRestore();
+  });
+
   it('warns instead of throwing when the health query itself fails', async () => {
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     const timers = new FakeTimers();
