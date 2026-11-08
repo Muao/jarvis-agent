@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-26
 decision-makers: []  # drafted by Claude 2026-10-26 when the iteration-1 plan started; awaiting Ivan Lapa
 scope: ["web/**"]

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-26
 decision-makers: []  # owner asked for limits in a separate config 2026-10-26; drafted by Claude
 scope: ["jarvis.config.json", "jarvis.config.example.json", "engine/src/infrastructure/config/**", "shared/src/config.ts"]

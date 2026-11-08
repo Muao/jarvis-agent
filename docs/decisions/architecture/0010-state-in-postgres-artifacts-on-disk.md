@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-26
 decision-makers: []  # owner: database in Docker for local work (2026-10-26); drafted by Claude
 scope: ["engine/src/infrastructure/db/**", "engine/drizzle/**", "compose.yaml", "engine/src/infrastructure/artifacts/**"]

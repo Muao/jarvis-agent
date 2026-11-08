@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-26
 decision-makers: []  # owner: Jarvis pushes and opens PRs from its own account with its own token (2026-10-26); drafted by Claude
 scope: ["engine/src/infrastructure/github/**", "engine/src/presentation/watcher/**", "engine/src/infrastructure/git/**"]

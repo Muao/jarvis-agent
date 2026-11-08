@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-02
 decision-makers: []  # owner chose Hetzner VPS + Tailscale 2026-11-02; drafted by Claude
 scope: ["compose.yaml", "web/vite.config.ts", "docs/architecture/deployment.md"]

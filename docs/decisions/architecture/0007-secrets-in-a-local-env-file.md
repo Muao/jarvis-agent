@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-26
 decision-makers: []  # owner: ".env at least temporarily" 2026-10-26; drafted by Claude
 scope: [".env.example", "engine/src/infrastructure/config/**", "compose.yaml"]

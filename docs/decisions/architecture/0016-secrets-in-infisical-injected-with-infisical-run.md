@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-02
 decision-makers: []  # owner chose a secret manager (Infisical / Doppler) 2026-11-02; Claude picked Infisical; awaiting Ivan Lapa
 scope: [".env.example", "engine/package.json", "docs/architecture/deployment.md"]

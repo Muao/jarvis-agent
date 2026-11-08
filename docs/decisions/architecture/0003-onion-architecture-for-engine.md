@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-26
 decision-makers: []  # owner asked for onion 2026-10-26; drafted by Claude
 scope: ["engine/src/**", "shared/src/**"]

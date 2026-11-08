@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-26
 decision-makers: []  # owner: chat in the admin first, Slack with threads later (2026-10-26); drafted by Claude
 scope: ["engine/src/application/ports/owner-channel*", "engine/src/presentation/http/**", "engine/src/presentation/slack/**", "web/src/features/chat/**"]
