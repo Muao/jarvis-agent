@@ -198,21 +198,23 @@ describe('RunScheduler expired claude login', () => {
     expect(a.runner.live.map((p) => p.spec.taskId)).toEqual([taskId]);
   });
 
-  it('tells the thread again when the expiry recurs after it was fixed', async () => {
+  it('tells the same thread again when the expiry recurs the same day', async () => {
     const a = app();
     a.connections.cached.set('claude', expired);
     const { taskId, thread } = await createTaskInNewThread(a);
     expect(systemTexts(a, thread.id)).toHaveLength(1);
+    expect(await a.scheduler.isQueued(taskId)).toBe(true);
 
     a.connections.cached.set('claude', { status: 'ok', summary: 'Logged in', details: [] });
     await a.scheduler.resumeQueued();
-    await a.runner.forTask(taskId)?.succeed();
-    a.connections.cached.set('claude', expired);
-    const next = await createTaskInNewThread(a);
+    expect(a.runner.live.map((p) => p.spec.taskId)).toEqual([taskId]);
 
-    expect(systemTexts(a, next.thread.id)[0]).toContain('claude login has expired');
-    await a.scheduler.requestWorkerRun(taskId);
-    expect(a.runner.processes).toHaveLength(1);
+    a.connections.cached.set('claude', expired);
+    await a.scheduler.requestDispatcherTurn(thread.id);
+
+    expect(a.runner.forThread(thread.id, 'dispatcher')).toBeUndefined();
+    const notices = systemTexts(a, thread.id).filter((t) => t.includes('claude login has expired'));
+    expect(notices).toHaveLength(2);
   });
 
   it('holds dispatcher turns too', async () => {
