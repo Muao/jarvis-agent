@@ -129,6 +129,14 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
 
 Decided, not forgotten.
 
+- **A UI check on someone else's repository runs their code next to live credentials.** The
+  untrusted-head card asks whether the head may run, not what it gets while running: the dev server
+  is spawned with the engine's whole environment (`GITHUB_TOKEN`, `DATABASE_URL`, `INFISICAL_*`),
+  and `ui.devCommand` now starts with `npm ci`, so the head's `postinstall` scripts run. Its
+  `CLAUDE.md` is read as instructions too. Nothing is on disk — the credential helper reads the
+  token from the environment — so narrowing that environment is most of the fix. Full detail in
+  `docs/specs/ui-check-on-demand.md` §8; the plan is ADR-0019 and its follow-up. **Until then,
+  point checks at repositories you control, and use a token scoped to the one repository checked.**
 - **No messenger.** The only owner channel is the local web UI (ADR-0006 puts Slack in iteration 2). The
   `OwnerChannel` port exists, so a channel is an adapter, not a rewrite. `tailscale serve` plus a phone is
   the cheap stand-in: it gives access, but no push — nobody tells you a card is waiting.

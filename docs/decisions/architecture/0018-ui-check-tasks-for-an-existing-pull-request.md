@@ -77,6 +77,21 @@ approve.
   machinery** (`RequestPermission`/`AwaitPermission`), and `gh pr comment` / `gh pr review` are added
   to the worker's `deny`. Without that deny the gate would be decorative: the worker's allow-list
   carries a bare `Bash`, which ADR-0017 already records as an open audit finding.
+- **The card is the only limit on how many comments a task writes, and a comment can be replaced.**
+  A per-task count of one was tried first and turned out to be a trap: the first run of a check
+  commented `inconclusive` because its environment was not set up, which spent the task's only
+  comment, and the `pass` verdict the next run reached could never be published (T-4 on
+  `burnjohn/quick-blog#38`, 2026-11-08). Counting cannot tell a report from a non-report, and the
+  owner already answers a card for every write, so there is nothing for a counter to protect.
+  `comment_on_pr` therefore takes an optional `commentId` and rewrites that comment instead of
+  adding one — checked against the task's own journal, so an approved card can never be turned into
+  an edit of someone else's words.
+- **`ui.autoApproveComments` lets the owner switch the card off, and it is off by default.** Being
+  asked for every comment is right the first few times and tiresome once the thing works, so the
+  owner can stop being asked. It is recorded here rather than left implicit because of what it
+  costs: with the counter gone, the card was the only limit on what and how much a run writes on a
+  pull request, so turning it on leaves none, and only the journal (`asked: false`) says a comment
+  went out unreviewed. The untrusted-head card is a different matter and still has no setting.
 - **The worktree for a `ui_check` task stands on the PR head** on a local `jarvis-check/<taskId>`
   branch — a different prefix from `jarvis/*`, so no existing push rule can ever match it.
 
@@ -96,9 +111,20 @@ the case the owner was not asking about, and because letting a `build` task leav
 - Bad: **the check runs code from a branch the owner may not have read.** The permission card makes
   that a decision rather than a surprise, but a careless approve is still an approve. The engine's
   sandboxing is the container (ADR-0016), not this ADR.
-- Bad: dependency installation for a foreign branch is unresolved — a dev server that needs
-  `npm install` will simply fail to come up, reported as `inconclusive`. Deciding whether to install
-  (and thereby run more of the PR's code) is the open follow-up.
+- Bad: dependency installation for a foreign branch was left unresolved here — and then settled by
+  configuration rather than by decision. The first check that needed data (T-5 on
+  `burnjohn/quick-blog#38`, 2026-11-09) put `npm ci` into `ui.devCommand`, so the head's
+  `postinstall` scripts now run as a matter of course. That is the follow-up answering itself, and
+  it deserves to be seen as such.
+- Bad: **the approval card is narrower than it reads.** It decides whether the head may run; it says
+  nothing about what the head gets while running. Today that is the engine's whole environment —
+  `ProcessDevServer` spawns `ui.devCommand` with `env: { ...options.env }`, which on a configured
+  machine carries `GITHUB_TOKEN`, `DATABASE_URL` and `INFISICAL_*`. Sourcing secrets properly
+  through Infisical (ADR-0015) does not help at that last hop: provenance and distribution are
+  different problems. The head's `CLAUDE.md` is also read as instructions, since the worker's
+  working directory is the worktree. Narrowing both is ADR-0019's follow-up, not this record's; what
+  belongs here is that the card never promised it.
+  `docs/specs/ui-check-on-demand.md` §8 states the whole of it for an operator.
 
 ## More Information
 
