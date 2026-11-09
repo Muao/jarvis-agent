@@ -123,7 +123,9 @@ describe('agent tools: role and input', () => {
 
     const identity = await call(http, 'log_note', token, { text: 'x', taskId: 'T-9' });
     const empty = await call(http, 'log_note', token, { text: '' });
-    const stage = await call(http, 'report_stage', token, { stage: 'Done' });
+    // A stage outside the enum. `Done` is in it now, and a build task's refusal of it is a
+    // domain decision (409), tested with the other transitions.
+    const stage = await call(http, 'report_stage', token, { stage: 'Shipped' });
 
     expect([identity.statusCode, empty.statusCode, stage.statusCode]).toEqual([400, 400, 400]);
     expect(identity.json()).toMatchObject({ code: 'validation_failed' });

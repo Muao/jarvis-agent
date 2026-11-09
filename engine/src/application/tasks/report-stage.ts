@@ -4,11 +4,17 @@ import type { TaskDeps } from './deps.js';
 import { loadWorkerTask } from './guards.js';
 
 export interface ReportStageInput {
-  readonly stage: 'Implementing' | 'Verifying' | 'Reviewing';
+  readonly stage: 'Implementing' | 'Verifying' | 'Reviewing' | 'Done';
   readonly note?: string;
 }
 
-/** The worker moves between Implementing, Verifying and Reviewing; repeating the current stage only adds a note. */
+/**
+ * The worker moves between Implementing, Verifying and Reviewing; repeating the current stage only
+ * adds a note. A `ui_check` task also closes itself with `Done` (ADR-0018): it never opens a pull
+ * request, so the watcher's `PR Open -> Done` never reaches it and this is its only way to finish.
+ * What is legal is decided by the task kind's transition table, not here — a `build` task asking
+ * for `Done` is refused with `illegal_transition`.
+ */
 export class ReportStage {
   constructor(private readonly deps: TaskDeps) {}
 

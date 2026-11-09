@@ -66,6 +66,31 @@ describe('ReportStage', () => {
       app.reportStage.execute(app.identity.worker(task), { stage: 'Verifying' }),
     ).rejects.toMatchObject({ code: 'illegal_transition' });
   });
+
+  // A ui_check task never opens a pull request, so the watcher's `PR Open -> Done` never reaches
+  // it. Without `Done` here it had no way at all to finish and sat in Reviewing for good — which
+  // is where T-4 on quick-blog PR #38 stayed after a passing check (ADR-0018).
+  it('lets a ui_check task close itself from Reviewing', async () => {
+    const app = buildTestApp();
+    const { task } = await app.seed.task({ stage: 'Reviewing', kind: 'ui_check', pr: PR });
+
+    await app.reportStage.execute(app.identity.worker(task), {
+      stage: 'Done',
+      note: 'verdict: pass',
+    });
+
+    expect(app.task(task.id).stage).toBe('Done');
+  });
+
+  it('refuses Done for a build task, whose pull request closes it instead', async () => {
+    const app = buildTestApp();
+    const { task } = await app.seed.task({ stage: 'Reviewing' });
+
+    await expect(
+      app.reportStage.execute(app.identity.worker(task), { stage: 'Done' }),
+    ).rejects.toMatchObject({ code: 'illegal_transition' });
+    expect(app.task(task.id).stage).toBe('Reviewing');
+  });
 });
 
 describe('ReportChecks', () => {
