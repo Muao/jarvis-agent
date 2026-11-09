@@ -179,7 +179,9 @@ from the message, the `Profile`, and the artifacts folder.
 for managing tasks and replying to the thread (ADR-0004).
 
 **DSP-04. Reply routing.** An `Owner` reply in a task's thread reaches that task's worker: into
-the current run if one is in progress, or into the next one.
+the current run if one is in progress, otherwise the reply starts the next run and arrives in its
+first message. The engine never leaves a reply waiting for a run nobody is going to ask for — a
+task parked in a stage with no watcher would hold it for good, and the owner would get silence.
 
 **DSP-05. Status on request.** On a "status" request, the dispatcher replies with the list of
 active tasks: the stage, what it is waiting for, a link to the PR.

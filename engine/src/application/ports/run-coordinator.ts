@@ -19,7 +19,7 @@ export interface RunCoordinator {
   requestDispatcherTurn(threadId: string): Promise<void>;
   /** Queue (or start) a worker run for the task. */
   requestWorkerRun(taskId: string, reason: WorkerRunReason): Promise<void>;
-  /** Hand queued owner input to the task's live worker; with no live worker leave it for the next run. */
+  /** Hand queued owner input to the task's live worker; with no live worker, start the next run. */
   deliverToWorker(taskId: string): Promise<void>;
   /** Stop the task's running process and drop its queued work (cancel, failure). */
   stopTaskRuns(taskId: string): Promise<void>;

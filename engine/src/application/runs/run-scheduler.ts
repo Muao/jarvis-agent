@@ -60,20 +60,23 @@ export class RunScheduler implements RunCoordinator {
 
   /** Start, resume and retry all mean "run this task when a slot is free"; the task's stage tells the worker which. */
   requestWorkerRun(taskId: string, reason: WorkerRunReason = 'start'): Promise<void> {
-    return this.exclusive(async () => {
-      if (this.positionOf(taskId) >= 0 || this.deps.liveRuns.workerOf(taskId)) return;
-      this.workerQueue.push({ taskId, reason, since: this.deps.clock.now() });
-      const result = await this.fill();
-      const position = this.positionOf(taskId);
-      if (position < 0) return;
-      const threadId = await this.threadOf(taskId);
-      if (threadId === null) return;
-      if (result !== 'idle') {
-        await this.noticeNotStarted(result, threadId, taskId);
-      } else {
-        await this.postSystem(threadId, taskId, `Queued — position ${position + 1}`);
-      }
-    });
+    return this.exclusive(() => this.enqueueWorker(taskId, reason));
+  }
+
+  /** The body of `requestWorkerRun`, for callers that already hold the lock. */
+  private async enqueueWorker(taskId: string, reason: WorkerRunReason): Promise<void> {
+    if (this.positionOf(taskId) >= 0 || this.deps.liveRuns.workerOf(taskId)) return;
+    this.workerQueue.push({ taskId, reason, since: this.deps.clock.now() });
+    const result = await this.fill();
+    const position = this.positionOf(taskId);
+    if (position < 0) return;
+    const threadId = await this.threadOf(taskId);
+    if (threadId === null) return;
+    if (result !== 'idle') {
+      await this.noticeNotStarted(result, threadId, taskId);
+    } else {
+      await this.postSystem(threadId, taskId, `Queued — position ${position + 1}`);
+    }
   }
 
   /** Start whatever fits now. Called after a run exits and by the timer that watches the budget. */
@@ -83,10 +86,20 @@ export class RunScheduler implements RunCoordinator {
     });
   }
 
+  /**
+   * DSP-04: an owner reply reaches the task's worker, in the current run or the next one. When
+   * nothing is running there is no next run unless one is asked for — a task parked in a stage
+   * nobody is watching would hold the message for good, and the owner would get silence back.
+   * So input with no live worker starts a run, which reads it on the way in (`StartRun.worker`).
+   */
   deliverToWorker(taskId: string): Promise<void> {
     return this.exclusive(async () => {
       const live = this.deps.liveRuns.workerOf(taskId);
-      if (live?.handle == null) return;
+      if (live?.handle == null) {
+        const waiting = await this.deps.uow.run((tx) => tx.messages.queuedWorkerInput(taskId));
+        if (waiting.length > 0) await this.enqueueWorker(taskId, 'resume');
+        return;
+      }
       const { handle } = live;
       await transact(this.tx(), async (tx, outbox) => {
         for (const message of await tx.messages.queuedWorkerInput(taskId)) {

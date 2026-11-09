@@ -101,9 +101,8 @@ describe('first message of a worker run ("Run context")', () => {
     await a.runner.forTask(taskId)?.succeed();
 
     a.profile.text = 'Be brief.';
+    // With no worker live the message starts the run that will read it.
     const posted = await a.postOwnerMessage.execute({ threadId: thread.id, text: 'use port 4000' });
-    expect(a.message(posted.messageId).body).toMatchObject({ delivery: 'queued' });
-    await a.scheduler.requestWorkerRun(taskId);
 
     const second = a.runner.processes[1]?.spec.firstMessage;
     expect(second).toContain('Be brief.');
@@ -321,14 +320,33 @@ describe('owner input to a live worker (DSP-04, ADM-06)', () => {
     expect(a.owner.updates.at(-1)?.id).toBe(posted.messageId);
   });
 
-  it('leaves it queued when no worker is live', async () => {
+  // DSP-04 promises the reply reaches the worker "in the next run", but for a task parked in a
+  // stage nobody watches there is no next run: the message used to wait for ever and the owner got
+  // silence (T-4 sat in Reviewing while an owner message went undelivered). The input starts one.
+  it('starts a run for the task when no worker is live, and delivers it there', async () => {
     const a = app();
     const { taskId, thread } = await createTaskInNewThread(a);
     await a.runner.forTask(taskId)?.succeed();
+    expect(a.runner.processes).toHaveLength(1);
 
     const posted = await a.postOwnerMessage.execute({ threadId: thread.id, text: 'later' });
 
-    expect(a.message(posted.messageId).body).toMatchObject({ delivery: 'queued' });
+    // The run reads it on the way in, so it arrives in the first message, not through `send`.
+    expect(a.runner.processes).toHaveLength(2);
+    expect(a.runner.processes[1]?.spec.taskId).toBe(taskId);
+    expect(a.runner.processes[1]?.spec.firstMessage).toContain('- later');
+    expect(a.message(posted.messageId).body).toMatchObject({ delivery: 'delivered' });
+  });
+
+  it('starts nothing when there is no owner input waiting', async () => {
+    const a = app();
+    const { taskId } = await createTaskInNewThread(a);
+    await a.runner.forTask(taskId)?.succeed();
+    const runs = a.runner.processes.length;
+
+    await a.scheduler.deliverToWorker(taskId);
+
+    expect(a.runner.processes).toHaveLength(runs);
   });
 
   it('sends a console message to the session of the task', async () => {
@@ -347,7 +365,10 @@ describe('owner input to a live worker (DSP-04, ADM-06)', () => {
     );
 
     await a.runner.forTask(taskId)?.succeed();
-    await expect(a.sendToSession.execute(sessionId, 'and again')).resolves.toBe('queued');
+    // No live run: the message starts one rather than waiting for a run nobody would ask for,
+    // and the new run reads it from its first message.
+    await expect(a.sendToSession.execute(sessionId, 'and again')).resolves.toBe('delivered');
+    expect(a.runner.processes[1]?.spec.firstMessage).toContain('- and again');
   });
 
   it('refuses a console message for a finished task or an unknown session', async () => {
