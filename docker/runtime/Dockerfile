@@ -18,11 +18,18 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends infisical \
  && rm -rf /var/lib/apt/lists/*
 
-# ADR-0022: Chromium plus its system libraries for the UI check's Playwright MCP. Installed as root,
+# ADR-0014: Chromium plus its system libraries for the UI check's Playwright MCP. Installed as root,
 # into a shared path both root and jarvis can read, so the MCP server (a grandchild of the engine)
 # finds a browser without downloading one per run. Adds roughly 400 MB to the image.
+#
+# The version is not free to choose: a browser build is keyed to a Playwright revision, and the MCP
+# server pinned in run-files.ts (@playwright/mcp@0.0.84) ships playwright 1.65.0-alpha-2026-10-30,
+# which looks for chromium 1252. Installing any other release leaves the image with a browser the
+# MCP will not launch ("Executable doesn't exist at /ms-playwright/chromium_headless_shell-<rev>").
+# Keep PLAYWRIGHT_VERSION equal to that dependency; run-files.test.ts fails if the two drift.
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN npx --yes playwright@1.64.1 install --with-deps chromium \
+ARG PLAYWRIGHT_VERSION=1.65.0-alpha-2026-10-30
+RUN npx --yes playwright@${PLAYWRIGHT_VERSION} install --with-deps chromium \
  && chmod -R a+rX /ms-playwright \
  && rm -rf /var/lib/apt/lists/* /root/.npm
 

@@ -24,13 +24,20 @@ function ownToolRules(role: Role): string[] {
 const unique = (items: readonly string[]): string[] => [...new Set(items)];
 
 /** ADR-0014: pinned, because `@latest` in an agent runtime makes a run non-reproducible. */
-const PLAYWRIGHT_MCP = '@playwright/mcp@0.0.84';
+export const PLAYWRIGHT_MCP = '@playwright/mcp@0.0.84';
+
+/**
+ * The Playwright release `PLAYWRIGHT_MCP` depends on. A browser build belongs to one revision, so
+ * the runtime image must install chromium from this exact release or the MCP server cannot launch
+ * the browser it finds. `docker/runtime/Dockerfile` installs it; a test holds the two together.
+ */
+export const PLAYWRIGHT_BROWSER_VERSION = '1.65.0-alpha-2026-10-30';
 
 /**
  * ADR-0014: what the `ui-tester` subagent may do in the browser. Everything that drives the UI
  * the way a person would, plus what it needs to read console and network.
  */
-const BROWSER_TOOLS = [
+export const BROWSER_TOOLS = [
   'browser_navigate',
   'browser_navigate_back',
   'browser_snapshot',
@@ -53,24 +60,34 @@ const BROWSER_TOOLS = [
   'browser_tabs',
   'browser_close',
   'browser_emulate_media',
-] as const;
-
-/**
- * Arbitrary page JavaScript and uploads from the file system. A UI check does not need either,
- * and `browser_evaluate` would let the agent "prove" a click by calling the handler directly.
- */
-const BROWSER_DENIED_TOOLS = [
-  'browser_evaluate',
-  'browser_run_code_unsafe',
+  // Picking a file is something a person does in a form. Denying it did not make the check safer,
+  // it made it shallower: a cover image, an avatar or an import is simply unreachable, and the
+  // worker ends up recreating the record through the API, which proves nothing about the form
+  // (T-6 on quick-blog PR #38, 2026-11-09).
   'browser_file_upload',
 ] as const;
 
-const playwrightToolName = (tool: string): string => `mcp__playwright__${tool}`;
+/**
+ * Arbitrary page JavaScript, and only that. Both of these let the agent reach past the interface
+ * and satisfy a scenario without the interface working — calling a click handler directly proves
+ * nothing about the button. Everything a person can do with a mouse and a keyboard, including
+ * choosing a file, stays allowed: the line is "did the user interface do it", not "is the tool
+ * powerful".
+ */
+export const BROWSER_DENIED_TOOLS = ['browser_evaluate', 'browser_run_code_unsafe'] as const;
+
+export const playwrightToolName = (tool: string): string => `mcp__playwright__${tool}`;
 
 /** The Playwright MCP server for one worker run: headless, profile-less, pinned to the dev server. */
 export function playwrightServer(ctx: RunContext, screenshotsDir: string): Json {
   const { ui } = ctx.config;
-  const origin = new URL(ui.baseUrl).origin;
+  // The app's own origin plus whatever else the owner declared it talks to (an API on another
+  // port). Playwright MCP takes one **semicolon**-separated list: joined with commas it reads the
+  // whole string as a single origin, which matches nothing and blocks even `baseUrl`.
+  const origins = unique([
+    new URL(ui.baseUrl).origin,
+    ...ui.allowedOrigins.map((value) => new URL(value).origin),
+  ]).join(';');
   return {
     command: 'npx',
     args: [
@@ -86,7 +103,7 @@ export function playwrightServer(ctx: RunContext, screenshotsDir: string): Json 
       screenshotsDir,
       // A brake, not a boundary: Playwright MCP says so itself, and it does not cover redirects.
       '--allowed-origins',
-      origin,
+      origins,
       '--console-level',
       'error',
       '--idle-timeout',
