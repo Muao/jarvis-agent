@@ -101,8 +101,31 @@ export const JarvisConfigSchema = z.strictObject({
       maxImageMb: positiveNumber(5),
       /** ADR-0014: false leaves screenshot file names in the PR instead of inline images. */
       attachToPr: z.boolean().default(true),
+      /**
+       * ADR-0018: true posts and replaces PR comments without a permission card. Off by default,
+       * and deliberately so — the card is the only gate on what a run writes on a pull request,
+       * and since there is no per-task comment count it is also the only brake on how much. Turn
+       * it on only for a repository where an unwanted comment costs nothing to delete.
+       */
+      autoApproveComments: z.boolean().default(false),
       /** Chromium cannot use user namespaces inside the runtime container (ADR-0016). */
       noSandbox: z.boolean().default(false),
+      /**
+       * Origins the check's browser may talk to besides `baseUrl`. An application with a back end
+       * is more than one origin — the page is served from one port and calls an API on another —
+       * and Playwright MCP blocks every origin it was not given, so without this the API call
+       * fails as `ERR_BLOCKED_BY_CLIENT` and every scenario behind a login dies with it.
+       * A brake, not a boundary: it does not cover redirects (ADR-0014).
+       */
+      allowedOrigins: z.array(z.string().url()).default([]),
+      /**
+       * Extra environment for `devCommand`. The dev server otherwise inherits only a short list
+       * (`PATH`, `HOME`, `LANG`, `LC_ALL`, `TERM`, `TMPDIR`, `SHELL`, `USER`), so the engine's
+       * credentials never reach a pull request's build scripts. A value of exactly `${NAME}`
+       * passes that variable through from the engine on purpose; write secrets that way rather
+       * than into this file (ADR-0015).
+       */
+      env: z.record(z.string().min(1), z.string()).default({}),
       /** A diff touching none of these globs is not a UI change. */
       paths: z
         .array(z.string().min(1))

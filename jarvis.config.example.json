@@ -52,6 +52,7 @@
     "maxScreenshots": 12,
     "maxImageMb": 5,
     "attachToPr": true,
+    "autoApproveComments": false,
     "noSandbox": false,
     "paths": [
       "**/*.tsx",

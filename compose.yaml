@@ -35,6 +35,11 @@ services:
       DATABASE_URL: postgres://jarvis:${POSTGRES_PASSWORD:?set in Infisical or ~/.jarvis/.env (ADR-0015)}@postgres:5432/jarvis
       JARVIS_INSIDE_CONTAINER: '1'
       JARVIS_LISTEN_HOST: 0.0.0.0 # inside the container; the published port below is loopback only
+      # ADR-0015's local fallback for the laptop, where there is no Infisical CLI. Without it the
+      # engine has no GitHub credentials at all: it then refuses to read a pull request, and the UI
+      # check's untrusted-head gate turns down `start_dev_server` before a browser ever opens.
+      # Infisical, when configured below, supplies the same variable and wins.
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       # Infisical (ADR-0015): set these three in the shell (or ~/.jarvis/.env, loaded by `pnpm dev`'s
       # own shell, not this container) to inject secrets; unset -> with-secrets.sh falls back to
       # ~/.jarvis/.env inside the container, unchanged from before.
