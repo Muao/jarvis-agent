@@ -23,7 +23,7 @@ export const toolDescriptions: Readonly<Record<ToolName, string>> = {
     'Apply a partial update to jarvis.config.json, when the owner asks for it in chat. The patch is merged into the current config and validated the same way a manual edit is; an invalid patch is rejected with the reason, nothing is written. `repo.path`, `repo.remote`, `repo.baseBranch`, `repos.allow`, `repos.allowOwnerRepos`, `engine.port`, `engine.claudeBinary`, `ui.devCommand`, `ui.noSandbox`, `ui.paths` and `allowlist.githubReviewers` can never be changed this way; tell the owner to edit the file themselves for those. Returns the resulting config.',
 
   report_stage:
-    'Report the stage you are entering: Implementing, Verifying or Reviewing. Call it whenever the stage changes so the owner sees progress. Returns {"ok": true}.',
+    'Report the stage you are entering: Implementing, Verifying, Reviewing, or Done. Call it whenever the stage changes so the owner sees progress. `Done` closes the task and only a UI-check task may use it — it never opens a pull request, so nothing else would ever close it; for a task that does open one, the engine closes it when the pull request is done and `Done` here is refused. Returns {"ok": true}.',
   ask_owner:
     "Ask the owner a question and wait for the answer; optionally offer answer options. Use it when you are blocked or a decision is theirs. Returns the owner's answer.",
   submit_spec_for_approval:
@@ -45,7 +45,7 @@ export const toolDescriptions: Readonly<Record<ToolName, string>> = {
     'Upload one screenshot and get the markdown to paste into the PR body. `path` is relative to your artifactsDir (for example "screenshots/001-task-card.png") and may not leave it; `alt` is the caption. Returns {"ok": true, "url", "markdown"}, or {"ok": false, "reason"} — on a refusal put the file name as plain text in the PR, never a markdown image that would render broken.',
 
   comment_on_pr:
-    'Post one comment on the task\'s pull request — the UI-check report, for example. The owner is asked first: a permission card appears in the thread and this waits for their answer, so nothing reaches GitHub unapproved. Returns {"ok": true, "url"} when posted, or {"ok": false, "reason"} when the owner declined, the task has no PR, a comment was already posted, or GitHub refused; on a refusal keep the report in the thread and do not retry.',
+    'Comment on the task\'s pull request — the UI-check report, for example. The owner is asked first: a permission card appears in the thread and this waits for their answer, so nothing reaches GitHub unapproved, and every call asks again. Pass `commentId` to replace one of your earlier comments instead of adding another — that is how you correct a verdict you already published, rather than leaving the stale one above the new one; the id comes from the `url` of the comment you posted (the number after `#issuecomment-`), and only this task\'s own comments can be replaced. Returns {"ok": true, "url"} when written, or {"ok": false, "reason"} when the owner declined, the task has no PR, the id is not yours, or GitHub refused; on a refusal keep the report in the thread and do not retry.',
   approve:
     'Permission prompt tool for the Claude CLI: decides whether a tool use is allowed by asking the owner. Not meant to be called by the model.',
 };

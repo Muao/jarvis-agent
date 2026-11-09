@@ -121,6 +121,7 @@ const unconfiguredCodeHost: CodeHost = {
   uploadAttachment: () => Promise.resolve({ ok: false, reason: notConfigured().message }),
   describePullRequest: () => Promise.reject(notConfigured()),
   postComment: () => Promise.resolve({ ok: false, reason: notConfigured().message }),
+  editComment: () => Promise.resolve({ ok: false, reason: notConfigured().message }),
 };
 
 function notConfigured(): CodeHostError {

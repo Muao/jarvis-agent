@@ -2,7 +2,7 @@ import { JarvisConfigSchema } from '@jarvis/shared';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp, createTaskInNewThread, type TestApp } from '../testing/index.js';
 import { HEAD_APPROVED, HEAD_REFUSED } from './trust-pull-request-head.js';
-import { FAILED, POSTED, REFUSED } from './comment-on-pr.js';
+import { EDITED, FAILED, POSTED, REFUSED } from './comment-on-pr.js';
 
 const REPO = { owner: 'burnjohn', name: 'jarvis-sandbox' };
 const PR = { number: 41, url: 'https://github.com/burnjohn/jarvis-sandbox/pull/41' };
@@ -32,6 +32,16 @@ async function firstCard(app: TestApp, threadId: string) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
   throw new Error('no permission card appeared');
+}
+
+/** Wait for the card after the first `had` of them, for the second and later asks. */
+async function cardAfter(app: TestApp, threadId: string, had: number) {
+  for (let i = 0; i < 100; i += 1) {
+    const found = cards(app, threadId)[had];
+    if (found !== undefined) return found;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error(`no card appeared after ${String(had)}`);
 }
 
 const permissionIdOf = (card: { body: Record<string, unknown> }): string =>
@@ -230,22 +240,90 @@ describe('comment_on_pr (ADR-0018)', () => {
     expect(journalOf(app, task.id)).toContain(REFUSED);
   });
 
-  it('posts at most one comment per task (AC-50)', async () => {
+  // A first comment used to spend the task's only one, so a check that reported `inconclusive`
+  // because its environment was broken could never publish the verdict it reached afterwards
+  // (T-4 on quick-blog PR #38). Every write asks the owner, so the card is the limit (AC-50).
+  it('posts a second comment when the owner approves it again (AC-50)', async () => {
     const app = buildTestApp();
     enable(app);
     const { task, thread } = await checking(app);
 
-    const pending = app.commentOnPr.execute(app.identity.worker(task), { body });
+    const first = app.commentOnPr.execute(app.identity.worker(task), { body });
     await app.answerPermission.execute(permissionIdOf(await firstCard(app, thread.id)), 'allow');
-    await pending;
+    await first;
 
-    const second = await app.commentOnPr.execute(app.identity.worker(task), { body: 'more' });
+    const second = app.commentOnPr.execute(app.identity.worker(task), { body: 'more' });
+    const card = await cardAfter(app, thread.id, 1);
+    await app.answerPermission.execute(permissionIdOf(card), 'allow');
 
-    expect(second).toMatchObject({ ok: false });
-    if (second.ok) throw new Error('expected a refusal');
-    expect(second.reason).toContain('already posted');
+    await expect(second).resolves.toMatchObject({ ok: true });
+    expect(app.codeHost.comments.map((c) => c.body)).toEqual([body, 'more']);
+  });
+
+  it('replaces its own comment when given the id, and asks first (AC-50a)', async () => {
+    const app = buildTestApp();
+    enable(app);
+    const { task, thread } = await checking(app);
+
+    const first = app.commentOnPr.execute(app.identity.worker(task), { body });
+    await app.answerPermission.execute(permissionIdOf(await firstCard(app, thread.id)), 'allow');
+    await first;
+
+    const edit = app.commentOnPr.execute(app.identity.worker(task), {
+      body: 'verdict: pass',
+      commentId: 1,
+    });
+    const card = await cardAfter(app, thread.id, 1);
+    expect(card?.body.input).toMatchObject({ replaces: 1 });
+    await app.answerPermission.execute(permissionIdOf(card), 'allow');
+
+    await expect(edit).resolves.toMatchObject({ ok: true });
+    expect(app.codeHost.edits).toEqual([
+      { commentId: 1, body: 'verdict: pass', repo: `${REPO.owner}/${REPO.name}` },
+    ]);
+    // The replacement adds no second comment to the pull request.
     expect(app.codeHost.comments).toHaveLength(1);
-    expect(cards(app, thread.id)).toHaveLength(1);
+    expect(journalOf(app, task.id)).toContain(EDITED);
+  });
+
+  it('refuses to edit a comment the task did not post, without asking the owner (AC-50a)', async () => {
+    const app = buildTestApp();
+    enable(app);
+    const { task, thread } = await checking(app);
+
+    const result = await app.commentOnPr.execute(app.identity.worker(task), {
+      body: 'rewriting someone else',
+      commentId: 999,
+    });
+
+    expect(result).toMatchObject({ ok: false });
+    if (result.ok) throw new Error('expected a refusal');
+    expect(result.reason).toContain('not posted by task');
+    expect(app.codeHost.edits).toHaveLength(0);
+    expect(cards(app, thread.id)).toHaveLength(0);
+  });
+
+  it('posts without a card when the owner turned the asking off, and journals that it did (AC-50b)', async () => {
+    const app = buildTestApp();
+    app.config.set(
+      JarvisConfigSchema.parse({
+        repo: { path: '/jarvis/repo' },
+        ui: { enabled: true, autoApproveComments: true },
+        allowlist: { githubReviewers: ['burnjohn'] },
+      }),
+    );
+    const { task, thread } = await checking(app);
+
+    await expect(
+      app.commentOnPr.execute(app.identity.worker(task), { body }),
+    ).resolves.toMatchObject({ ok: true });
+
+    expect(cards(app, thread.id)).toHaveLength(0);
+    expect(app.codeHost.comments).toHaveLength(1);
+    // The card is gone, so the journal is the only record that a run wrote on the PR.
+    expect(
+      app.db.tables.journal.filter((e) => e.type === POSTED).map((e) => e.data),
+    ).toContainEqual(expect.objectContaining({ asked: false }));
   });
 
   it('refuses a task with no pull request, without asking the owner (AC-51)', async () => {

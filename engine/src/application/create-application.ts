@@ -255,6 +255,7 @@ export function createApplication(ports: ApplicationPorts): Application {
     attachImage: new AttachImage({ ...deps, config, artifacts, codeHost: ports.codeHost }),
     commentOnPr: new CommentOnPr({
       ...deps,
+      config,
       codeHost: ports.codeHost,
       permissions: { request: requestPermission, await: awaitPermission },
     }),

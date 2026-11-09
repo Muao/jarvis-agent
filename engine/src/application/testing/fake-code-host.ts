@@ -41,10 +41,17 @@ export class FakeCodeHost implements CodeHost {
     readonly body: string;
     readonly repo: string | null;
   }[] = [];
-  /** What `postComment` answers; the default pretends GitHub accepted it. */
+  /** Every comment the engine rewrote, in order (ADR-0018). */
+  readonly edits: {
+    readonly commentId: number;
+    readonly body: string;
+    readonly repo: string | null;
+  }[] = [];
+  /** What `postComment` and `editComment` answer; the default pretends GitHub accepted it. */
   commentResult: CommentResult = {
     ok: true,
     url: 'https://github.com/o/r/pull/41#issuecomment-1',
+    id: 1,
   };
   private readonly snapshots = new Map<string, PullRequestSnapshot | Error>();
   private readonly descriptions = new Map<string, PullRequestDescription | Error>();
@@ -107,6 +114,11 @@ export class FakeCodeHost implements CodeHost {
 
   async postComment(prNumber: number, body: string, repo?: RepoTarget): Promise<CommentResult> {
     this.comments.push({ prNumber, body, repo: slug(repo) });
+    return this.commentResult;
+  }
+
+  async editComment(commentId: number, body: string, repo?: RepoTarget): Promise<CommentResult> {
+    this.edits.push({ commentId, body, repo: slug(repo) });
     return this.commentResult;
   }
 

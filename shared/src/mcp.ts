@@ -45,8 +45,13 @@ export const toolInputSchemas = {
    */
   update_config: z.strictObject({ patch: z.record(z.string(), z.unknown()) }),
 
+  /**
+   * The stage the worker is entering. `Done` is only reachable where the task kind's transition
+   * table allows it — a `ui_check` task closes itself from `Reviewing` (ADR-0018), while a `build`
+   * task reaches `Done` through the PR watcher and is refused here.
+   */
   report_stage: z.strictObject({
-    stage: z.enum(['Implementing', 'Verifying', 'Reviewing']),
+    stage: z.enum(['Implementing', 'Verifying', 'Reviewing', 'Done']),
     note: z.string().min(1).optional(),
   }),
   ask_owner: z.strictObject({
@@ -78,10 +83,15 @@ export const toolInputSchemas = {
    * model, so unknown extra fields are dropped instead of rejected.
    */
   /**
-   * ADR-0018: one comment on the task's pull request, posted only after the owner approves it in
-   * the thread. The body is the whole comment, markdown included.
+   * ADR-0018: a comment on the task's pull request, posted only after the owner approves it in the
+   * thread. The body is the whole comment, markdown included. With `commentId` the body replaces
+   * that comment instead of adding another — only a comment this task posted itself, so a stale
+   * verdict can be corrected without leaving two reports for a reader to reconcile.
    */
-  comment_on_pr: z.strictObject({ body: z.string().min(1) }),
+  comment_on_pr: z.strictObject({
+    body: z.string().min(1),
+    commentId: z.number().int().positive().optional(),
+  }),
 
   approve: z.object({
     tool_name: z.string().min(1),

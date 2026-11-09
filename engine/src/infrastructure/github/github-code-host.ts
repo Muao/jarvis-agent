@@ -164,13 +164,32 @@ export class GitHubCodeHost implements CodeHost, ConnectionChecker {
         issue_number: prNumber,
         body,
       });
-      return { ok: true, url: data.html_url };
+      return { ok: true, url: data.html_url, id: data.id };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const status = statusOf(error);
       return {
         ok: false,
         reason: `GitHub refused the comment on ${where.owner}/${where.repo}#${prNumber}${status === undefined ? '' : ` (${String(status)})`}: ${this.redact(message)}`,
+      };
+    }
+  }
+
+  async editComment(commentId: number, body: string, target?: RepoTarget): Promise<CommentResult> {
+    const where = this.where(target);
+    try {
+      const { data } = await this.octokit.issues.updateComment({
+        ...where,
+        comment_id: commentId,
+        body,
+      });
+      return { ok: true, url: data.html_url, id: data.id };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const status = statusOf(error);
+      return {
+        ok: false,
+        reason: `GitHub refused the edit of comment ${String(commentId)} on ${where.owner}/${where.repo}${status === undefined ? '' : ` (${String(status)})`}: ${this.redact(message)}`,
       };
     }
   }

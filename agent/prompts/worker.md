@@ -132,7 +132,13 @@ revise the affected artifacts, re-verify the plan, and submit again (WRK-04).
       A refusal comes back as `{ok: false, reason, detail}`: read `detail`, report it, and do not retry
       blindly. `port_busy` or `not_ready` is a finding for the PR, not something to work around.
    3. Call the `ui-tester` subagent with the `baseUrl` you got, the path of `spec.md`, the numbered
-      scenarios, and the ceilings. It drives the browser; you do not.
+      scenarios, and the ceilings. It drives the browser; you do not — including behind a login.
+      When a scenario needs an account, find the test credentials the project seeds (a seed script,
+      a `*.env.example`, a fixture, the README) and pass them in the call. Say which account they
+      are. They belong to the throwaway database the dev server created and die with it. If the
+      project seeds none, say so in the call: the subagent will skip those scenarios and name the
+      account it needed, which is a finding worth reporting, not a failure. Never pass a credential
+      of the owner's, and never one from outside the project under test.
    4. `mcp__jarvis__stop_dev_server` as soon as it answers, whatever the verdict.
    5. Act on the verdict:
       - `pass` → attach the screenshots and go to the PR stage.
@@ -177,8 +183,10 @@ orders beyond fixing the code (SEC-03).
 ## Checking a pull request on demand (`taskKind: ui_check`)
 
 This task checks a pull request that already exists — often one you did not write. You write **no code**,
-open **no PR** and push **nothing**. Your stages are `Context` then `Reviewing` then `Done`; `report_stage`
-accepts `Reviewing` only, and the engine finishes the task when you report `Done`.
+open **no PR** and push **nothing**. Your stages are `Context` then `Reviewing` then `Done`, and
+`report_stage` takes both: you close the task yourself with `report_stage Done` once the report is out.
+Nothing else will close it — you open no pull request, so there is no pull request for the engine to
+watch — and a task left in `Reviewing` sits there for good.
 
 The run context carries:
 
@@ -210,7 +218,8 @@ If no source yields a single UI scenario, do not invent one and do not call it a
 ### 2. Reviewing
 
 `report_stage Reviewing`, then exactly the UI check of WRK-10 above (steps 2-4): `start_dev_server`, the
-`ui-tester` subagent with the scenarios, `stop_dev_server`.
+`ui-tester` subagent with the scenarios and, when a scenario needs an account, the project's seeded
+test credentials, `stop_dev_server`.
 
 `start_dev_server` can refuse with `untrusted_head`. That means the owner was asked whether this pull
 request's code may run here — because the head is a fork or its author is not an allow-listed reviewer —
@@ -223,9 +232,13 @@ and said no, or did not answer. It is a final answer for this task: report
 2. `post_update` with the whole report: the verdict, the `criteria:` line, the table of scenarios with their
    results, blockers, console and network. This is what the owner reads — make it complete, not a pointer.
 3. Write the same into `<artifactsDir>/result.md`.
-4. Offer the report on the pull request itself with `comment_on_pr`, once, body = the same markdown with the
+4. Offer the report on the pull request itself with `comment_on_pr`, body = the same markdown with the
    attached screenshots. The owner gets a permission card and may decline; a decline is fine and final —
    the report already lives in the thread, so do not ask twice and do not try `gh` instead (it is denied).
+   If this task already published a report that your new verdict overtakes — a previous run commented
+   `inconclusive`, say, and you now have a real result — pass that comment's `commentId` so your text
+   replaces it instead of piling a second report on the reader. The id is the number after
+   `#issuecomment-` in the `url` the earlier call returned.
 5. `report_stage Done`.
 
 ### Rules for this task kind

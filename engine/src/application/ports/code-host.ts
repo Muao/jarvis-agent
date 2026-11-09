@@ -31,7 +31,8 @@ export type AttachmentResult =
  * otherwise worked. So it answers with a value, exactly as `uploadAttachment` does.
  */
 export type CommentResult =
-  { readonly ok: true; readonly url: string } | { readonly ok: false; readonly reason: string };
+  | { readonly ok: true; readonly url: string; readonly id: number }
+  | { readonly ok: false; readonly reason: string };
 
 /**
  * ADR-0018: who wrote a pull request, where its head lives and what it says about itself. The
@@ -72,8 +73,14 @@ export interface CodeHost {
    */
   describePullRequest(prNumber: number, repo?: RepoTarget): Promise<PullRequestDescription>;
   /**
-   * ADR-0018: one comment on a PR. Only ever called after the owner approved it; the agent has no
-   * path to this that does not go through a permission card.
+   * ADR-0018: a comment on a PR. Only ever called after the owner approved it; the agent has no
+   * path to this that does not go through a permission card. The `id` comes back so a later run
+   * can replace what it wrote.
    */
   postComment(prNumber: number, body: string, repo?: RepoTarget): Promise<CommentResult>;
+  /**
+   * ADR-0018: replace the text of a comment Jarvis posted earlier, behind the same card. The
+   * caller checks that the comment belongs to the task before asking; this only does the write.
+   */
+  editComment(commentId: number, body: string, repo?: RepoTarget): Promise<CommentResult>;
 }

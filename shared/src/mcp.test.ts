@@ -72,7 +72,11 @@ describe('tool input schemas', () => {
 
   it('validates task targets and stages', () => {
     expect(toolInputSchemas.cancel_task.safeParse({ task: '12' }).success).toBe(false);
-    expect(toolInputSchemas.report_stage.safeParse({ stage: 'Done' }).success).toBe(false);
+    expect(toolInputSchemas.report_stage.safeParse({ stage: 'Shipped' }).success).toBe(false);
+    // `Done` is in the enum so a ui_check task can close itself (ADR-0018); whether a given task
+    // may use it is the transition table's call, not the schema's.
+    expect(toolInputSchemas.report_stage.safeParse({ stage: 'Done' }).success).toBe(true);
+    expect(toolInputSchemas.report_stage.safeParse({ stage: 'Spec Review' }).success).toBe(false);
   });
 });
 
