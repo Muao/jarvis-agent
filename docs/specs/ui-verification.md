@@ -199,12 +199,19 @@ Why exactly this:
 `browser_click`, `browser_type`, `browser_fill_form`, `browser_press_key`, `browser_hover`,
 `browser_select_option`, `browser_drag`, `browser_drop`, `browser_find`, `browser_wait_for`,
 `browser_resize`, `browser_console_messages`, `browser_network_requests`, `browser_network_request`,
-`browser_handle_dialog`, `browser_tabs`, `browser_close`, `browser_emulate_media`.
+`browser_handle_dialog`, `browser_tabs`, `browser_close`, `browser_emulate_media`,
+`browser_file_upload`.
 
-In `deny` — `browser_evaluate`, `browser_run_code_unsafe`, `browser_file_upload`. The first two are
-arbitrary code in the page: UI verification does not need it, and the ability to bypass the UI and
-"prove" success via `document.querySelector(...).click()` is outright harmful. The third opens the
-file system through the browser.
+In `deny` — `browser_evaluate` and `browser_run_code_unsafe`, and only those. Both are arbitrary
+code in the page: UI verification does not need it, and the ability to bypass the UI and "prove"
+success via `document.querySelector(...).click()` is outright harmful.
+
+`browser_file_upload` was in `deny` until 2026-11-09 because it opens the file system through the
+browser. It is allowed now: choosing a file is something a person does in a form, and without it any
+scenario with a cover image, an avatar or an import is unreachable — a check of "create an article"
+degenerated into recreating the record through the API, which says nothing about the form. The test
+is **"did the user interface do it"**, not "is the tool powerful". `ui-tester` is told to upload only
+from the artifacts directory or the project under test.
 
 ### 5.5 The `ui-tester` subagent
 
@@ -402,8 +409,10 @@ lives. VPS provisioning (`docs/architecture/deployment.md`) gets the same step.
 - AC-5. If `ui.enabled` is `false`, then `uiCheck: disabled: ui.enabled is false`, and `mcp.json`
   has no `playwright` server.
 - AC-6. For the `dispatcher` role there is no `playwright` server in `mcp.json` under any settings.
-- AC-7. The worker run's `settings.json` contains the `browser_*` tools from 5.4 in `allow`, and `browser_evaluate`,
-  `browser_run_code_unsafe`, `browser_file_upload` in `deny`.
+- AC-7. The worker run's `settings.json` contains the `browser_*` tools from 5.4 in `allow` —
+  `browser_file_upload` among them — and `browser_evaluate` and `browser_run_code_unsafe` in `deny`.
+  The `ui-tester` front matter names the same allowed list, since a subagent's `tools` is a closed
+  allow-list and a tool missing there is invisible to it however the run's settings read.
 
 **Dev server**
 
@@ -456,9 +465,16 @@ lives. VPS provisioning (`docs/architecture/deployment.md`) gets the same step.
 
 ## 9. Edge cases
 
-- **The application requires a login.** `ui-tester` has nowhere to get a password from and must not look
-  for one. The scenario is marked `skipped — auth required`, and that goes into the PR's "Open questions".
-  Login via `--storage-state` is the next version, not this one.
+- **The application requires a login.** `ui-tester` logs in through the application's own form, with
+  test credentials the worker found in the project (a seed script, a `*.env.example`, a fixture) and
+  passed in the call. They belong to the throwaway database the dev server created and die with it.
+  Forbidding this was a mistake: most of an application lives behind its login, and the rule did not
+  prevent the login — it moved it to the worker, which drives a browser worse and has `Bash`
+  (2026-11-09). What stays forbidden: a credential of the owner's, one invented or reused from
+  elsewhere, and typing any credential into a page off `baseUrl`. With no test account in the project
+  the scenario is `skipped — no credentials given`, naming the account it needed, and that goes into
+  the PR's "Open questions". Persisting a session between runs (`--storage-state`) is still a later
+  version.
 - **The page writes errors to the console, but the scenario passes.** That is a `suggestion`, not a `blocker`, and it
   goes into the PR's "Console" section. Not every console error is a regression of this diff.
 - **A dev server with HMR dies mid-scenario.** `browser_navigate` returns an error → the scenario is `fail` with

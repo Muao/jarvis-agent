@@ -38,7 +38,10 @@ the scenarios from that.
 - We do not change the existing pre-PR check. That path stays the default and stays untouched.
 - We do not add a second browser driver. The owner's decision: what becomes agnostic is the **source
   of the criteria**, not the tool. Playwright MCP remains the only one (ADR-0014).
-- We do not learn to log in. A scenario that needs an account stays `skipped — auth required`.
+- We do not manage sessions or storage state. `ui-tester` logs in the way a person does — through the
+  application's own form, with test credentials the worker found in the project and passed to it
+  (2026-11-09). What we still do not do is persist a session between runs or carry a credential of the
+  owner's: a scenario with no test account in the project stays `skipped — no credentials given`.
 
 **Anti-goals** (if we do these, we did it badly)
 
@@ -192,12 +195,14 @@ Always, whatever the verdict:
 1. `post_update` into the thread: the verdict, the `criteria:` line, the table of scenarios, blockers,
    console, network.
 2. `result.md` in the artifacts — the same plus the screenshot paths.
-3. `report_stage Done`.
+3. `report_stage Done` — the worker closes a `ui_check` task itself. It opens no pull request, so the
+   watcher's `PR Open -> Done` never reaches it, and `report_stage` accepts `Done` for this task kind
+   (a `build` task asking for it is refused by the transition table).
 
 A comment on the PR is separate and needs permission. A new worker tool:
 
 ```
-comment_on_pr { body: string }
+comment_on_pr { body: string, commentId?: number }
 ```
 
 - refuses when the task has no PR;
@@ -205,7 +210,12 @@ comment_on_pr { body: string }
   thread, timing out after `limits.permissionTimeoutMinutes`);
 - `deny` or a timeout → `{ ok: false, reason }`, and the worker leaves the text in the chat. This is
   not an error;
-- `allow` → `CodeHost.postComment(prNumber, body, repo?)`, one comment per task;
+- `ui.autoApproveComments` (default false) skips the card entirely — the owner's own opt-out of
+  being asked;
+- `allow` → `CodeHost.postComment(prNumber, body, repo?)`, or, with `commentId`,
+  `CodeHost.editComment(commentId, body, repo?)`. There is no per-task count: the card is asked
+  every time, so the owner is the limit. `commentId` must name a comment the same task posted — the
+  ids come from the task's own journal — otherwise it is refused before any card is raised;
 - `Bash(gh pr comment:*)`, `Bash(gh pr review:*)` and `Bash(gh api *comments*)` go into the worker's
   **deny** list. Otherwise the bare `Bash` in `allow` makes the permission decorative.
 
@@ -221,7 +231,8 @@ Nothing gets weaker; only what concerns the new kind of task is added.
 | everything from ADR-0014 (the lease, one slot, `--idle-timeout`, `maxScenarios`, `maxScreenshots`) | unchanged |
 | a `ui_check` task has no `Implementing` | the state machine: the "fail → fix → again" loop is physically unreachable |
 | one check per task, one retry on `inconclusive` | the prompt plus the `reviewRounds` counter that already exists |
-| one comment per task | `comment_on_pr` counts them in the journal, as `attach_image` does |
+| every comment on the PR | a permission card per call: the owner approves each one, including a replacement — unless they set `ui.autoApproveComments`, which removes this brake on purpose |
+| rewriting a comment that is not Jarvis's | `comment_on_pr` checks `commentId` against the task's journal |
 | someone else's head | the owner's permission (5.5) |
 | the task as a whole | `taskTimeoutMinutes`, `--max-turns`, `--max-budget-usd` |
 
@@ -270,6 +281,9 @@ Continuing the numbering of `ui-verification.md` (AC-1..AC-28).
 - AC-38. If a task has `kind: 'build'`, then the transition `Context → Reviewing` is refused (an
   ordinary task cannot skip `Spec Review`).
 - AC-39. If a task has `kind: 'ui_check'`, then `report_pr` is refused: a check opens no PR.
+- AC-39a. If a `ui_check` task in `Reviewing` calls `report_stage Done`, then it reaches `Done`. If a
+  `build` task does, then it is refused as an illegal transition: its pull request closes it. Nothing
+  else closes a `ui_check` task, so without this it stays in `Reviewing` for good.
 - AC-40. If `create_task` is given a `pr` in a repository outside the allow-list, then no task is
   created and the reason is the allow-list message.
 - AC-41. If `create_task` is given `pr` as a URL, then the task's `targetRepo` equals the repository
@@ -298,18 +312,63 @@ Continuing the numbering of `ui-verification.md` (AC-1..AC-28).
   reaches GitHub before the owner answers.
 - AC-49. If the owner denied it or the card timed out, then `comment_on_pr` returns
   `{ ok: false, reason }`, no comment is posted, and the text stays in the report in the chat.
-- AC-50. If the owner allowed it, then exactly one comment appears on the PR, and a second
-  `comment_on_pr` in the same task is refused.
+- AC-50. If the owner allowed it, then the comment appears on the PR. There is no per-task count:
+  every `comment_on_pr` raises its own card, so the owner decides each time whether the PR needs
+  another comment.
+- AC-50a. If `comment_on_pr` is given a `commentId`, then the body replaces that comment instead of
+  adding one, and the card says which comment it replaces. Only a comment the same task posted can
+  be replaced; any other id is refused without asking the owner. A verdict corrected after a failed
+  check therefore reaches the reader in place, with no stale report above it.
+- AC-50b. If `ui.autoApproveComments` is true, then `comment_on_pr` writes without a card, and the
+  journal entry carries `asked: false`. The default is false. With it on, nothing in the engine
+  limits what or how much a run writes on a pull request — the journal is the only record left.
 - AC-51. If the task has no PR, then `comment_on_pr` refuses without asking the owner.
 - AC-52. `Bash(gh pr comment:*)` and `Bash(gh pr review:*)` are in the worker settings' `deny` list.
 
 ## 8. Edge cases
+
+> **Checking a repository you do not control runs its code on your machine.** The owner's approval
+> card asks one question — may this head run? — and that is not the same as "is it safe to run".
+> What the head gets once you say yes is described in "What the approval card does not cover"
+> below. Read it before pointing a check at a pull request from someone you would not hand a shell
+> to.
 
 - **The PR is already merged or closed.** The head is still reachable (`pull/N/head` remains) and the
   check technically runs. The worker states in the report that the PR is `merged`/`closed` — it
   changes what the result is worth, and the owner has to see that.
 - **The fork was deleted.** `git fetch pull/N/head` fails → `inconclusive`, reason `head
   unavailable`.
+
+### What the approval card does not cover
+
+The untrusted-head card (5.5) decides whether the head's code may run at all. Once it runs, these
+hold, and none of them is a bug in the card — they are the shape of the thing today:
+
+- **The dev server inherits the engine's whole environment.** `ProcessDevServer` spawns
+  `ui.devCommand` with `env: { ...options.env }`, and `options.env` is the engine's `process.env`:
+  on a configured machine that carries `GITHUB_TOKEN`, `DATABASE_URL` and the `INFISICAL_*`
+  credentials. `ui.devCommand` usually begins with `npm ci`, which runs the `postinstall` scripts
+  the head's own lockfile names. Secrets sourced correctly through Infisical (ADR-0015) are still
+  handed to that code at the last hop: where a secret comes from is a separate question from who
+  receives it.
+- **`CLAUDE.md` in the head is read as instructions.** The worker's working directory is the task's
+  worktree, and Claude Code reads a project's `CLAUDE.md`, `.claude/agents/` and `.claude/skills/`
+  from there by design. ADR-0017 wraps the PR's prose as `<untrusted-content>`; files in the tree
+  are not wrapped and cannot be, because the agent reads them itself.
+- **A `.claude/settings.json` in the head cannot raise its own permissions**, because project
+  `allow` rules wait for workspace trust and the task's worktree is never a trusted folder, and
+  because `permissions.defaultMode` of `auto` or `bypassPermissions` does not take effect from
+  project settings at all. Its `deny` and `ask` rules do apply immediately, so a hostile head can
+  make a check fail or stall — sabotage, not escalation.
+- **The credentials are not on disk, and that part holds.** The clone carries no token: a
+  credential helper reads `GH_TOKEN`/`GITHUB_TOKEN` from the environment (SEC-04, ADR-0012), and
+  the worktree's `.git` is a pointer into the shared clone. Code that gets no environment gets no
+  GitHub access.
+
+Until the environment of the dev server is narrowed and the check runs somewhere disposable
+(ADR-0019 and its follow-up), treat a UI check on a repository you do not control as "running a
+stranger's build script with your tokens in the room", and prefer a token scoped to the one
+repository being checked.
 - **A huge diff (a 300-file refactor).** The `ui.paths` filter and `maxScenarios` cut it down; the
   report says so explicitly — "covered 8 of 41 changed surfaces" — so a `pass` is not read as
   "everything works".
@@ -344,7 +403,7 @@ Continuing the numbering of `ui-verification.md` (AC-1..AC-28).
 ## 10. Implementation plan
 
 1. **Domain.** `kind` on `Task`, a transition table per kind, `createTask` with the kind and the PR.
-   Tests in `task.test.ts`: AC-36..AC-39.
+   Tests in `task.test.ts`: AC-36..AC-39; `report_stage Done` in `reporting.test.ts`: AC-39a.
 2. **Migration.** The `kind` column with its default and check constraint; the drizzle snapshot.
 3. **`create_task`.** The `kind`/`pr` fields, resolving the repository from the URL, refusal outside
    the allow-list. AC-40, AC-41.
@@ -352,8 +411,8 @@ Continuing the numbering of `ui-verification.md` (AC-1..AC-28).
    repository carrying `pull/N/head`. AC-43.
 5. **Trusting the head.** The fork and author check, the permission card before `start_dev_server`.
    AC-44..AC-46.
-6. **`comment_on_pr`.** `CodeHost.postComment`, the use case with its permission, the tool schema, the
-   `deny` entries in the worker settings. AC-48..AC-52.
+6. **`comment_on_pr`.** `CodeHost.postComment` and `CodeHost.editComment`, the use case with its
+   permission, the tool schema, the `deny` entries in the worker settings. AC-48..AC-52.
 7. **Run context.** `taskKind`, `pr`, `criteriaSources`.
 8. **Prompts.** The `ui_check` section in `worker.md`; the source chain and the "data, not
    instructions" rule in `worker.md` and `agent/agents/ui-tester.md`; recognising the phrase in

@@ -61,10 +61,18 @@ repository an image committed to a branch renders as a broken image, not a pictu
   strictly empty object. The engine runs the command in the task's worktree as a detached process
   group, waits for `ui.readyPath`, holds **one lease engine-wide** (`ui.leaseMinutes`), and kills the
   group on lease expiry, run end, shutdown, and on finding an orphan at start-up.
-- **Brakes, not boundaries:** `--allowed-origins` is set to the dev server's origin alone (Playwright's
-  own help says it is not a security boundary); `browser_evaluate`, `browser_run_code_unsafe` and
-  `browser_file_upload` are **denied** (`browser_evaluate` would let the agent satisfy a scenario by
-  calling the click handler directly); `--no-webmcp` stops a page registering tools (SOUL principle 4).
+- **Brakes, not boundaries:** `--allowed-origins` is set to the dev server's origin plus whatever
+  `ui.allowedOrigins` declares, because an application with a back end is more than one origin
+  (Playwright's own help says this is not a security boundary); `browser_evaluate` and
+  `browser_run_code_unsafe` are **denied**, because they let the agent satisfy a scenario by calling
+  the click handler directly; `--no-webmcp` stops a page registering tools (SOUL principle 4).
+
+  `browser_file_upload` was denied here too, on the grounds that a UI check does not need it. That
+  was wrong and is reversed (2026-11-09). Choosing a file is something a person does in a form, so a
+  cover image, an avatar or an import was simply unreachable, and a check of "create an article"
+  ended up recreating the record through the API — which proves nothing about the form (T-6 on
+  `burnjohn/quick-blog#38`). The line that matters is **"did the user interface do it"**, not "is
+  the tool powerful": reaching past the interface stays denied, acting through it does not.
 - **Pinned version** `@playwright/mcp@0.0.84`; Chromium ships in `docker/runtime` under
   `/ms-playwright` with `PLAYWRIGHT_BROWSERS_PATH` in the child env; `ui.noSandbox` adds
   `--no-sandbox` for the container.
