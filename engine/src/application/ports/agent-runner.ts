@@ -1,4 +1,4 @@
-import type { Role, RunEvent } from '@jarvis/shared';
+import type { Role, RunEvent, TaskKind } from '@jarvis/shared';
 import type { RunOutcome } from '../../domain/index.js';
 
 /** A normalised stream-json line before the engine stamps it with `seq`, `runId` and `at`. */
@@ -28,6 +28,8 @@ export interface RunSpec {
   /** Workers take owner input while they run, so their stdin stays open. */
   readonly keepStdinOpen: boolean;
   readonly taskId?: string;
+  /** ADR-0018: a `ui_check` stands on a head the owner may not have written; its settings are not ours to load. */
+  readonly taskKind?: TaskKind;
   /** ADR-0014: where Playwright MCP writes the UI check's screenshots; workers only. */
   readonly screenshotsDir?: string;
   readonly threadId: string;

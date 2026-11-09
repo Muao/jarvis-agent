@@ -10,6 +10,7 @@ import type {
   DevServerStarted,
   Logger,
 } from '../../application/index.js';
+import { buildDevServerEnv } from './dev-server-env.js';
 
 const DEFAULT_KILL_GRACE_MS = 5000;
 const DEFAULT_POLL_MS = 500;
@@ -167,7 +168,8 @@ export class ProcessDevServer implements DevServerManager {
       shell: true,
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...this.options.env } as NodeJS.ProcessEnv,
+      // ADR-0018: a narrow, declared environment. The code about to run may be a stranger's.
+      env: buildDevServerEnv(this.options.env ?? {}, ui),
     });
     if (child.pid === undefined) {
       return refuse('exited', `Could not start \`${ui.devCommand}\`.`);

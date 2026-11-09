@@ -29,6 +29,24 @@ describe('buildRunArgs', () => {
     expect(valueOf(args, '--append-system-prompt-file')).toBe('/home/runs/R-1/system.md');
   });
 
+  // A ui_check run's working directory is the pull request's head. `project` and `local` would
+  // read `.claude/settings.json` from that tree: it cannot widen permissions (project `allow`
+  // rules wait for workspace trust, which a task worktree never has), but its `deny` and `ask`
+  // rules apply at once, so a hostile head could refuse the browser and fail every check.
+  it('does not read settings out of a pull request’s own tree (ADR-0018)', () => {
+    const args = buildRunArgs(specOf({ taskKind: 'ui_check' }), ctx);
+
+    expect(valueOf(args, '--setting-sources')).toBe('user');
+    // Our own settings still reach the run; they do not come from the tree.
+    expect(valueOf(args, '--settings')).toBe('/home/runs/R-1/settings.json');
+  });
+
+  it('keeps project settings for a build task, whose repository is the owner’s', () => {
+    expect(valueOf(buildRunArgs(specOf({ taskKind: 'build' }), ctx), '--setting-sources')).toBe(
+      'project,local',
+    );
+  });
+
   it('worker: no tool restrictions, no resume by default', () => {
     const args = buildRunArgs(specOf(), ctx);
     expect(args).not.toContain('--resume');

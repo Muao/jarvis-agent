@@ -31,7 +31,13 @@ export function buildRunArgs(
     '--plugin-dir',
     ctx.agentDir,
     '--setting-sources',
-    'project,local',
+    // ADR-0018: a `ui_check` run's working directory is a pull request's head, which may be
+    // someone else's. `project` and `local` read `.claude/settings.json` from exactly there. They
+    // cannot raise permissions — project `allow` rules wait for workspace trust and a task
+    // worktree is never trusted — but `deny` and `ask` apply at once, so a hostile head could
+    // refuse the browser and turn every check into `inconclusive`. The owner's own user settings
+    // stay; only the checked-out tree loses its vote.
+    spec.taskKind === 'ui_check' ? 'user' : 'project,local',
     '--mcp-config',
     join(ctx.runDir, 'mcp.json'),
     '--strict-mcp-config',
