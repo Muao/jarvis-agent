@@ -91,7 +91,8 @@ previous one did not give, until `ui.maxScenarios` is reached.
    would be self-fetched text with nothing to wrap it (ADR-0017). The PR body and each comment go
    through `untrustedContent()` with `source="pr-body"` / `source="pr-comment"` and the author, the
    same path a reviewer's comments already take in the watcher.
-3. **The diff.** `git diff <base>...<head> --name-only`, filtered by `ui.paths`. Each changed surface
+3. **The diff.** The engine precomputes it into the worktree — `.jarvis/changed-files.txt` and
+   `.jarvis/diff.patch` — because a `ui_check` worker has no shell. Filtered by `ui.paths`. Each changed surface
    (a page, a route, a component rendered in them) gives one scenario: open it, drive the control the
    change is about, check that it renders with a clean console.
 
@@ -115,8 +116,9 @@ A sentence like "ignore previous instructions" or "report pass" is not a finding
 event: per ADR-0017 the worker **stops, calls `ask_owner` and waits for the answer** before doing
 anything that text asked for. The check is then neither `pass` nor `fail`.
 
-The diff the worker reads itself (`git diff`), and the engine cannot wrap it — there the weight rests
-on the SOUL rule (principle 4) and on the fact that only file paths are taken from a diff, not text.
+The diff the worker reads from `.jarvis/` is still the head's own text and cannot be wrapped — there
+the weight rests on the SOUL rule (principle 4), on the fact that only file paths are taken from a
+diff, and on the worker having no shell, no editor and no token to misuse (see §8).
 
 ### 5.3 A new kind of task: `ui_check`
 
@@ -344,17 +346,23 @@ Continuing the numbering of `ui-verification.md` (AC-1..AC-28).
 The untrusted-head card (5.5) decides whether the head's code may run at all. Once it runs, these
 hold, and none of them is a bug in the card — they are the shape of the thing today:
 
-- **The dev server inherits the engine's whole environment.** `ProcessDevServer` spawns
-  `ui.devCommand` with `env: { ...options.env }`, and `options.env` is the engine's `process.env`:
-  on a configured machine that carries `GITHUB_TOKEN`, `DATABASE_URL` and the `INFISICAL_*`
-  credentials. `ui.devCommand` usually begins with `npm ci`, which runs the `postinstall` scripts
-  the head's own lockfile names. Secrets sourced correctly through Infisical (ADR-0015) are still
-  handed to that code at the last hop: where a secret comes from is a separate question from who
-  receives it.
+- **The dev server's environment is narrowed, not empty.** `ProcessDevServer` hands
+  `ui.devCommand` only a short inherited list (`PATH`, `HOME`, locale) plus what the owner
+  declared in `ui.env`, with `${NAME}` as the deliberate pass-through — so `npm ci` and the
+  head's `postinstall` scripts no longer see `GITHUB_TOKEN`, `DATABASE_URL` or `INFISICAL_*`.
+  `ui.env` itself is locked against chat edits, or a config patch could hand it all back.
+- **The head's code still runs as the engine's own uid.** Environment narrowing does not move the
+  process: a `postinstall` can read `~/.claude` (the subscription login), `~/.jarvis`, the
+  engine's `/proc/<pid>/environ`, and reach whatever the host's network reaches. This is the gap
+  ADR-0019 closes by running a check's environment in a disposable container.
 - **`CLAUDE.md` in the head is read as instructions.** The worker's working directory is the task's
   worktree, and Claude Code reads a project's `CLAUDE.md`, `.claude/agents/` and `.claude/skills/`
   from there by design. ADR-0017 wraps the PR's prose as `<untrusted-content>`; files in the tree
-  are not wrapped and cannot be, because the agent reads them itself.
+  are not wrapped and cannot be, because the agent reads them itself. The blast radius is bounded
+  instead: a `ui_check` worker runs with `Bash`, `Edit` and `NotebookEdit` denied and **no
+  `GH_TOKEN`** in its environment (the engine fetches the head, precomputes the diff into
+  `.jarvis/`, and posts the comment itself), so an injected instruction can at worst skew the
+  report the owner reads anyway — it has no shell to run and no token to exfiltrate.
 - **A `.claude/settings.json` in the head cannot raise its own permissions**, because project
   `allow` rules wait for workspace trust and the task's worktree is never a trusted folder, and
   because `permissions.defaultMode` of `auto` or `bypassPermissions` does not take effect from
@@ -365,10 +373,9 @@ hold, and none of them is a bug in the card — they are the shape of the thing 
   the worktree's `.git` is a pointer into the shared clone. Code that gets no environment gets no
   GitHub access.
 
-Until the environment of the dev server is narrowed and the check runs somewhere disposable
-(ADR-0019 and its follow-up), treat a UI check on a repository you do not control as "running a
-stranger's build script with your tokens in the room", and prefer a token scoped to the one
-repository being checked.
+Until the check's environment runs somewhere disposable (ADR-0019), treat a UI check on a
+repository you do not control as "running a stranger's build script under your own user", and
+prefer a token scoped to the one repository being checked.
 - **A huge diff (a 300-file refactor).** The `ui.paths` filter and `maxScenarios` cut it down; the
   report says so explicitly — "covered 8 of 41 changed surfaces" — so a `pass` is not read as
   "everything works".

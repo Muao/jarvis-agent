@@ -4,6 +4,8 @@
 
 **Status:** concept for webinar preparation, version 2. The prototype's scope and architecture have been
 refined. The prototype, sources and materials must be prepared and verified before the announcement.
+Updated 2026-11-09: sections 6, 8–10, 16 and 19 describe the architecture as implemented (engine +
+Postgres + `claude -p` runs), replacing the earlier tmux / `state.json` / channels plan.
 
 **Format:** a hands-on webinar with a demonstration, a walkthrough of technical decisions and a short exercise.
 
@@ -128,8 +130,8 @@ app's initial state are prepared.
 7. It runs tests, lint and typecheck. If a check is red, it fixes it, with at most three attempts.
 8. A separate reviewer agent checks the changes against the spec and the repository rules.
 9. It opens a draft PR and writes `result.md`.
-10. The Watcher (a script with no model) watches the PR's CI and review and wakes the dispatcher when the
-    status changes.
+10. The Watcher (a timer with no model) watches the PR's CI and review, and the engine resumes the worker
+    when the status changes.
 11. If CI fails, the worker reads the log and tries to fix it. If a reviewer leaves a comment, the worker
     makes the changes and pushes a new commit.
 12. The dispatcher sends a summary to Slack: what was done, which checks passed, links to the PR and the
@@ -152,34 +154,39 @@ question in Slack and waits for the answer.
 
 ### The architecture in plain words
 
-Jarvis consists of one long-lived dispatcher and short-lived workers.
+Jarvis consists of one long-lived engine and short-lived Claude runs: a dispatcher and workers.
 
-**The dispatcher** is a permanent interactive Claude Code session. This is the session the human talks to
-through Slack. The dispatcher does not write code: it accepts tasks, launches workers, watches their
-state, asks questions and reports results. Everything it knows lives on disk, so after a restart it reads
-the state and continues from the same place.
+**The engine** is an ordinary Node service with no model inside. It holds all state in Postgres, starts
+Claude, watches GitHub and serves the web app. A model can change state only by calling the engine's
+tools (an MCP server), so after a restart the engine reads the database and continues from the same place.
 
-**A worker** is a separate Claude Code session for one task, in its own terminal (tmux) and its own
-worktree. Two tasks mean two workers that do not interfere with each other. The worker goes through the
-SDD process and engages specialized subagents.
+**The dispatcher** is the Claude role the human talks to. It is not a permanent session: every owner
+message starts a short `claude -p` run that resumes the thread's session. The dispatcher does not write
+code: it accepts tasks, answers questions and reports results.
 
-**The Watcher** is an ordinary script that checks CI and review through GitHub on a schedule. As long as
-nothing has changed, the model is not launched and the subscription limits are not spent.
+**A worker** is a `claude -p` run for one task in its own worktree. Two tasks mean two workers that do not
+interfere with each other. The worker goes through the SDD process and engages specialized subagents.
+While a task waits — for approval, CI or a review — there is no process at all; the engine starts the
+worker again later, resuming its session.
 
-**The Slack channel** is a small MCP server that passes messages from Slack into the dispatcher session
-and gives it a tool to reply. This is the Claude Code channels mechanism. There is no official channel for
-Slack, so we write it ourselves.
+**The Watcher** is a timer in the engine that checks CI and review through GitHub. As long as nothing has
+changed, the model is not launched and the subscription limits are not spent.
+
+**The Slack channel** is an adapter in the engine. It connects to Slack over Socket Mode (no public
+address), turns a message into a thread and posts replies, cards and buttons back. The web chat is the
+same port with a different adapter.
 
 **The admin panel** is a web app based on Agent Ops Center. It shows tasks, state, session logs and agent
 consoles, so you can see what is happening and debug.
 
 ```
-Slack ⇄ slack-channel (MCP) ⇄ Dispatcher (claude, interactive session)
-                                   │  state.json · chats/*.md
-                                   ├─→ Worker 1 (claude in tmux, worktree A) → subagents
-                                   ├─→ Worker 2 (claude in tmux, worktree B) → subagents
-                                   └─← Watcher (script: PR CI and review via GitHub)
-Admin panel (Agent Ops Center) ← state, logs, consoles
+Slack / web chat ⇄ Engine (Node: state machine, limits, scheduler) ⇄ Postgres
+                     ├─→ claude -p  dispatcher run (per owner message, resumes the thread session)
+                     ├─→ claude -p  worker run 1 (worktree A) → subagents
+                     ├─→ claude -p  worker run 2 (worktree B) → subagents
+                     ├─← Jarvis MCP server (tools: the only way a model changes state)
+                     └─← Watcher (timer: PR CI and review via GitHub, no model)
+Admin panel (Agent Ops Center) ← tasks, journal, run events (live consoles)
 ```
 
 ### Components
@@ -187,15 +194,16 @@ Admin panel (Agent Ops Center) ← state, logs, consoles
 | Component | Role | What we show |
 | --- | --- | --- |
 | Claude Code subscription | The engine for all roles | The official `claude` CLI under the owner's account, no API key |
-| Dispatcher | The long-lived session that manages tasks | Task intake, launching workers, questions and notifications |
-| Workers | Execution of one task | Separate sessions in tmux, separate worktrees, up to two in parallel |
+| Engine | The long-lived service that holds state and starts Claude | The state machine, limits, the tools a model may call |
+| Dispatcher | The role that talks to the owner and manages tasks | Task intake, questions and notifications |
+| Workers | Execution of one task | Separate `claude -p` runs, separate worktrees, up to two in parallel |
 | Specialized agents | Roles inside the worker | Context researcher, plan verification, implementer, reviewer |
 | SOUL.md | The agent's role, principles and working style | When the agent clarifies a task, how it reports progress |
 | USER.md | The owner's preferences | Language, level of detail, format of the plan, summary and PR |
 | Repository rules | Project conventions | Architecture, components, check commands |
 | Claude Design | The design source | The page mock-up the agent takes the structure and look from |
 | Notion and Google Docs connectors | Searching and reading context | Course structure, presentation rules, interface requirements |
-| State | Resuming after a restart | `state.json`: tasks, stages, branches, PRs, what we are waiting for; `chats/*.md`: conversation context |
+| State | Resuming after a restart | Postgres: threads, tasks, stages, branches, PRs, what we are waiting for, runs and their events |
 | SDD documents | A visible execution process | context, spec, plan, tasks, result in the task folder |
 | Checks | Feedback | Tests, lint, typecheck; for the UI, a browser inspection |
 | Watcher | Waiting for CI and review | Polling GitHub without a model, waking the dispatcher on a change |
@@ -204,17 +212,17 @@ Admin panel (Agent Ops Center) ← state, logs, consoles
 
 All roles run on one engine and one subscription. The role split does not require several paid models.
 
-### The state structure on disk
+### Where the state lives
 
 ```
-jarvis/
-  state.json            overall state: tasks, stages, workers, branches, PRs, what we wait for
-  chats/<chat-id>.md    conversation context: what was asked, what was decided, open questions
-  tasks/<id>/           context.md, spec.md, plan.md, tasks.md, result.md, event journal
+Postgres                 threads, messages, tasks (stage, branch, PR, what we wait for), journal,
+                         runs and their events, permission requests, watches, usage
+~/.jarvis/tasks/<id>/    context.md, spec.md, plan.md, tasks.md, result.md
+~/.jarvis/USER.md        the owner's preferences and what Jarvis has learned
 ```
 
-Only the dispatcher writes to `state.json`. Workers write into their own task folder, and the dispatcher
-carries the status over from there. This way two parallel tasks never overwrite a shared file.
+Only the engine writes state. A model changes it through Jarvis tools and writes its documents into the
+task's own folder. This way two parallel tasks never overwrite anything shared.
 
 ### Personalization with concrete examples
 
@@ -251,7 +259,7 @@ and build out a few parts where the principle shows well.
 - A training repository with CI, tests and the app's initial state.
 - The page design in Claude Design.
 - Materials in Notion and Google Docs, available for participants to copy.
-- A Slack workspace, a Slack app and the Slack channel MCP server.
+- A Slack workspace, a Slack app and the engine's Slack adapter.
 - The dispatcher: instructions, worker launching, state handling.
 - The worker and the specialized agents: context researcher, plan verification, implementer, reviewer.
 - SDD document templates.
@@ -263,7 +271,7 @@ and build out a few parts where the principle shows well.
 ### Done live
 
 - We fill in SOUL.md and USER.md and show how one rule changes the agent's behavior.
-- We start the dispatcher with the Slack channel and post a task.
+- We start Jarvis and post a task in Slack.
 - We answer the agent's questions and approve the spec and the plan in Slack.
 - We post a second task in parallel and show two workers.
 - We add or change one specialized role, for example a rule for the reviewer.
@@ -279,12 +287,12 @@ breaks, we switch to the recording and say so openly.
 
 1. We show the app before the changes, the design in Claude Design and the materials in Notion and Google Docs.
 2. We open SOUL.md and USER.md and add one rule live.
-3. We start the dispatcher and post a task in Slack.
+3. We start Jarvis and post a task in Slack.
 4. The agent replies in Slack: it took the task, created a branch, and shows what it is searching for.
 5. While it gathers context, we explain the architecture: dispatcher, workers, state, subscription.
 6. The agent sends the spec and the plan. We open `context.md` and `spec.md`, check the origin of the
    requirements, and approve in Slack.
-7. We post a second task and show two workers in tmux and in the admin panel.
+7. We post a second task and show two workers in the admin panel: two live consoles side by side.
 8. While the workers run, we walk through the technical challenges (section 10).
 9. We look at the code changes, the check results and the review. We show a retry if one happened.
 10. We open the finished page, compare it with the design and the spec, and show the draft PR.
@@ -307,19 +315,19 @@ works and show the solutions in the PoC code.
 | --- | --- | --- |
 | Subscription instead of API | The Agent SDK and third-party apps work through an API key; plugging a subscription token into third-party code is forbidden by the terms | Orchestration calls only the official `claude` CLI under the owner's account. One agent per one person's subscription |
 | Subscription limits | A 5-hour window and a weekly limit apply; several subagents burn them fast | The Watcher runs without a model; the model is launched only for meaningful work; attempt limits per stage |
-| Dispatcher context overflow | A long session accumulates history; details get lost after compaction | The dispatcher keeps nothing "in its head": state in `state.json`, context in `chats/*.md`. The session can be restarted at any time |
-| Slack channel | Claude Code channels are in research preview; ready-made plugins exist only for Telegram, Discord and iMessage | Our own MCP server over Slack Socket Mode, no public URL. Launched with `--dangerously-load-development-channels`, only in an interactive session. Fallback: the official Telegram plugin |
+| Dispatcher context overflow | A long session accumulates history; details get lost after compaction | The dispatcher keeps nothing "in its head": state lives in Postgres, each thread has a short summary, and every owner message is a fresh short run |
+| Slack channel | The agent must be reachable from Slack without a public address; Claude Code channels are in research preview and work only in an interactive session | The engine itself connects to Slack over Socket Mode and starts a `claude -p` run per message. No channels mechanism and no experimental flags |
 | Free Slack limitations | At most 10 apps, 90 days of history | The bot takes one slot; history is not needed because the state is stored locally |
-| Dispatcher-to-worker communication | The worker is a separate process with its own session | We pass the task through the task files and a command in tmux; the worker writes the result into its folder. The mechanism is fixed during preparation |
+| Dispatcher-to-worker communication | The worker is a separate process with its own session | Neither talks to the other directly. The dispatcher calls an engine tool (`create_task`, `send_to_task`); the engine starts the worker run or writes into its input. The worker reports back through tools as well |
 | Parallel tasks | Two tasks in one working copy conflict over files, ports and dependencies | A separate git worktree and branch per task; separate ports for the dev server and tests |
 | Permissions without a human | Every permission request stops the session until a human answers | Allowed commands are set in the settings; the rest of the requests are forwarded to Slack with `yes <id>` / `no <id>` confirmation. Merge and dangerous actions stay with the human |
-| CI follow-up from a laptop | A GitHub webhook cannot reach a laptop without a public address | The Watcher polls GitHub on a schedule and passes the event to the dispatcher over a local channel. After the laptop sleeps, it catches up on missed statuses |
+| CI follow-up from a laptop | A GitHub webhook cannot reach a laptop without a public address | The Watcher polls GitHub on a schedule, and the engine resumes the worker when something changed. After the laptop sleeps, it catches up on missed statuses |
 | The laptop goes to sleep | The dispatcher and the watcher stop with it | `caffeinate` for long tasks; after waking, the watcher compares against the saved state |
 | PR comments | The agent could react to strangers' comments or to its own and loop | We process only comments from allowed people addressed to the agent; a limit on fix rounds |
 | Prompt injection | Text from Slack, PRs, Notion or CI logs lands in the model's context | A sender allowlist in the Slack channel; external content is treated as data, not instructions; minimal write permissions |
 | Connectors in workers | Notion and Google Docs must be available in the sessions the dispatcher launches | We connect them via MCP and verify access in a worker before the session |
 | The design from Claude Design | The worker needs the design in a format it can read | We pass the design through the handoff into Claude Code. The format is verified during preparation |
-| Visibility and debugging | With several sessions running, it is unclear what is happening where | The admin panel: state, event journal, session logs via Claude Code hooks, live console viewing in tmux |
+| Visibility and debugging | With several sessions running, it is unclear what is happening where | The admin panel: state, event journal, and a live console per run — every event a run emits is stored and streamed to the browser |
 | Demo stability | The agent runs for 20–40 minutes and may make a mistake | The task starts at the beginning of the session; there is a backup recording; errors are shown as part of the walkthrough |
 
 ## 11. What a participant gets
@@ -327,7 +335,7 @@ works and show the solutions in the PoC code.
 ### Materials we prepare
 
 - A starter repository with the agent PoC and launch instructions.
-- The code of the dispatcher, the worker, the Slack channel and the watcher.
+- The code of the engine, the agent definition (dispatcher, worker, subagents), the Slack adapter and the watcher.
 - SOUL.md and USER.md templates.
 - Definitions of the specialized agent roles.
 - Templates for context, specification, plan, tasks and result.
@@ -484,7 +492,7 @@ described as next steps.
 - A training repository with CI and a clear task.
 - The page design in Claude Design and a verified design handoff to the worker.
 - Materials in Notion and Google Docs; search and reading through both connectors from a worker session.
-- A Slack workspace, the app, the channel MCP server, the sender allowlist.
+- A Slack workspace, the app, the engine's Slack adapter, the sender allowlist.
 - The dispatcher, the worker, the specialized roles, the SDD templates.
 - State persistence and a dispatcher restart without losing tasks.
 - Two parallel tasks in separate worktrees.
@@ -549,7 +557,7 @@ Example messages:
 ### How waiting works
 
 - The Watcher checks statuses through the GitHub API on a schedule.
-- The state is stored on disk, separately from the conversation with the model.
+- The state is stored in the database, separately from the conversation with the model.
 - No change produces no message and no model launch.
 - The model is engaged when an error needs investigating, remarks need handling or a summary needs preparing.
 - The last processed event, the notification conditions and the attempt limits are stored.
@@ -578,7 +586,7 @@ The target concept. The "PoC" column shows what goes into the webinar prototype.
 | Long-running watch | Jobs, migrations, backfills, pipelines, releases | No, a next step |
 | Parallelism | Several tasks at once | Up to two tasks |
 | Personal home | SOUL.md, USER.md, memory, task journals | SOUL, USER, journals |
-| Execution state | Tasks, sessions, attempts, statuses, questions, events | `state.json` and task files |
+| Execution state | Tasks, sessions, attempts, statuses, questions, events | Postgres and task files |
 | Admin panel | Tasks, state, logs, consoles, debugging | Yes, based on Agent Ops Center |
 | Engines | Claude Code; Codex as a second worker or reviewer | Claude Code only |
 | Personal changes | Memory and proposing new rules with confirmation | No |
@@ -599,8 +607,7 @@ In the webinar PoC we show steps 1–3. The rest stays on the development map.
 
 ### What we verify before implementation
 
-- The Claude Code channels mechanism and the flag for a custom channel: they are in research preview and
-  may change.
+- The `claude -p` stream-json output on the CLI version we pin: the format changes between versions.
 - Socket Mode on the free Slack plan.
 - Access to the Notion and Google Docs connectors from sessions the dispatcher launches.
 - The format of the design handoff from Claude Design to Claude Code.

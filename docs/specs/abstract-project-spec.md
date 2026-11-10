@@ -60,9 +60,11 @@ the architecture description is in `docs/architecture/README.md`, and the design
   and Postgres (Docker) listen on loopback only; there is no public address.
 - **CON-04. Repositories by allowlist.** The agent works with GitHub repositories from
   `repos.allow` or the owner's own repositories (`repos.allowOwnerRepos`), cloned on demand
-  (ADR-0012); a task may carry its own `targetRepo`. Every repository must fulfil the contract:
-  an `AGENTS.md` with the check commands (tests, lint, typecheck) and the dev-server command, and
-  CI on GitHub Actions. Jarvis is not required to discover commands in an arbitrary repository.
+  (ADR-0012); a task may carry its own `targetRepo`. An `AGENTS.md` with the check
+  commands (tests, lint, typecheck) and the dev-server command is the preferred contract. Without
+  it the worker finds the check commands in the repository itself (package scripts, CI workflows,
+  README), records them in `context.md` and shows them with the spec; it asks the owner only when
+  it finds none. CI on GitHub Actions is still required.
 - **CON-05. Free Slack (iteration 2).** The Slack bot runs on the free plan via Socket Mode and
   occupies one app slot.
 - **CON-06. Max 5x plan.** We assume Claude Max at $100. The goal is to show that everything
@@ -226,17 +228,20 @@ scope is missing, the worker asks one specific question in the thread, and the t
 **WRK-06. Implementation.** The worker implements the tasks from `tasks.md` in the `Worktree`
 and updates their statuses.
 
-**WRK-07. Checks.** After implementation the worker runs the `Check` from the repository's
-`AGENTS.md`. If a check is red, it fixes and retries, but no more than `limits.checkRetries`
-attempts.
+**WRK-07. Checks.** The check commands are fixed when the owner approves the spec: the ones in
+the repository's `AGENTS.md`, or, when it lists none, the ones the worker found and showed on the
+approval card (CON-04). When the worker asks for the PR, the engine itself runs them in the
+`Worktree` and refuses on red (ADR-0022). The worker then fixes and asks again, but no more than
+`limits.checkRetries` times.
 
 **WRK-08. Review.** The `Reviewer` checks the diff for conformance to the spec, the acceptance
 criteria, and the repository rules. Blocking-level findings the worker fixes before opening the
 PR.
 
-**WRK-09. PR.** The worker pushes the branch and opens a draft PR from the Jarvis account. The
-description covers: what was done, the sources, the check results, the open questions. Then it
-writes `result.md`.
+**WRK-09. PR.** On green checks the engine pushes exactly the commit it checked and opens a draft
+PR from the Jarvis account; the worker has no GitHub token (ADR-0022). The description covers:
+what was done, the sources, the open questions (written by the worker) and the check results
+(written by the engine). Then the worker writes `result.md`.
 
 **WRK-10. Visual verification.** For interface changes, the worker opens the page in a browser
 and compares it with the `Design Source`. A screenshot is attached to the PR.
@@ -272,7 +277,8 @@ launch the model and writes nothing to the thread.
 **CI-03. CI result.** When all checks of the current commit have finished, the actual result
 arrives in the thread.
 
-**CI-04. CI failure.** If CI is red, the worker reads the log, determines the cause, and tries
+**CI-04. CI failure.** If CI is red, the engine fetches the failed log and hands it to the worker
+as a file; the worker reads it, determines the cause, and tries
 to fix it with a new commit, for no more than `limits.ciFixRounds` rounds. After that the task
 moves to `Blocked` with an explanation.
 
@@ -346,7 +352,8 @@ already in progress finishes its current step.
 ## Requirements: security and permissions
 
 **SEC-01. Autonomous permissions.** Commands needed for the normal flow (reading, editing in the
-`Worktree`, checks, git on the task branch, `gh pr create`) are pre-approved. Everything else
+`Worktree`, checks, local git on the task branch) are pre-approved; `git push` and `gh` are
+denied to the worker, because the engine pushes and opens the PR (ADR-0022). Everything else
 goes through a `Permission Request` (SLK-05).
 
 **SEC-02. Write boundaries.** The worker changes files only in its own `Worktree`. Pushes go
@@ -436,9 +443,10 @@ reachable from outside.
 - Supervising long jobs (backfills, migrations, pipelines, releases) — a next step.
 - A second engine (Codex) as a worker or reviewer — a next step.
 - Multiple owners, authorization, team use.
-- Self-directed behavior changes beyond what is allowed: the dispatcher writes only to
-  `## Learned` in `USER.md` and to the allowed config fields at the owner's explicit request
-  (ADR-0013).
+- Self-directed behavior changes beyond what is allowed: the agent writes memory only under
+  `## Learned` in `USER.md` (the dispatcher and the worker, by the rules of ADR-0021) and changes
+  the allowed config fields only at the owner's explicit request (ADR-0013). It never edits
+  `SOUL.md`, its own prompts or a repository's `AGENTS.md` on its own.
 - Merge, deploy, branch deletion.
 - Ticket systems (Jira, Linear) as input.
 - CI triage for other people's PRs and `main`.

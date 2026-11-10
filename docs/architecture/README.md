@@ -42,7 +42,7 @@ flowchart LR
     claude1 & claude2 -- tools --> mcp --> http
     claude2 --> repo & files
     claude2 -- connectors --> src
-    claude2 -- git push, gh pr --> gh
+    uc -- checks, push, draft PR --> gh
     watcher -- poll --> gh
     watcher --> uc
     slack -. Socket Mode .- http
@@ -86,15 +86,17 @@ sequenceDiagram
     E-->>W: approval card in thread
     O->>W: Approve
     E->>K: resume: implement, check, review, PR
-    K->>G: push jarvis/T-1, open draft PR
-    K->>E: report_pr
+    K->>E: open_pr
+    E->>E: run the checks fixed at spec approval
+    E->>G: push jarvis/T-1, open draft PR
     Note over E: task PR Open, worker process exits
     loop every pollSeconds
         E->>G: checks, reviews, comments
     end
     G-->>E: CI failed / review comment
-    E->>K: resume: fix
-    K->>G: push new commit
+    E->>K: resume: fix (failed log as a file)
+    K->>E: open_pr
+    E->>G: push new commit
     G-->>E: CI green + approved
     E-->>W: final summary in thread
 ```
@@ -102,7 +104,7 @@ sequenceDiagram
 ## Process model (ADR-0003)
 
 - **Dispatcher run** per owner message: `claude -p --resume <thread-session> --output-format stream-json`, dispatcher prompt, only Jarvis dispatcher tools.
-- **Worker run** per task stage: `claude -p --input-format stream-json --output-format stream-json --verbose`, `cwd` = task worktree, `--max-turns`, `--max-budget-usd`, `--model`, `--mcp-config` (Jarvis tools + connectors), `--permission-prompt-tool mcp__jarvis__approve`, worker settings that deny pushes to the base branch, force-push and merge.
+- **Worker run** per task stage: `claude -p --input-format stream-json --output-format stream-json --verbose`, `cwd` = task worktree, `--max-turns`, `--max-budget-usd`, `--model`, `--mcp-config` (Jarvis tools + connectors), `--permission-prompt-tool mcp__jarvis__approve`, worker settings that deny `git push` and `gh`, and no GitHub token in its environment: the engine runs the checks, pushes and opens the PR (ADR-0022).
 - Owner messages to a live worker go to its stdin; otherwise they wait for the next run.
 - Every stream-json event is stored in `run_events` and pushed over SSE — that is the admin "console".
 - The engine refuses to start with `ANTHROPIC_API_KEY` set and strips provider variables from child env.

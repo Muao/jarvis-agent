@@ -26,7 +26,8 @@ boundary per role, identity is fixed by the engine at spawn time, and every rule
 
 Tools by role (names indicative, final list in the engine spec):
 - Dispatcher: `create_task`, `list_tasks`, `cancel_task`, `send_to_task`, `reply` (to the thread).
-- Worker: `report_stage`, `ask_owner`, `submit_spec_for_approval`, `report_checks`, `report_pr`, `log_note`.
+- Worker: `report_stage`, `ask_owner`, `submit_spec_for_approval`, `open_pr`, `log_note`. (`report_checks` and
+  `report_pr` were retired by ADR-0022; the current list is `toolsByRole` in `shared/src/mcp.ts`.)
 - Both: `approve` — the `--permission-prompt-tool`; blocks until the owner answers in the UI or the timeout from config denies.
 
 There is no tool to merge, push to `main`, or touch another task. Later records added tools on top of

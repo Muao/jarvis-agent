@@ -2,8 +2,8 @@
 
 Where Jarvis stands, what is done, what is next. Updated as work lands — see the rules at the bottom.
 
-**Last updated:** 2026-11-08 · **Branch:** `main`, level with `origin/main` `0364604` ·
-**uncommitted:** the whole first-live-task session below (74 modified, 27 new files)
+**Last updated:** 2026-11-09 · **Branch:** `main` ·
+**uncommitted:** the ui_check hardening below (config gate, disarmed worker, precomputed diff, ADR-0019 rewrite)
 
 Registers this file deliberately does not duplicate:
 [`docs/plans/server-readiness-open-questions.md`](docs/plans/server-readiness-open-questions.md) (findings,
@@ -62,6 +62,34 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
   - Also: a `RouteError` boundary for stale lazy chunks (a white "Failed to fetch dynamically imported
     module" screen after a redeploy), and artifacts expandable inline in the decision card, because the
     absolute paths the worker printed point inside the container and are dead links for the owner.
+- **ui_check hardening (2026-11-09)**, closing the worst of the §8 gap: chat can no longer edit
+  `ui.env`, `ui.allowedOrigins` or `ui.autoApproveComments` (`FORBIDDEN_PATHS` now walks nested
+  paths and feeds the MCP tool description, one source of truth); a `ui_check` worker runs with
+  `Bash`, `Edit` and `NotebookEdit` denied and **no `GH_TOKEN`** (the engine fetches the head,
+  precomputes the diff into `.jarvis/changed-files.txt` + `.jarvis/diff.patch` in the worktree,
+  and posts the PR comment itself); ADR-0019 rewritten: the environment stays declared per
+  repository, but a check of a foreign head executes in a disposable Docker container — the
+  earlier draft's host-process-group plan was factually wrong (`spawn({detached:true})` makes a
+  new group per child) and is recorded as rejected.
+- **Agent memory (ADR-0021, 2026-11-10)**: one self-curating memory under `## Learned` in
+  `USER.md` — the dispatcher (`remember`, `forget`, `merge_insights`, `read_memory`) and the
+  worker (`note_insight`, `confirm_insight`, `contradict_insight`, `remember_owner`) write it
+  without an approval step; every entry carries its timestamp, citations and counts of confirming
+  and contradicting tasks; nothing is removed automatically; a `ui_check` task writes nothing; the
+  `memory-review` skill tidies on request. Plan: `docs/plans/agent-memory.md`. Verified by tests
+  only (incl. `engine/test/flow/memory-flow.int.test.ts`); **not yet tried on a live task**.
+- **Engine-side checks and PR (ADR-0022, 2026-11-10)**: `open_pr` replaces `report_checks`,
+  `report_pr`, `git push` and `gh pr create`. The engine runs the check commands fixed at spec
+  approval, refuses on red, pushes exactly the checked commit from a scratch repository that never
+  reads the clone's config, and opens the draft PR; no worker of any kind has a GitHub token; a
+  fix round gets the failed CI log as a file. Plan: `docs/plans/engine-side-checks-and-pr.md`.
+  Verified by tests only (four whole-flow integration tests, three identical runs); **not yet
+  tried on a live task, and the Playwright e2e was updated but still never executed**.
+- **A worker no longer needs `AGENTS.md` to find the check commands** (2026-11-09): it looks in
+  package scripts, CI workflows and the README, and the owner sees the list with the spec.
+- **Checks in the working tree (2026-11-10)**: `pnpm typecheck`, `pnpm lint`, `pnpm format:check`
+  clean; engine 1255 (unit + integration, with `~/.jarvis/.env` loaded), shared 101, web 186.
+  Integration tests fail with `28P01` unless that environment is loaded.
 - **Limits and models** (2026-11-08): Opus for dispatcher, worker and reviewer; `maxTurnsPerRun 120`,
   `maxBudgetUsdPerRun 10`, `dailyBudgetUsd 50`, `taskTimeoutMinutes 120`, one worker slot, `checkRetries 3`,
   `ciFixRounds 2`, `reviewRounds 3`. On a Max subscription the budget is an estimate, not a bill — a brake
@@ -83,7 +111,7 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
 
 ## Next
 
-0. **Set the real Postgres password** *(owner)*: generate (`openssl rand -base64 24`), store in Infisical
+0. **Set the real Postgres password** _(owner)_: generate (`openssl rand -base64 24`), store in Infisical
    (`POSTGRES_PASSWORD`, `DATABASE_URL`, `DATABASE_URL_TEST`) and mirror into `~/.jarvis/.env`; on every
    existing volume (laptop, rehearsal) run
    `docker compose exec postgres psql -U jarvis -c "ALTER USER jarvis PASSWORD '<new>'"`. Until then
@@ -104,7 +132,8 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
    One real PR in the sandbox repo answers it. If it refuses, the choice is a classic PAT or
    `ui.attachToPr: false`.
 5. **Prepare a real target repository**: create `burnjohn/jarvis-sandbox`, give it an `AGENTS.md` with check
-   commands (without them the worker stops and asks), push `main`, point `repo.path` / `TARGET_REPO` at it,
+   commands (since 2026-11-09 the worker finds them in the repository when `AGENTS.md` has none — prompt
+   and spec CON-04 changed, not yet tried live), push `main`, point `repo.path` / `TARGET_REPO` at it,
    and list its check commands in `allowlist.autoAllowedCommands` — otherwise every `pnpm test` raises a
    permission card and the run stalls for 30 minutes before being denied.
 6. ~~**Replace `GITHUB_TOKEN`**~~ — **done, 2026-11-08.** The token now comes from Infisical, not from
@@ -119,24 +148,34 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
    `pnpm` on PATH is 12.18.0 against the repo's pinned 10.23.0, so `corepack enable` is needed.
 8. **The first live task, on the server** — Phase 5 of the iteration-1 plan. The laptop sleeps mid-task;
    that, more than secrets, is why the first real run belongs on an always-on box.
-9. **Deliberate limit probes** once the happy path works: `max_turns`, the daily budget, a permission
-   timeout, the stall warning, the task timeout, and killing the engine mid-run to exercise
-   `ResumeAfterRestart`.
-10. **Telemetry for real**: log `stopReason` on `run.finished`, enable `telemetry`, and verify the Claude Code
+9. **Run retrospective (spec'd, not planned)**: after a `build` task with 5+ worker runs ends, a
+   bounded retro run analyzes the recorded spend (per-run usage, stop reasons, retries, permission
+   waits) and proposes improvements only when the projected saving is at least
+   `retro.significantSavingsPercent` (default 15) of the task's spend; report-only in iteration
+   one, off by default. Owner rulings (2026-11-09): the report is always posted, the threshold only
+   classifies proposals as significant/minor, and percentages are computed on tokens. Spec:
+   `docs/specs/run-retrospective.md`; execution decided in ADR-0020 (a `retro` run role over an
+   engine-precomputed input file, no worker slot, one at a time).
+10. **Deliberate limit probes** once the happy path works: `max_turns`, the daily budget, a permission
+    timeout, the stall warning, the task timeout, and killing the engine mid-run to exercise
+    `ResumeAfterRestart`.
+    **Planned, not started:** the workflow registry (ADR-0023, proposed,
+    `docs/plans/workflow-registry.md`) and watch sources (ADR-0024, proposed,
+    `docs/plans/watch-sources.md`), in that order.
+11. **Telemetry for real**: log `stopReason` on `run.finished`, enable `telemetry`, and verify the Claude Code
     metric names against an actual export instead of the documentation.
 
 ## Known gaps
 
 Decided, not forgotten.
 
-- **A UI check on someone else's repository runs their code next to live credentials.** The
-  untrusted-head card asks whether the head may run, not what it gets while running: the dev server
-  is spawned with the engine's whole environment (`GITHUB_TOKEN`, `DATABASE_URL`, `INFISICAL_*`),
-  and `ui.devCommand` now starts with `npm ci`, so the head's `postinstall` scripts run. Its
-  `CLAUDE.md` is read as instructions too. Nothing is on disk — the credential helper reads the
-  token from the environment — so narrowing that environment is most of the fix. Full detail in
-  `docs/specs/ui-check-on-demand.md` §8; the plan is ADR-0019 and its follow-up. **Until then,
-  point checks at repositories you control, and use a token scoped to the one repository checked.**
+- **A UI check on someone else's repository still runs their code as the engine's own uid.** The
+  environment hand-over is closed (narrowed dev-server env, disarmed tokenless worker, locked
+  config paths — see Done, 2026-11-09), but the head's `postinstall` scripts can still read
+  `~/.claude`, `~/.jarvis` and the engine's `/proc`, and reach the host's network. The fix is
+  ADR-0019's disposable container, not yet implemented. Full detail in
+  `docs/specs/ui-check-on-demand.md` §8. **Until then, point checks at repositories you control,
+  and use a token scoped to the one repository checked.**
 - **No messenger.** The only owner channel is the local web UI (ADR-0006 puts Slack in iteration 2). The
   `OwnerChannel` port exists, so a channel is an adapter, not a rewrite. `tailscale serve` plus a phone is
   the cheap stand-in: it gives access, but no push — nobody tells you a card is waiting.
