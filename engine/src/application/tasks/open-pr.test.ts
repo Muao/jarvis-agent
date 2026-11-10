@@ -759,6 +759,123 @@ describe('OpenPr — red on main too', () => {
   });
 });
 
+describe('OpenPr — skipping a check', () => {
+  const REASON = 'needs Postgres; CI runs it';
+  const SKIP = [{ command: 'pnpm test', reason: REASON }];
+  const NEW_SHA = 'c0ffee00e5f60718293a4b5c6d7e8f9012345678';
+  const ofType = (app: TestApp, type: string) =>
+    app.db.tables.journal.filter((e) => e.type === type);
+  /** A red `pnpm test` on the current head, as the worker's first call leaves it. */
+  async function redOnce() {
+    const ctx = await setup();
+    ctx.app.checkRunner.script('pnpm test', { exitCode: 1, tail: 'no database' });
+    const red = await ctx.app.openPr.execute(ctx.worker, TEXT);
+    expect(red).toMatchObject({ ok: false, reason: 'checks_failed' });
+    ctx.app.checkRunner.calls.length = 0;
+    return ctx;
+  }
+
+  it('skips a command that ran red on this head and opens the PR', async () => {
+    const { app, task, worker } = await redOnce();
+
+    const result = await app.openPr.execute(worker, { ...TEXT, skip: SKIP });
+
+    expect(result).toMatchObject({ ok: true, created: true });
+    expect(app.checkRunner.calls).toHaveLength(1);
+    expect(app.checkRunner.calls[0]?.commands).toEqual(['pnpm typecheck']);
+    expect(ofType(app, 'check_skipped')).toHaveLength(1);
+    expect(ofType(app, 'check_skipped')[0]?.data).toMatchObject({
+      command: 'pnpm test',
+      reason: REASON,
+      headSha: SHA,
+    });
+    const body = app.codeHost.pullRequests[0]?.input.body ?? '';
+    expect(body).toContain('## Checks skipped locally — CI decides');
+    expect(body).toContain(`- \`pnpm test\` — ${REASON}`);
+    expect(body).toContain('no database');
+    expect(body).not.toContain('✗ `pnpm test`');
+    expect(app.task(task.id).stage).toBe('PR Open');
+    expect(app.task(task.id).counters.checkRetries).toBe(0);
+  });
+
+  it('with every command skipped, no gate runs and the PR opens', async () => {
+    const { app, worker } = await setup();
+    app.checkRunner.script('pnpm test', { exitCode: 1, tail: 'no database' });
+    app.checkRunner.script('pnpm typecheck', { exitCode: 2, tail: 'bad types' });
+    await app.openPr.execute(worker, TEXT);
+    app.checkRunner.calls.length = 0;
+
+    const result = await app.openPr.execute(worker, {
+      ...TEXT,
+      skip: [...SKIP, { command: 'pnpm typecheck', reason: 'cannot be made green here' }],
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(app.checkRunner.calls).toHaveLength(0);
+    expect(ofType(app, 'check_skipped')).toHaveLength(2);
+    const body = app.codeHost.pullRequests[0]?.input.body ?? '';
+    expect(body).toContain('## Checks skipped locally');
+    expect(body).not.toContain('## Checks (run by Jarvis)');
+  });
+
+  it('refuses to skip a command that never ran red on this head', async () => {
+    const { app, task, worker } = await redOnce();
+    app.branchPublisher.sha = NEW_SHA;
+    const retries = app.task(task.id).counters.checkRetries;
+    const journalBefore = app.db.tables.journal.length;
+
+    const result = await app.openPr.execute(worker, { ...TEXT, skip: SKIP });
+
+    expect(result).toMatchObject({ ok: false, reason: 'skip_not_allowed' });
+    expect((result as { detail: string }).detail).toContain('`pnpm test`');
+    expect((result as { detail: string }).detail).toContain('has not run red on c0ffee0');
+    expect(app.checkRunner.calls).toHaveLength(0);
+    expectNothingPublished(app);
+    expect(app.task(task.id).counters.checkRetries).toBe(retries);
+    expect(app.db.tables.journal.length).toBe(journalBefore);
+  });
+
+  it('refuses to skip a command not in the frozen list', async () => {
+    const { app, task, worker } = await redOnce();
+    const journalBefore = app.db.tables.journal.length;
+
+    const result = await app.openPr.execute(worker, {
+      ...TEXT,
+      skip: [{ command: 'rm -rf /', reason: 'not a real check at all' }],
+    });
+
+    expect(result).toMatchObject({ ok: false, reason: 'skip_not_allowed' });
+    expect((result as { detail: string }).detail).toContain('`rm -rf /`');
+    expect((result as { detail: string }).detail).toContain('not in the frozen list');
+    expect(app.checkRunner.calls).toHaveLength(0);
+    expectNothingPublished(app);
+    expect(app.task(task.id).counters.checkRetries).toBe(1);
+    expect(app.db.tables.journal.length).toBe(journalBefore);
+  });
+
+  it('a skip on a task that already has a PR pushes, leaves the PR body alone and tells the thread', async () => {
+    const { app, worker, thread } = await setup();
+    await app.openPr.execute(worker, TEXT);
+    app.branchPublisher.sha = NEW_SHA;
+    app.checkRunner.script('pnpm test', { exitCode: 1, tail: 'no database' });
+    const red = await app.openPr.execute(worker, {});
+    expect(red).toMatchObject({ ok: false, reason: 'checks_failed' });
+    const before = structuredClone(app.codeHost.pullRequests);
+
+    const result = await app.openPr.execute(worker, { skip: SKIP });
+
+    expect(result).toMatchObject({ ok: true, created: false });
+    expect(app.codeHost.pullRequests).toEqual(before);
+    expect(app.branchPublisher.pushes.at(-1)?.sha).toBe(NEW_SHA);
+    const texts = app
+      .messagesOf(thread.id)
+      .filter((m) => m.kind === 'system')
+      .map((m) => (m.body as { text: string }).text)
+      .filter((t) => t.startsWith('Skipped locally'));
+    expect(texts).toEqual([`Skipped locally: pnpm test — ${REASON}`]);
+  });
+});
+
 describe('OpenPr — a failure after a green gate does not repeat the gate', () => {
   it('host_error: the next call for the same commit skips the checks and finishes', async () => {
     const { app, task, worker } = await setup();

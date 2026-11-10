@@ -231,6 +231,16 @@ describe('open_pr and checks (ADR-0022)', () => {
     }
   });
 
+  it('open_pr accepts skip entries and rejects a reason under 10 characters', () => {
+    const entry = { command: 'pnpm test', reason: 'needs Postgres; CI runs it' };
+    expect(open_pr.safeParse({ skip: [entry] }).success).toBe(true);
+    expect(open_pr.safeParse({ skip: [{ ...entry, reason: 'too short' }] }).success).toBe(false);
+    expect(open_pr.safeParse({ skip: [{ ...entry, command: '' }] }).success).toBe(false);
+    expect(open_pr.safeParse({ skip: [{ ...entry, extra: 1 }] }).success).toBe(false);
+    expect(open_pr.safeParse({ skip: Array(20).fill(entry) }).success).toBe(true);
+    expect(open_pr.safeParse({ skip: Array(21).fill(entry) }).success).toBe(false);
+  });
+
   it('open_pr takes no arguments, or a title and a body, and nothing else', () => {
     expect(open_pr.safeParse({}).success).toBe(true);
     expect(open_pr.safeParse({ title: 't', body: 'b' }).success).toBe(true);

@@ -132,6 +132,19 @@ export const toolInputSchemas = {
       .refine((value) => !/[\r\n]/.test(value), 'must be a single line')
       .optional(),
     body: z.string().min(1).max(20_000).optional(),
+    /**
+     * Frozen commands the worker leaves out of the gate because they ran red on this head and
+     * cannot be made green locally; CI judges them. The engine validates every entry.
+     */
+    skip: z
+      .array(
+        z.strictObject({
+          command: z.string().min(1).max(500),
+          reason: z.string().min(10).max(500),
+        }),
+      )
+      .max(20)
+      .optional(),
   }),
   /**
    * Retired by ADR-0022 and no longer offered to any role. The schemas stay for one release so the

@@ -32,6 +32,15 @@ import { worktreeFor } from './worktree-for.js';
 export interface OpenPrInput {
   readonly title?: string;
   readonly body?: string;
+  /** Frozen commands the worker leaves out because they ran red on this head (validated here). */
+  readonly skip?: readonly { readonly command: string; readonly reason: string }[];
+}
+
+/** A skip the engine accepted, with the last red output of the command on this head. */
+interface Skipped {
+  readonly command: string;
+  readonly reason: string;
+  readonly tail: string;
 }
 
 /** What a check looked like to the worker: the result plus nothing the engine keeps to itself. */
@@ -48,7 +57,8 @@ export type OpenPrRefusal =
   | 'host_unconfigured'
   | 'host_error'
   | 'repo_unknown'
-  | 'title_and_body_required';
+  | 'title_and_body_required'
+  | 'skip_not_allowed';
 
 export type OpenPrResult =
   | {
@@ -158,6 +168,58 @@ interface GreenGate {
 
 const isRed = (result: CheckResult): boolean => result.exitCode !== 0 || result.timedOut;
 
+/** The newest red result of `command` on exactly this head, from the `checks_failed` rows. */
+function lastRedOn(
+  journal: readonly TaskEvent[],
+  headSha: string,
+  command: string,
+): CheckResult | null {
+  for (let i = journal.length - 1; i >= 0; i -= 1) {
+    const event = journal[i];
+    if (event?.type !== 'checks_failed' || event.data['headSha'] !== headSha) continue;
+    const results = event.data['results'];
+    if (!Array.isArray(results)) continue;
+    const red = (results as CheckResult[]).find((r) => r.command === command && isRed(r));
+    if (red !== undefined) return red;
+  }
+  return null;
+}
+
+/** The first skip the worker may not make, or the accepted ones. */
+function validatedSkips(
+  skip: NonNullable<OpenPrInput['skip']>,
+  commands: readonly string[],
+  journal: readonly TaskEvent[],
+  headSha: string,
+): { readonly detail: string } | { readonly skipped: Skipped[] } {
+  const skipped: Skipped[] = [];
+  for (const { command, reason } of skip) {
+    if (!commands.includes(command)) {
+      return { detail: `\`${command}\` cannot be skipped: it is not in the frozen list.` };
+    }
+    const red = lastRedOn(journal, headSha, command);
+    if (red === null) {
+      return {
+        detail: `\`${command}\` cannot be skipped: it has not run red on ${sha7(headSha)}. Run open_pr without skipping it first; only a check that failed on this commit can be skipped.`,
+      };
+    }
+    skipped.push({ command, reason, tail: red.tail });
+  }
+  return { skipped };
+}
+
+/** What CI will decide instead of the gate: each skipped command, why, and its last red tail. */
+function skippedSection(skipped: readonly Skipped[]): string {
+  const items = skipped.map(({ command, reason, tail }) => {
+    const lastLines = tail.split('\n').slice(-20).join('\n');
+    return [
+      `- \`${command}\` — ${reason}`,
+      `<details><summary>Last red output</summary>\n\n\`\`\`\n${lastLines}\n\`\`\`\n\n</details>`,
+    ].join('\n\n');
+  });
+  return ['## Checks skipped locally — CI decides', ...items].join('\n\n');
+}
+
 function duration(ms: number): string {
   return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
 }
@@ -188,13 +250,16 @@ function pullRequestBody(input: {
   readonly changedFiles: readonly string[];
   readonly preexisting: readonly string[];
   readonly baseSha: string | null;
+  readonly skipped: readonly Skipped[];
 }): string {
   const lines = input.results.map(
     (r) =>
       `- ${isRed(r) ? '✗' : '✓'} \`${r.command}\` — ${duration(r.durationMs)} (${sha7(input.headSha)})`,
   );
-  const sections = [input.body.trimEnd(), '## Checks (run by Jarvis)', lines.join('\n')];
+  const sections = [input.body.trimEnd()];
+  if (lines.length > 0) sections.push('## Checks (run by Jarvis)', lines.join('\n'));
   if (input.preexisting.length > 0) sections.push(failsOnMain(input));
+  if (input.skipped.length > 0) sections.push(skippedSection(input.skipped));
   const defining = pathsDefiningChecks(input.changedFiles);
   if (defining.length > 0) {
     sections.push(
@@ -220,7 +285,7 @@ export class OpenPr {
 
   async execute(identity: RunIdentity, input: OpenPrInput): Promise<OpenPrResult> {
     // Only a title and a body exist as input; anything else the caller sent is not read.
-    const { title, body } = input;
+    const { title, body, skip } = input;
     const taskId = identity.taskId;
     if (taskId === undefined || identity.role !== 'worker') {
       throw new ForbiddenError('this tool is only available to a worker run of a task');
@@ -236,7 +301,7 @@ export class OpenPr {
     const abort = new AbortController();
     const unsubscribe = this.deps.liveRuns.onEnd(identity.runId, () => abort.abort());
     try {
-      return await this.run(identity, { title, body }, abort.signal);
+      return await this.run(identity, { title, body, skip }, abort.signal);
     } finally {
       unsubscribe();
       this.running.delete(taskId);
@@ -319,13 +384,21 @@ export class OpenPr {
     // The commands may have just been refreshed: a green on the old list must not be reused, so
     // the cache is judged on the journal as it is now, after the latest `checks_fixed`.
     const current = await transact(deps, (tx) => tx.journal.list(task.id));
+    // Skips are judged before anything runs: a refusal publishes, journals and counts nothing.
+    const asked = validatedSkips(input.skip ?? [], commands, current, headSha);
+    if ('detail' in asked) return { ok: false, reason: 'skip_not_allowed', detail: asked.detail };
+    const { skipped } = asked;
+    const left = commands.filter((c) => !skipped.some((s) => s.command === c));
+
     const cached = cachedGreen(current, headSha);
     let green: GreenGate;
-    if (cached === null) {
+    if (cached === null && left.length === 0) {
+      green = { results: [], preexisting: [], baseSha: null };
+    } else if (cached === null) {
       const gate = await this.gate({
         identity,
         task,
-        commands,
+        commands: left,
         headSha,
         worktreePath: worktree.path,
         signal,
@@ -340,7 +413,22 @@ export class OpenPr {
     const after = await this.settled(task.id, headSha);
     if (after.refusal !== null) return after.refusal;
 
-    return this.publish({ identity, task, repo, headSha, green, status: after.status, input });
+    for (const { command, reason } of skipped) {
+      await transact(deps, (tx) =>
+        deps.writer.note(tx, task.id, 'check_skipped', 'system', { command, reason, headSha }),
+      );
+    }
+
+    return this.publish({
+      identity,
+      task,
+      repo,
+      headSha,
+      green,
+      skipped,
+      status: after.status,
+      input,
+    });
   }
 
   /** The frozen list, or the one `AGENTS.md` gives a task approved before ADR-0022 (journalled). */
@@ -689,6 +777,7 @@ export class OpenPr {
     readonly repo: RepoTarget;
     readonly headSha: string;
     readonly green: GreenGate;
+    readonly skipped: readonly Skipped[];
     readonly status: BranchStatus;
     readonly input: OpenPrInput;
   }): Promise<OpenPrResult> {
@@ -733,6 +822,7 @@ export class OpenPr {
             results: input.green.results,
             preexisting: input.green.preexisting,
             baseSha: input.green.baseSha,
+            skipped: input.skipped,
             headSha,
             changedFiles: input.status.changedFiles,
           }),
@@ -786,6 +876,18 @@ export class OpenPr {
           kind: 'system',
           body: note,
         });
+      }
+
+      if (!firstPr) {
+        for (const { command, reason } of input.skipped) {
+          const note: BodyOf<'system'> = { text: `Skipped locally: ${command} — ${reason}` };
+          await deps.messages.post(tx, outbox, {
+            threadId: task.threadId,
+            taskId: task.id,
+            kind: 'system',
+            body: note,
+          });
+        }
       }
 
       if (firstPr) {

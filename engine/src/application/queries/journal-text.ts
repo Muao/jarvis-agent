@@ -99,6 +99,11 @@ export function describeJournalEvent(event: TaskEvent): JournalText {
         ),
         group: 'ci',
       };
+    case 'check_skipped':
+      return {
+        text: `Check skipped locally: ${str(data, 'command')} — ${str(data, 'reason')}`,
+        group: 'ci',
+      };
     case 'check_preexisting':
       return {
         text: `\`${str(data, 'command')}\` fails on main too (${shortSha(str(data, 'baseSha'))}); not counted against the task`,
