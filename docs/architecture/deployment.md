@@ -37,6 +37,8 @@ the firewall.
    # Docker Engine, git, gh, Node 22 (nvm or NodeSource), corepack enable (pnpm)
    curl -fsSL https://claude.ai/install.sh | bash                    # as jarvis, Claude Code CLI
    ln -sf /home/jarvis/.local/bin/claude /usr/local/bin/claude      # as root: systemd's PATH has no ~/.local/bin
+   git config --global user.name Jarvis                             # as jarvis: the engine sets no commit identity,
+   git config --global user.email '<id>+<login>@users.noreply.github.com'   # and a worker's commit fails without one
    curl -fsSL https://tailscale.com/install.sh | sh && tailscale up --ssh
    ```
 3. Once `tailscale ssh jarvis@<host>` works, remove SSH from the Hetzner firewall.
