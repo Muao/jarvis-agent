@@ -32,7 +32,7 @@ Add a row when a module is created.
 | Module | Path      | Purpose                                                              | Test command                        | Typecheck command                        |
 | ------ | --------- | -------------------------------------------------------------------- | ----------------------------------- | ---------------------------------------- |
 | shared | `shared/` | Zod contracts shared by engine and web                               | `pnpm --filter @jarvis/shared test` | `pnpm --filter @jarvis/shared typecheck` |
-| engine | `engine/` | Fastify API, Drizzle/Postgres, runs `claude` (int tests need Docker) | `pnpm --filter @jarvis/engine test` | `pnpm --filter @jarvis/engine typecheck` |
+| engine | `engine/` | Fastify API, Drizzle/Postgres, runs `claude` (int tests: test:int, Docker, CI only) | `pnpm --filter @jarvis/engine test:unit` | `pnpm --filter @jarvis/engine typecheck` |
 | web    | `web/`    | React SPA (e2e: `pnpm --filter @jarvis/web e2e`)                     | `pnpm --filter @jarvis/web test`    | `pnpm --filter @jarvis/web typecheck`    |
 
 ## Rules
