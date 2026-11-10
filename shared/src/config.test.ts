@@ -19,6 +19,7 @@ describe('JarvisConfigSchema', () => {
     expect(config.limits).toEqual({
       maxConcurrentWorkers: 1,
       checkRetries: 3,
+      checkTimeoutMinutes: 15,
       ciFixRounds: 2,
       reviewRounds: 3,
       taskTimeoutMinutes: 60,
@@ -34,6 +35,7 @@ describe('JarvisConfigSchema', () => {
     expect(config.allowlist).toEqual({ githubReviewers: [], autoAllowedCommands: [] });
     expect(config.repos).toEqual({ allow: [], allowOwnerRepos: false });
     expect(config.engine).toEqual({ port: 4310, claudeBinary: 'claude' });
+    expect(config.memory).toEqual({ softCapChars: 4000, backupsKept: 20 });
     expect(config.telemetry).toEqual({
       enabled: false,
       otlpEndpoint: 'http://127.0.0.1:4318',
@@ -149,5 +151,19 @@ describe('JarvisConfigSchema', () => {
     const result = JarvisConfigSchema.safeParse(null);
     if (result.success) throw new Error('expected failure');
     expect(formatConfigError(result.error)).toMatch(/^\(root\): /);
+  });
+});
+
+describe('memory block (ADR-0021)', () => {
+  it('takes overrides and rejects a non-positive or unknown key', () => {
+    const ok = JarvisConfigSchema.parse({
+      ...minimal,
+      memory: { softCapChars: 100, backupsKept: 3 },
+    });
+    expect(ok.memory).toEqual({ softCapChars: 100, backupsKept: 3 });
+    expect(JarvisConfigSchema.safeParse({ ...minimal, memory: { backupsKept: 0 } }).success).toBe(
+      false,
+    );
+    expect(JarvisConfigSchema.safeParse({ ...minimal, memory: { cap: 1 } }).success).toBe(false);
   });
 });

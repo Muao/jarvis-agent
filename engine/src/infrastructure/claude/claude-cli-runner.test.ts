@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -158,6 +158,13 @@ describe('ClaudeCliRunner (against the fake binary)', () => {
     expect(message).toContain('fatal: something broke');
     expect(message).not.toContain('ghp_abcdefghijklmnop');
     expect(rec.events.at(-1)).toMatchObject({ kind: 'error' });
+  });
+
+  it('creates an empty gh config directory for a worker run, none for a dispatcher (ADR-0022)', async () => {
+    await run('ok', { runId: 'R-w', role: 'worker' });
+    await run('ok', { runId: 'R-d', role: 'dispatcher' });
+    expect(existsSync(join(home, 'runs', 'R-w', 'gh'))).toBe(true);
+    expect(existsSync(join(home, 'runs', 'R-d', 'gh'))).toBe(false);
   });
 
   it('stop: SIGTERM ends a slow run with a stopped outcome', async () => {

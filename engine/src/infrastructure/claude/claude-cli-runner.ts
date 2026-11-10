@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import type {
   AgentRunner,
   RunEventBody,
@@ -9,7 +10,7 @@ import type {
 } from '../../application/index.js';
 import type { RunOutcome } from '../../domain/index.js';
 import type { EnvSource } from '../config/index.js';
-import { buildChildEnv } from './child-env.js';
+import { buildChildEnv, WORKER_GH_DIR } from './child-env.js';
 import { buildRunArgs } from './run-args.js';
 import type { RunContext } from './run-context.js';
 import { writeRunFiles } from './run-files.js';
@@ -23,7 +24,6 @@ export interface ClaudeCliRunnerOptions {
   readonly binary: string;
   /** Environment the child env is filtered from; `process.env` is passed in by the composition root. */
   readonly envSource: EnvSource;
-  readonly githubToken?: string;
   /** Added to the child env after filtering (composition root only). */
   readonly extraEnv?: Readonly<Record<string, string>>;
   /** Paths and MCP command of one run. */
@@ -111,17 +111,20 @@ class Execution implements RunHandle {
       const ctx = options.contextFor(spec);
       await mkdir(ctx.runDir, { recursive: true });
       await writeRunFiles(ctx.runDir, spec, ctx);
+      // `GH_CONFIG_DIR` of a worker: empty, so `gh` finds no login there (ADR-0022).
+      if (spec.role === 'worker') await mkdir(join(ctx.runDir, WORKER_GH_DIR), { recursive: true });
       if (this.stopRequested) return this.finish({ type: 'stopped' });
       const env = {
         ...buildChildEnv(options.envSource, {
           role: spec.role,
+          runDir: ctx.runDir,
+          ...(spec.taskKind === undefined ? {} : { taskKind: spec.taskKind }),
           telemetry: {
             ...ctx.config.telemetry,
             runId: spec.runId,
             sessionId: spec.sessionId,
             ...(spec.taskId === undefined ? {} : { taskId: spec.taskId }),
           },
-          ...(options.githubToken !== undefined ? { githubToken: options.githubToken } : {}),
         }),
         ...options.extraEnv,
       };

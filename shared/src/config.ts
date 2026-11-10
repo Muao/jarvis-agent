@@ -49,6 +49,8 @@ export const JarvisConfigSchema = z.strictObject({
     .strictObject({
       maxConcurrentWorkers: positiveInt(1),
       checkRetries: positiveInt(3),
+      /** ADR-0022: per check command run by the engine before it opens the PR. */
+      checkTimeoutMinutes: positiveInt(15),
       ciFixRounds: positiveInt(2),
       reviewRounds: positiveInt(3),
       taskTimeoutMinutes: positiveInt(60),
@@ -138,6 +140,15 @@ export const JarvisConfigSchema = z.strictObject({
           '**/*.scss',
           '**/*.html',
         ]),
+    })
+    .prefault({}),
+  /** ADR-0021: the self-curating memory under `## Learned` in `USER.md`. */
+  memory: z
+    .strictObject({
+      /** A worker run's memory block is cut here; the file itself is never cut. */
+      softCapChars: positiveInt(4000),
+      /** Copies of `USER.md` kept in `~/.jarvis/backups/` before `forget` and `merge_insights`. */
+      backupsKept: positiveInt(20),
     })
     .prefault({}),
   /** Claude Code's own OTel export (ADR-0016). Off by default; the credential lives in `.env`, never here. */

@@ -1,8 +1,18 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ArtifactName } from '@jarvis/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { InvalidInputError } from '../../application/errors.js';
 import { FileArtifactStore } from './file-artifact-store.js';
 
 describe('FileArtifactStore', () => {
@@ -98,5 +108,63 @@ describe('FileArtifactStore', () => {
       await expect(store.read('T-1', name as ArtifactName)).rejects.toThrow();
     }
     expect(() => store.dirFor('../tasks')).toThrow(/Invalid task id/);
+  });
+});
+
+describe('FileArtifactStore.writeEngineFile (ADR-0022)', () => {
+  let root: string;
+  let store: FileArtifactStore;
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'jarvis-art-'));
+    store = new FileArtifactStore(join(root, 'tasks'));
+  });
+  afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+  const read = (rel: string) => readFileSync(join(root, 'tasks', 'T-1', rel), 'utf8');
+
+  it('creates the directories and writes the file', async () => {
+    await store.writeEngineFile('T-1', 'checks/1-abc1234.log', 'output');
+
+    expect(read('checks/1-abc1234.log')).toBe('output');
+  });
+
+  it('replaces a file atomically and leaves no temp file behind', async () => {
+    await store.writeEngineFile('T-1', 'fix/ci-abc1234.log', 'old');
+    await store.writeEngineFile('T-1', 'fix/ci-abc1234.log', 'new');
+
+    expect(read('fix/ci-abc1234.log')).toBe('new');
+    expect(readdirSync(join(root, 'tasks', 'T-1', 'fix'))).toEqual(['ci-abc1234.log']);
+  });
+
+  it.each([
+    ['..'],
+    ['../escape.log'],
+    ['checks/../../escape.log'],
+    ['checks/..'],
+    ['a\\..\\b'],
+    ['/etc/passwd'],
+    [''],
+    ['checks//x.log'],
+    ['checks/'],
+    ['bad\0name'],
+  ])('rejects %j', async (path) => {
+    await expect(store.writeEngineFile('T-1', path, 'x')).rejects.toBeInstanceOf(InvalidInputError);
+    expect(existsSync(join(root, 'tasks', 'escape.log'))).toBe(false);
+  });
+
+  it('refuses to write through a symlinked directory that leaves the task folder', async () => {
+    const outside = join(root, 'outside');
+    mkdirSync(outside);
+    symlinkSync(outside, join(store.dirFor('T-1'), 'checks'));
+
+    await expect(store.writeEngineFile('T-1', 'checks/x.log', 'x')).rejects.toBeInstanceOf(
+      InvalidInputError,
+    );
+    expect(readdirSync(outside)).toEqual([]);
+  });
+
+  it('rejects a task id that is not a task id', async () => {
+    await expect(store.writeEngineFile('../T-1', 'x.log', 'x')).rejects.toThrow(/Invalid task id/);
   });
 });

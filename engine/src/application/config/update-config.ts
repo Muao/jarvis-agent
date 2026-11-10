@@ -16,7 +16,7 @@ export interface UpdateConfigInput {
  * running engine. Listed as full dotted paths, never silently stripped: a patch touching any of
  * these rejects the whole call.
  */
-const FORBIDDEN_PATHS = [
+export const FORBIDDEN_PATHS = [
   'repo.path',
   'repo.remote',
   'repo.baseBranch',
@@ -28,6 +28,14 @@ const FORBIDDEN_PATHS = [
   'ui.devCommand',
   'ui.noSandbox',
   'ui.paths',
+  // The same boundary for the rest of `ui.*` that arms the dev server or skips a gate: `ui.env`
+  // is the environment handed to a pull request's build — a patch could re-expose exactly the
+  // secrets the narrowed inheritance removed (`{"GITHUB_TOKEN": "${GITHUB_TOKEN}"}`);
+  // `ui.allowedOrigins` widens where the checked page may reach; `ui.autoApproveComments`
+  // disables the only gate before writing to a pull request.
+  'ui.env',
+  'ui.allowedOrigins',
+  'ui.autoApproveComments',
   // ADR-0018: this list decides whose pull request may run its code here without asking the owner.
   // A trust boundary is not a setting to be talked into.
   'allowlist.githubReviewers',
@@ -35,11 +43,16 @@ const FORBIDDEN_PATHS = [
 
 function forbiddenPathIn(patch: Record<string, unknown>): string | null {
   for (const path of FORBIDDEN_PATHS) {
-    const [top, key] = path.split('.') as [string, string];
-    const topValue = patch[top];
-    if (topValue !== undefined && typeof topValue === 'object' && topValue !== null) {
-      if (key in (topValue as Record<string, unknown>)) return path;
+    let node: unknown = patch;
+    let matched = true;
+    for (const segment of path.split('.')) {
+      if (typeof node !== 'object' || node === null || !(segment in node)) {
+        matched = false;
+        break;
+      }
+      node = (node as Record<string, unknown>)[segment];
     }
+    if (matched) return path;
   }
   return null;
 }
@@ -52,11 +65,9 @@ export interface UpdateConfigDeps extends TransactionDeps {
 /**
  * ADR-0013: dispatcher-only. Merges `patch` into `jarvis.config.json` and validates the whole
  * result against `JarvisConfigSchema`, same validation path as a manual edit (ADR-0005); writes
- * only if it parses. Never touches `repo.path`, `repo.remote`, `repo.baseBranch`, `repos.allow`,
- * `repos.allowOwnerRepos`, `engine.port`, `engine.claudeBinary`, `ui.devCommand`, `ui.noSandbox`
- * or `ui.paths`, regardless of what the patch
- * asks: a patch naming any of them (even alongside otherwise-valid fields) rejects the whole
- * call, with a message the dispatcher can relay to the owner verbatim. A successful call is
+ * only if it parses. Never touches any path in `FORBIDDEN_PATHS` above, regardless of what the
+ * patch asks: a patch naming any of them (even alongside otherwise-valid fields) rejects the
+ * whole call, with a message the dispatcher can relay to the owner verbatim. A successful call is
  * posted into the thread so the change is visible in history, not just in the file.
  */
 export class UpdateConfig {

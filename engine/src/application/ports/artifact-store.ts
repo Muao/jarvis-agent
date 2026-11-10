@@ -32,4 +32,10 @@ export interface ArtifactStore {
    * (ADR-0014). Used for the screenshots of the UI check, never for the SDD artifacts.
    */
   readImage(taskId: string, relativePath: string): Promise<ArtifactBlob>;
+  /**
+   * ADR-0022: a file the engine writes for the worker (a check log, a failed CI log) under the
+   * task's artifacts directory — never in the worktree. Creates directories, replaces atomically,
+   * rejects an absolute path and any `..` segment.
+   */
+  writeEngineFile(taskId: string, relativePath: string, content: string): Promise<void>;
 }

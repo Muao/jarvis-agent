@@ -1,6 +1,16 @@
+export type { BranchPublisher, BranchStatus, PushResult } from './branch-publisher.js';
+export type { CheckResult, CheckRunOutcome, CheckRunner, CheckRunSpec } from './check-runner.js';
 export type { AgentRunner, RunEventBody, RunHandle, RunListener, RunSpec } from './agent-runner.js';
 export type { ArtifactBlob, ArtifactFile, ArtifactStore } from './artifact-store.js';
-export type { AttachmentResult, AttachmentUpload, CodeHost, RepoTarget } from './code-host.js';
+export type {
+  AttachmentResult,
+  AttachmentUpload,
+  CodeHost,
+  CreatePullRequestInput,
+  CreatePullRequestResult,
+  FailedCheckLog,
+  RepoTarget,
+} from './code-host.js';
 export type { Clock } from './clock.js';
 export type { ConfigProvider, ConfigStatus } from './config-provider.js';
 export type { ConnectionChecks, ConnectionOutcome } from './connection-checks.js';

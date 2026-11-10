@@ -4,6 +4,9 @@ import type {
   AttachmentUpload,
   CodeHost,
   CommentResult,
+  CreatePullRequestInput,
+  CreatePullRequestResult,
+  FailedCheckLog,
   PullRequestDescription,
   RepoTarget,
 } from '../../application/ports/code-host.js';
@@ -59,6 +62,10 @@ interface Where {
 const ACTIONS_APP_SLUG = 'github-actions';
 const RERUNNABLE: readonly string[] = ['failure', 'timed_out'];
 const RUN_ID = /\/actions\/runs\/(\d+)/;
+const FAILED_CONCLUSIONS: readonly string[] = ['failure', 'timed_out'];
+/** ADR-0022: what a fix round gets of a failed log. */
+const LOG_TAIL_LINES = 200;
+const LOG_TOTAL_BYTES = 200 * 1024;
 /**
  * ADR-0014. GitHub documents no API for comment attachments; this is the endpoint its own web
  * UI posts to when an image is dropped into a PR body. It can change or start refusing tokens
@@ -72,6 +79,11 @@ interface RawUser {
 }
 const isBot = (user: RawUser | null): boolean =>
   user !== null && (user.type === 'Bot' || user.login.endsWith('[bot]'));
+
+function errorText(error: unknown): string {
+  const data = JSON.stringify((error as { response?: { data?: unknown } } | null)?.response?.data);
+  return `${error instanceof Error ? error.message : String(error)} ${data ?? ''}`;
+}
 
 function statusOf(error: unknown): number | null {
   const status = (error as { status?: unknown } | null)?.status;
@@ -191,6 +203,117 @@ export class GitHubCodeHost implements CodeHost, ConnectionChecker {
         ok: false,
         reason: `GitHub refused the edit of comment ${String(commentId)} on ${where.owner}/${where.repo}${status === undefined ? '' : ` (${String(status)})`}: ${this.redact(message)}`,
       };
+    }
+  }
+
+  /**
+   * ADR-0022. A refusal is a value, like the comment and the upload: the engine has already
+   * pushed the branch by now and must be able to say so. An open PR for the head is returned
+   * instead of a second one, also when GitHub says one exists only at the moment of creating.
+   */
+  async createPullRequest(
+    input: CreatePullRequestInput,
+    target?: RepoTarget,
+  ): Promise<CreatePullRequestResult> {
+    const where = this.where(target);
+    const existing = async (): Promise<CreatePullRequestResult | null> => {
+      const { data } = await this.octokit.pulls.list({
+        ...where,
+        head: `${where.owner}:${input.head}`,
+        state: 'open',
+        per_page: 1,
+      });
+      const found = data[0];
+      return found === undefined
+        ? null
+        : { ok: true, number: found.number, url: found.html_url, created: false };
+    };
+    try {
+      const open = await existing();
+      if (open !== null) return open;
+      try {
+        const { data } = await this.octokit.pulls.create({
+          ...where,
+          head: input.head,
+          base: input.base,
+          title: input.title,
+          body: input.body,
+          draft: true,
+        });
+        return { ok: true, number: data.number, url: data.html_url, created: true };
+      } catch (error) {
+        if (statusOf(error) === 422 && /already exists/i.test(errorText(error))) {
+          const raced = await existing();
+          if (raced !== null) return raced;
+        }
+        throw error;
+      }
+    } catch (error) {
+      const status = statusOf(error);
+      return {
+        ok: false,
+        reason: `GitHub refused the pull request for ${where.owner}/${where.repo}${status === null ? '' : ` (${String(status)})`}: ${this.reasonOf(error)}`,
+      };
+    }
+  }
+
+  /**
+   * ADR-0022. The failed checks of `headSha`, with the end of their logs when they are Actions
+   * jobs (their check-run id is the job id). The text is whatever a test or a dependency printed,
+   * so it is untrusted; the caller wraps it. A log that cannot be fetched is `null`, not an error.
+   */
+  async failedCheckLogs(
+    _prNumber: number,
+    headSha: string,
+    target?: RepoTarget,
+  ): Promise<readonly FailedCheckLog[]> {
+    return this.guard(async () => {
+      const { owner, repo } = this.where(target);
+      const runs = await this.octokit.paginate(this.octokit.checks.listForRef, {
+        owner,
+        repo,
+        ref: headSha,
+        per_page: 100,
+      });
+      const failed = runs.filter(
+        (run) => run.conclusion !== null && FAILED_CONCLUSIONS.includes(run.conclusion),
+      );
+      let budget = LOG_TOTAL_BYTES;
+      const out: FailedCheckLog[] = [];
+      for (const run of failed) {
+        let logTail: string | null = null;
+        if (run.app?.slug === ACTIONS_APP_SLUG && budget > 0) {
+          logTail = await this.jobLogTail(owner, repo, run.id, budget);
+          if (logTail !== null) budget -= Buffer.byteLength(logTail);
+        }
+        out.push({
+          name: run.name,
+          conclusion: run.conclusion ?? 'failure',
+          url: run.html_url ?? null,
+          logTail,
+        });
+      }
+      return out;
+    });
+  }
+
+  private async jobLogTail(
+    owner: string,
+    repo: string,
+    jobId: number,
+    budget: number,
+  ): Promise<string | null> {
+    try {
+      const { data } = await this.octokit.actions.downloadJobLogsForWorkflowRun({
+        owner,
+        repo,
+        job_id: jobId,
+      });
+      const text = typeof data === 'string' ? data : String(data);
+      const tail = text.replace(/\s+$/, '').split('\n').slice(-LOG_TAIL_LINES).join('\n');
+      return tail.length > budget ? tail.slice(-budget) : tail;
+    } catch {
+      return null;
     }
   }
 

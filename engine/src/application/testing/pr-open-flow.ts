@@ -45,11 +45,17 @@ export async function taskInPrOpen(
   await app.answerDecision.execute(cardId, { decision: 'approve' });
   const worker = identityOfProcess(app, 1);
   app.clock.advanceMinutes(3);
-  await app.reportStage.execute(worker, { stage: 'Verifying' });
-  await app.reportChecks.execute(worker, { passed: false, summary: 'lint broke' });
-  await app.reportChecks.execute(worker, { passed: true, summary: 'all green' });
+  // ADR-0022: the first gate is red, the second is green, and the engine opens the PR.
+  app.checkRunner.script('pnpm test', { exitCode: 1, tail: 'lint broke' });
+  const red = await app.openPr.execute(worker, { title: 'Add /health', body: '## What\nA route.' });
+  if (red.ok || red.reason !== 'checks_failed') throw new Error('test: the red gate did not fail');
+  app.checkRunner.script('pnpm test', { exitCode: 0, tail: '' });
   app.clock.advanceMinutes(4);
-  await app.reportPr.execute(worker, FLOW_PR);
+  const opened = await app.openPr.execute(worker, {
+    title: 'Add /health',
+    body: '## What\nA route.',
+  });
+  if (!opened.ok) throw new Error(`test: open_pr refused: ${opened.reason}`);
   app.codeHost.set(FLOW_PR.number, {
     headSha: 'abcdef1234567',
     checks: [

@@ -20,4 +20,9 @@ export interface WorktreeManager {
     targetRepo: { owner: string; name: string } | null,
     prNumber: number,
   ): Promise<Worktree>;
+  /**
+   * ADR-0021: does `relativePath` name a file inside the worktree at `worktreePath`? A path that
+   * climbs out of the worktree is never a file of it.
+   */
+  hasFile(worktreePath: string, relativePath: string): Promise<boolean>;
 }

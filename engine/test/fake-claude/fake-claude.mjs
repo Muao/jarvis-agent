@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Stand-in for the `claude` binary in tests (ADR-0013). Plain Node, no dependencies.
 // Plays the scenario named by JARVIS_FAKE_SCENARIO (a JSON file next to this script).
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { dirname, join } from 'node:path';
@@ -23,11 +24,13 @@ const role = argv.includes('--allowedTools') ? 'dispatcher' : 'worker';
  */
 function loadScenario(firstMessage) {
   const stage = /^stage: (.+)$/m.exec(firstMessage)?.[1]?.toLowerCase().replaceAll(' ', '-');
-  const candidates = [
-    ...(stage ? [`${scenarioName}.${role}.${stage}.json`] : []),
-    `${scenarioName}.${role}.json`,
-    `${scenarioName}.json`,
-  ];
+  // A variant (`flow-red`) falls back to its base scenario (`flow`), so it only has to carry the files that differ.
+  const names = [scenarioName, ...(scenarioName.includes('-') ? [scenarioName.split('-')[0]] : [])];
+  const candidates = names.flatMap((name) => [
+    ...(stage ? [`${name}.${role}.${stage}.json`] : []),
+    `${name}.${role}.json`,
+    `${name}.json`,
+  ]);
   const file = candidates.map((name) => join(here, name)).find((path) => existsSync(path));
   if (!file) throw new Error(`No fake-claude scenario among: ${candidates.join(', ')}`);
   return JSON.parse(readFileSync(file, 'utf8'));
@@ -104,6 +107,27 @@ const steps = {
     if (!dir) throw new Error('write_artifacts needs an "artifactsDir:" line in the first message');
     mkdirSync(dir, { recursive: true });
     for (const [name, content] of Object.entries(s.files)) writeFileSync(join(dir, name), content);
+  },
+  /**
+   * Writes `files` ({ "src/a.txt": "..." }) into the current directory (the task's worktree) and commits them with
+   * `message`. The fake has no shell, so this is how a scripted worker commits.
+   */
+  git_commit: (s) => {
+    for (const [name, content] of Object.entries(s.files)) {
+      mkdirSync(dirname(join(process.cwd(), name)), { recursive: true });
+      writeFileSync(join(process.cwd(), name), content);
+    }
+    const git = (...args) => execFileSync('git', args, { cwd: process.cwd(), stdio: 'pipe' });
+    git('add', '--', ...Object.keys(s.files));
+    git('commit', '-q', '-m', s.message);
+  },
+  /** Writes the run's first message to `file` in the `artifactsDir`, so a test can read what the engine sent. */
+  save_first_message: (s) => {
+    const dir = /^artifactsDir: (.+)$/m.exec(first)?.[1];
+    if (!dir)
+      throw new Error('save_first_message needs an "artifactsDir:" line in the first message');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, s.file), first);
   },
   sleep: (s) => sleep(s.ms),
   stderr: (s) => process.stderr.write(`${s.text}\n`),

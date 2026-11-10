@@ -6,9 +6,12 @@ import type { FastifyInstance, FastifyServerOptions } from 'fastify';
 import {
   createApplication,
   type Application,
+  type BranchPublisher,
   type CodeHost,
   type ConfigStatus,
 } from './application/index.js';
+import { ShellCheckRunner } from './infrastructure/checks/shell-check-runner.js';
+import { GitBranchPublisher } from './infrastructure/git/git-branch-publisher.js';
 import { FileArtifactStore } from './infrastructure/artifacts/file-artifact-store.js';
 import { ProcessDevServer } from './infrastructure/dev-server/process-dev-server.js';
 import { HttpHeartbeat } from './infrastructure/heartbeat/http-heartbeat.js';
@@ -65,6 +68,13 @@ export interface ContainerOptions {
   /** Added to every `claude` child's environment (tests select a fake scenario this way). */
   readonly runnerEnv?: Readonly<Record<string, string>>;
   readonly logger?: FastifyServerOptions['logger'];
+  /** **Tests only** (ADR-0022): replaces the GitHub host, so a flow can open a PR without GitHub. */
+  readonly codeHost?: CodeHost;
+  /**
+   * **Tests only** (ADR-0022): where a task's branch is pushed instead of GitHub, e.g. a
+   * `file://` bare repository. Setting it makes the engine push even without a token.
+   */
+  readonly publisherRemoteUrl?: (repo: { owner: string; name: string }) => string;
 }
 
 export interface Container {
@@ -122,6 +132,16 @@ const unconfiguredCodeHost: CodeHost = {
   describePullRequest: () => Promise.reject(notConfigured()),
   postComment: () => Promise.resolve({ ok: false, reason: notConfigured().message }),
   editComment: () => Promise.resolve({ ok: false, reason: notConfigured().message }),
+  createPullRequest: () => Promise.resolve({ ok: false, reason: notConfigured().message }),
+  failedCheckLogs: () => Promise.reject(notConfigured()),
+};
+
+/** Without a token nothing can be pushed; `open_pr` answers `host_unconfigured` before it asks. */
+const unconfiguredBranchPublisher: BranchPublisher = {
+  headSha: () => Promise.reject(notConfigured()),
+  status: () => Promise.reject(notConfigured()),
+  push: () =>
+    Promise.resolve({ ok: false, reason: 'unreachable', detail: notConfigured().message }),
 };
 
 function notConfigured(): CodeHostError {
@@ -197,12 +217,12 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
       const ref = await allowedRepoResolver.resolve(ownerSlashName);
       return { owner: ref.owner, name: ref.repo };
     },
+    defaultRepo: () => (selfRepo === null ? null : { owner: selfRepo.owner, name: selfRepo.repo }),
   };
 
   const runner = new ClaudeCliRunner({
     binary: config.engine.claudeBinary,
     envSource: options.env,
-    ...(env.githubToken === undefined ? {} : { githubToken: env.githubToken }),
     ...(options.runnerEnv === undefined ? {} : { extraEnv: options.runnerEnv }),
     redact,
     contextFor: (spec: RunSpec) => {
@@ -253,6 +273,21 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
   });
   await devServers.recover();
 
+  // ADR-0022: the engine's own git. Without a token (and no test seam) it cannot push.
+  const branchPublisher: BranchPublisher =
+    env.githubToken === undefined && options.publisherRemoteUrl === undefined
+      ? unconfiguredBranchPublisher
+      : new GitBranchPublisher({
+          token: env.githubToken ?? '',
+          worktreesDir: join(home.root, 'worktrees'),
+          baseBranch: config.repo.baseBranch,
+          remote: config.repo.remote,
+          env: options.env,
+          ...(options.publisherRemoteUrl === undefined
+            ? {}
+            : { remoteUrl: options.publisherRemoteUrl }),
+        });
+
   const app = createApplication({
     uow: new PgUnitOfWork(createDatabase(pool)),
     ids: new CryptoIdGenerator(),
@@ -276,10 +311,15 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
     }),
     artifacts: new FileArtifactStore(join(home.root, 'tasks')),
     devServers,
-    codeHost: github ?? unconfiguredCodeHost,
+    codeHost: options.codeHost ?? github ?? unconfiguredCodeHost,
+    checkRunner: new ShellCheckRunner({ env: options.env }),
+    branchPublisher,
+    hostConfigured: options.codeHost !== undefined || env.githubToken !== undefined,
     repos: repoResolver,
     runner,
-    profile: new FileProfileStore(home.userFile),
+    profile: new FileProfileStore(home.userFile, {
+      backupsKept: () => provider.current().memory.backupsKept,
+    }),
     configStatus,
     repoInfo: new AgentsMdRepoInfo(),
     profileFiles: new FileProfileFiles({

@@ -2,7 +2,15 @@ import { HandleCodeHostChange } from './code-host/handle-code-host-change.js';
 import { PollPullRequests } from './code-host/poll-pull-requests.js';
 import { ListTasks } from './conversation/list-tasks.js';
 import { UpdateConfig } from './config/update-config.js';
+import { ConfirmInsight } from './profile/confirm-insight.js';
+import { ContradictInsight } from './profile/contradict-insight.js';
+import { Forget } from './profile/forget.js';
+import { MemoryCap } from './profile/memory-cap.js';
+import { MergeInsights } from './profile/merge-insights.js';
+import { NoteInsight } from './profile/note-insight.js';
+import { ReadMemory } from './profile/read-memory.js';
 import { Remember } from './profile/remember.js';
+import { RememberOwner } from './profile/remember-owner.js';
 import type { Notifiers } from './transaction.js';
 import { AnswerPermission } from './permissions/answer-permission.js';
 import { AwaitPermission } from './permissions/await-permission.js';
@@ -39,6 +47,8 @@ import { SendToTask } from './conversation/send-to-task.js';
 import { ThreadMessages } from './conversation/thread-messages.js';
 import type { AgentRunner } from './ports/agent-runner.js';
 import type { ArtifactStore } from './ports/artifact-store.js';
+import type { BranchPublisher } from './ports/branch-publisher.js';
+import type { CheckRunner } from './ports/check-runner.js';
 import type { Clock } from './ports/clock.js';
 import type { CodeHost } from './ports/code-host.js';
 import type { ConfigProvider, ConfigStatus } from './ports/config-provider.js';
@@ -61,8 +71,7 @@ import { CancelTask } from './tasks/cancel-task.js';
 import { CreateTask } from './tasks/create-task.js';
 import { LogNote } from './tasks/log-note.js';
 import { PostUpdate } from './tasks/post-update.js';
-import { ReportChecks } from './tasks/report-checks.js';
-import { ReportPr } from './tasks/report-pr.js';
+import { OpenPr } from './tasks/open-pr.js';
 import { ReportStage } from './tasks/report-stage.js';
 import { RetryStage } from './tasks/retry-stage.js';
 import { SetTaskTargetRepo } from './tasks/set-task-target-repo.js';
@@ -85,6 +94,15 @@ export interface ApplicationPorts extends Omit<Notifiers, 'runs'> {
   readonly worktrees: WorktreeManager;
   readonly artifacts: ArtifactStore;
   readonly codeHost: CodeHost;
+  /** ADR-0022: runs the owner-approved check commands in a task's worktree. */
+  readonly checkRunner: CheckRunner;
+  /** ADR-0022: the engine's own git; pushes a task's branch. */
+  readonly branchPublisher: BranchPublisher;
+  /**
+   * ADR-0022: false when the engine has no GitHub token, so `open_pr` answers `host_unconfigured`
+   * before it runs anything. Left out (true) in tests.
+   */
+  readonly hostConfigured?: boolean;
   readonly runner: AgentRunner;
   readonly profile: ProfileStore;
   /** Read side of the Config and Connections screens. */
@@ -120,12 +138,20 @@ export interface Application {
   readonly reportStage: ReportStage;
   readonly logNote: LogNote;
   readonly postUpdate: PostUpdate;
-  readonly reportChecks: ReportChecks;
-  readonly reportPr: ReportPr;
+  /** ADR-0022: the engine runs the checks, pushes the branch and opens the draft PR. */
+  readonly openPr: OpenPr;
   readonly cancelTask: CancelTask;
   readonly retryStage: RetryStage;
   readonly setTaskTargetRepo: SetTaskTargetRepo;
   readonly remember: Remember;
+  /** ADR-0021: the rest of the memory tools. */
+  readonly forget: Forget;
+  readonly mergeInsights: MergeInsights;
+  readonly readMemory: ReadMemory;
+  readonly noteInsight: NoteInsight;
+  readonly confirmInsight: ConfirmInsight;
+  readonly contradictInsight: ContradictInsight;
+  readonly rememberOwner: RememberOwner;
   readonly updateConfig: UpdateConfig;
   /** ADR-0014: the worker's UI check. */
   readonly startDevServer: StartDevServer;
@@ -167,7 +193,13 @@ export function createApplication(ports: ApplicationPorts): Application {
   const startedAt = clock.now();
   const messages = new ThreadMessages({ ids, clock });
   const statusCard = new StatusCard({ messages, config });
-  const writer = new TaskWriter({ clock, statusCard });
+  const writer = new TaskWriter({
+    clock,
+    statusCard,
+    messages,
+    memoryOverCap: (task) =>
+      new MemoryCap({ profile: ports.profile, repos: ports.repos, config }).overCap(task),
+  });
 
   const registry = new RunRegistry(ids);
   const liveRuns = new LiveRuns();
@@ -179,6 +211,7 @@ export function createApplication(ports: ApplicationPorts): Application {
     ids,
     config,
     profile: ports.profile,
+    repos: ports.repos,
     runner: ports.runner,
     worktrees,
     artifacts,
@@ -231,19 +264,43 @@ export function createApplication(ports: ApplicationPorts): Application {
     listTasks: new ListTasks({ uow, runs: notifiers.runs }),
     sendToTask: new SendToTask(deps),
     createTask: new CreateTask({ ...deps, ids, worktrees, repos: ports.repos }),
-    submitSpec: new SubmitSpec({ ...deps, artifacts }),
+    submitSpec: new SubmitSpec({ ...deps, artifacts, repoInfo: ports.repoInfo, worktrees }),
     answerDecision,
     askOwner: new AskOwner(deps),
     answerQuestion,
     reportStage: new ReportStage(deps),
     logNote: new LogNote(deps),
     postUpdate: new PostUpdate(deps),
-    reportChecks: new ReportChecks({ ...deps, config }),
-    reportPr: new ReportPr(deps),
+    openPr: new OpenPr({
+      ...deps,
+      config,
+      repoInfo: ports.repoInfo,
+      worktrees,
+      checkRunner: ports.checkRunner,
+      branchPublisher: ports.branchPublisher,
+      codeHost: ports.codeHost,
+      artifacts,
+      repos: ports.repos,
+      eventLog,
+      liveRuns,
+      ...(ports.hostConfigured === undefined ? {} : { hostConfigured: ports.hostConfigured }),
+    }),
     cancelTask: new CancelTask(deps),
     retryStage: new RetryStage(deps),
     setTaskTargetRepo: new SetTaskTargetRepo({ ...deps, repos: ports.repos }),
-    remember: new Remember({ profile: ports.profile }),
+    remember: new Remember({ profile: ports.profile, clock }),
+    forget: new Forget({ profile: ports.profile, logger: ports.logger }),
+    mergeInsights: new MergeInsights({ profile: ports.profile, logger: ports.logger }),
+    readMemory: new ReadMemory({ profile: ports.profile }),
+    noteInsight: new NoteInsight({
+      ...deps,
+      profile: ports.profile,
+      repos: ports.repos,
+      worktrees,
+    }),
+    confirmInsight: new ConfirmInsight({ ...deps, profile: ports.profile }),
+    contradictInsight: new ContradictInsight({ ...deps, profile: ports.profile }),
+    rememberOwner: new RememberOwner({ ...deps, profile: ports.profile, repos: ports.repos }),
     updateConfig: new UpdateConfig({ ...deps, config }),
     startDevServer: new StartDevServer({
       ...deps,

@@ -11,6 +11,7 @@ import {
   isActive,
   isTerminal,
   recordCheckFailure,
+  recordCheckPass,
   recordCiFailure,
   recordReviewRound,
   setTargetRepo,
@@ -272,6 +273,11 @@ describe('journal event', () => {
       ['spec_approved', 'Spec Review', 'Implementing', 'owner'],
       ['spec_submitted', 'Context', 'Spec Review', 'agent'],
       ['worker_started', 'Intake', 'Context', 'system'],
+      ['checks_started', 'Implementing', 'Verifying', 'system'],
+      ['checks_red', 'Verifying', 'Implementing', 'system'],
+      ['pr_opened', 'Verifying', 'PR Open', 'system'],
+      ['pr_opened', 'Fixing', 'PR Open', 'system'],
+      ['pr_reported', 'Verifying', 'PR Open', 'agent'],
     ];
     for (const [cause, from, to, actor] of cases) {
       const { event } = transition(at(from), to, { cause, at: T1 });
@@ -281,7 +287,7 @@ describe('journal event', () => {
   });
 
   it('has an actor for every cause', () => {
-    expect(Object.keys(CAUSE_ACTOR)).toHaveLength(18);
+    expect(Object.keys(CAUSE_ACTOR)).toHaveLength(21);
   });
 
   it('carries the reason for Failed', () => {
@@ -427,5 +433,25 @@ describe('ui_check tasks (ADR-0018)', () => {
     expect(blocked.resumeStage).toBe('Reviewing');
     expect(canTransition(blocked, 'Reviewing')).toBe(true);
     expect(canTransition(blocked, 'Context')).toBe(false);
+  });
+});
+
+describe('recordCheckPass (ADR-0022)', () => {
+  const withRetries = (checkRetries: number): Task => ({
+    ...at('Verifying'),
+    counters: { checkRetries, ciFixRounds: 1, reviewRounds: 2 },
+  });
+
+  it('resets checkRetries and leaves the other counters', () => {
+    expect(recordCheckPass(withRetries(2)).counters).toEqual({
+      checkRetries: 0,
+      ciFixRounds: 1,
+      reviewRounds: 2,
+    });
+  });
+
+  it('is a no-op at zero', () => {
+    const task = withRetries(0);
+    expect(recordCheckPass(task)).toBe(task);
   });
 });

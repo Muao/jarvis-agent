@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -172,6 +172,13 @@ describe('GitWorktreeManager', () => {
       expect(git(wt.path, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('jarvis-check/T-7');
       expect(git(wt.path, 'rev-parse', 'HEAD')).toBe(head);
       expect(existsSync(join(wt.path, 'b.txt'))).toBe(true);
+      // The precomputed diff a shell-less ui_check worker reads (ADR-0018).
+      expect(readFileSync(join(wt.path, '.jarvis', 'changed-files.txt'), 'utf8')).toContain(
+        'b.txt',
+      );
+      expect(readFileSync(join(wt.path, '.jarvis', 'diff.patch'), 'utf8')).toContain(
+        'from the pull request',
+      );
     });
 
     it('is idempotent: the second call returns the same worktree', async () => {

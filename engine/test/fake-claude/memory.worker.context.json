@@ -1,0 +1,30 @@
+{
+  "steps": [
+    { "type": "init" },
+    { "type": "save_first_message", "file": "first-message.txt" },
+    {
+      "type": "jarvis_tool",
+      "tool": "note_insight",
+      "input": {
+        "fact": "When running the checks, use pnpm test.",
+        "citations": ["AGENTS.md:3"]
+      }
+    },
+    {
+      "type": "jarvis_tool",
+      "tool": "note_insight",
+      "input": { "fact": "This one cites a file that is not there.", "citations": ["nope.ts:1"] }
+    },
+    {
+      "type": "write_artifacts",
+      "files": {
+        "context.md": "# Context\nx\n",
+        "spec.md": "# Spec\nx\n",
+        "plan.md": "# Plan\nx\n",
+        "tasks.md": "# Tasks\n- [ ] x\n"
+      }
+    },
+    { "type": "jarvis_tool", "tool": "submit_spec_for_approval", "input": { "summary": "x" } },
+    { "type": "result", "text": "spec submitted" }
+  ]
+}

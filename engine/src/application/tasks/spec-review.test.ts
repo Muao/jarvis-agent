@@ -30,7 +30,13 @@ describe('SubmitSpec', () => {
       threadId: thread.id,
       taskId: task.id,
       answeredAt: null,
-      body: { taskId: task.id, summary: 'Add /health', artifacts: ['spec.md', 'plan.md'] },
+      body: {
+        taskId: task.id,
+        summary: expect.stringContaining('Add /health') as unknown,
+        artifacts: ['spec.md', 'plan.md'],
+        checks: ['pnpm test', 'pnpm typecheck'],
+        checksSource: 'agents_md',
+      },
     });
     expect(app.db.tables.journal.at(-1)).toMatchObject({
       type: 'stage_changed',

@@ -289,8 +289,8 @@ describe('writeRunFiles', () => {
       const { deny } = permissions();
       expect(deny).toEqual(
         expect.arrayContaining([
-          'Bash(git push --force:*)',
-          'Bash(git push * --delete*)',
+          'Bash(git push:*)', // from worker.json (ADR-0022: the worker cannot push at all)
+          'Bash(gh:*)',
           'Bash(gh pr merge:*)',
           'Bash(git push origin main:*)',
           'Bash(git push origin HEAD:main:*)',

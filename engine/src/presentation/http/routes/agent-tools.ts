@@ -16,6 +16,18 @@ function tool<T>(
   return (app, identity, body) => run(app, identity, parse(schema, body));
 }
 
+const RETIRED = {
+  ok: false,
+  reason: 'tool_retired',
+  use: 'open_pr',
+  detail:
+    'Checks, push and the pull request are now done by the engine: commit, then call open_pr.',
+} as const;
+const retired: Call = () => Promise.resolve(RETIRED);
+
+/** Tools no role is offered any more but a worker session started earlier may still call (ADR-0022). */
+export const RETIRED_TOOLS: readonly ToolName[] = ['report_checks', 'report_pr'];
+
 /**
  * What each Jarvis tool does and what the model gets back. Identity is always the run's, never an
  * argument (ADR-0004). `approve` is not here: it has its own long-polling route.
@@ -41,10 +53,19 @@ export const toolCalls: Readonly<Partial<Record<ToolName, Call>>> = {
     return OK;
   }),
   reply: tool(schemas.reply, (app, identity, input) => app.reply.execute(identity, input)),
-  remember: tool(schemas.remember, async (app, identity, input) => {
-    await app.remember.execute(identity, input);
+  remember: tool(schemas.remember, async (app, identity, input) => ({
+    ...OK,
+    ...(await app.remember.execute(identity, input)),
+  })),
+  forget: tool(schemas.forget, async (app, identity, input) => {
+    await app.forget.execute(identity, input);
     return OK;
   }),
+  merge_insights: tool(schemas.merge_insights, async (app, identity, input) => ({
+    ...OK,
+    ...(await app.mergeInsights.execute(identity, input)),
+  })),
+  read_memory: tool(schemas.read_memory, (app, identity) => app.readMemory.execute(identity)),
   update_config: tool(schemas.update_config, (app, identity, input) =>
     app.updateConfig.execute(identity, input),
   ),
@@ -57,15 +78,14 @@ export const toolCalls: Readonly<Partial<Record<ToolName, Call>>> = {
     app.askOwner.execute(identity, input),
   ),
   submit_spec_for_approval: tool(schemas.submit_spec_for_approval, (app, identity, input) =>
-    app.submitSpec.execute(identity, input),
+    app.submitSpec.attempt(identity, input),
   ),
-  report_checks: tool(schemas.report_checks, (app, identity, input) =>
-    app.reportChecks.execute(identity, input),
-  ),
-  report_pr: tool(schemas.report_pr, async (app, identity, input) => {
-    await app.reportPr.execute(identity, input);
-    return OK;
-  }),
+  open_pr: tool(schemas.open_pr, (app, identity, input) => app.openPr.execute(identity, input)),
+  // Migration only (ADR-0022): a session that started before `open_pr` still calls these. The
+  // answer is a value, not an error, so the model reads it and changes course. Remove one release
+  // after the journal shows no `tool_retired` answer for a week.
+  report_checks: retired,
+  report_pr: retired,
   log_note: tool(schemas.log_note, async (app, identity, input) => {
     await app.logNote.execute(identity, input);
     return OK;
@@ -74,6 +94,21 @@ export const toolCalls: Readonly<Partial<Record<ToolName, Call>>> = {
     await app.postUpdate.execute(identity, input);
     return OK;
   }),
+
+  note_insight: tool(schemas.note_insight, async (app, identity, input) => ({
+    ...OK,
+    ...(await app.noteInsight.execute(identity, input)),
+  })),
+  confirm_insight: tool(schemas.confirm_insight, (app, identity, input) =>
+    app.confirmInsight.execute(identity, input),
+  ),
+  contradict_insight: tool(schemas.contradict_insight, (app, identity, input) =>
+    app.contradictInsight.execute(identity, input),
+  ),
+  remember_owner: tool(schemas.remember_owner, async (app, identity, input) => ({
+    ...OK,
+    ...(await app.rememberOwner.execute(identity, input)),
+  })),
 
   start_dev_server: tool(schemas.start_dev_server, (app, identity) =>
     app.startDevServer.execute(identity),

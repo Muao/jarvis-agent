@@ -50,6 +50,15 @@ export class AnswerDecision {
     );
 
     if (answer.decision === 'approve') {
+      // ADR-0022: the card's list is what the owner read; approving freezes exactly that.
+      const body = card.body as { checks?: unknown; checksSource?: unknown };
+      if (Array.isArray(body.checks) && body.checks.length > 0) {
+        await this.deps.writer.note(tx, task.id, 'checks_fixed', 'owner', {
+          commands: body.checks,
+          source: body.checksSource ?? null,
+          cardId: card.id,
+        });
+      }
       await this.deps.writer.move(tx, outbox, task, 'Implementing', { cause: 'spec_approved' });
     } else {
       await this.deps.writer.move(tx, outbox, task, 'Context', {

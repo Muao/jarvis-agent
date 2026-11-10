@@ -14,6 +14,8 @@ export class GitError extends Error {
 export interface RunGitOptions {
   readonly cwd: string;
   readonly timeoutMs?: number;
+  /** The child's whole environment. Absent: inherited from the engine, as before. */
+  readonly env?: NodeJS.ProcessEnv;
 }
 
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -28,6 +30,7 @@ export function runGit(args: readonly string[], options: RunGitOptions): Promise
         cwd: options.cwd,
         timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         maxBuffer: 16 * 1024 * 1024,
+        ...(options.env === undefined ? {} : { env: options.env }),
       },
       (error, stdout, stderr) => {
         if (error) {

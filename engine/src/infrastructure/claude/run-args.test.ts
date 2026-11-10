@@ -47,7 +47,29 @@ describe('buildRunArgs', () => {
     );
   });
 
-  it('worker: no tool restrictions, no resume by default', () => {
+  it('ui_check: denies the shell and the editors a check never needs', () => {
+    const args = buildRunArgs(specOf({ taskKind: 'ui_check' }), ctx);
+    const denied = valueOf(args, '--disallowedTools')?.split(',') ?? [];
+    expect(denied).toEqual(expect.arrayContaining(['Bash', 'Edit', 'NotebookEdit']));
+    expect(args).not.toContain('--allowedTools');
+  });
+
+  it('ui_check: hides the four memory write tools (ADR-0021)', () => {
+    const denied = valueOf(
+      buildRunArgs(specOf({ taskKind: 'ui_check' }), ctx),
+      '--disallowedTools',
+    );
+    expect(denied?.split(',')).toEqual(
+      expect.arrayContaining([
+        'mcp__jarvis__note_insight',
+        'mcp__jarvis__confirm_insight',
+        'mcp__jarvis__contradict_insight',
+        'mcp__jarvis__remember_owner',
+      ]),
+    );
+  });
+
+  it('build worker: no tool restrictions, no resume by default', () => {
     const args = buildRunArgs(specOf(), ctx);
     expect(args).not.toContain('--resume');
     expect(args).not.toContain('--allowedTools');

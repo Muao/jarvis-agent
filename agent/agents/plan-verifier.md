@@ -12,6 +12,8 @@ You check a plan for completeness and consistency. You do not rewrite it.
 ## Input
 
 Paths to `spec.md`, `plan.md`, `tasks.md`, and the target repository (`AGENTS.md`, docs and ADRs it names).
+Optionally, memory entries (id and fact): treat them as this repository's conventions, below `AGENTS.md`
+and the spec in authority. You have no memory tools.
 
 ## Check
 

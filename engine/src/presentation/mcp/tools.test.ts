@@ -92,7 +92,7 @@ describe('Jarvis MCP server: tool calls', () => {
   it('calls a worker tool at its own endpoint', async () => {
     const { calls, transport } = fakeTransport(() => json(200, { ok: true }));
     const client = await connect('worker', transport);
-    await client.callTool({ name: 'report_stage', arguments: { stage: 'Verifying' } });
+    await client.callTool({ name: 'report_stage', arguments: { stage: 'Reviewing' } });
     expect(calls[0]?.url).toBe(`${URL_BASE}/api/agent/tools/report_stage`);
   });
 

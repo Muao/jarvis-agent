@@ -52,6 +52,24 @@ export interface PullRequestDescription {
   readonly fromFork: boolean;
 }
 
+export interface CreatePullRequestInput {
+  readonly head: string;
+  readonly base: string;
+  readonly title: string;
+  readonly body: string;
+}
+
+export type CreatePullRequestResult =
+  | { readonly ok: true; readonly number: number; readonly url: string; readonly created: boolean }
+  | { readonly ok: false; readonly reason: string };
+
+export interface FailedCheckLog {
+  readonly name: string;
+  readonly conclusion: string;
+  readonly url: string | null;
+  readonly logTail: string | null;
+}
+
 /** The pull-request host (GitHub in ADR-0007). The watcher polls it; nothing here calls a model. */
 export interface CodeHost {
   /**
@@ -83,4 +101,21 @@ export interface CodeHost {
    * caller checks that the comment belongs to the task before asking; this only does the write.
    */
   editComment(commentId: number, body: string, repo?: RepoTarget): Promise<CommentResult>;
+  /**
+   * ADR-0022: opens a **draft** pull request from `head` into `base`. When an open PR for the head
+   * exists it is returned instead (`created: false`), never a second one. A refusal is a value.
+   */
+  createPullRequest(
+    input: CreatePullRequestInput,
+    repo?: RepoTarget,
+  ): Promise<CreatePullRequestResult>;
+  /**
+   * ADR-0022: the failed checks of `headSha` with the tail of their logs, for a fix round. A
+   * check that is not an Actions job has `logTail: null`. The text is untrusted (ADR-0017).
+   */
+  failedCheckLogs(
+    prNumber: number,
+    headSha: string,
+    repo?: RepoTarget,
+  ): Promise<readonly FailedCheckLog[]>;
 }

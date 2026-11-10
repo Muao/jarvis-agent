@@ -70,23 +70,22 @@ const CASES: readonly Case[] = [
     name: 'ReportStage',
     arrange: async (app) => {
       const { task } = await app.seed.task({ stage: 'Implementing' });
-      return () => app.reportStage.execute(app.identity.worker(task), { stage: 'Verifying' });
+      return () => app.reportStage.execute(app.identity.worker(task), { stage: 'Reviewing' });
     },
   },
   {
-    name: 'ReportChecks (failed)',
-    arrange: async (app) => {
-      const { task } = await app.seed.task({ stage: 'Verifying' });
-      return () =>
-        app.reportChecks.execute(app.identity.worker(task), { passed: false, summary: 'r' });
-    },
-  },
-  {
-    name: 'ReportPr',
+    name: 'OpenPr (red gate)',
     arrange: async (app) => {
       const { task } = await app.seed.task({ stage: 'Reviewing' });
-      return () =>
-        app.reportPr.execute(app.identity.worker(task), { number: 1, url: 'https://x.dev/1' });
+      app.checkRunner.script('pnpm test', { exitCode: 1 });
+      return () => app.openPr.execute(app.identity.worker(task), { title: 't', body: 'b' });
+    },
+  },
+  {
+    name: 'OpenPr (green gate, PR opened)',
+    arrange: async (app) => {
+      const { task } = await app.seed.task({ stage: 'Reviewing' });
+      return () => app.openPr.execute(app.identity.worker(task), { title: 't', body: 'b' });
     },
   },
   {
@@ -100,8 +99,9 @@ const CASES: readonly Case[] = [
     name: 'RetryStage (Failed)',
     arrange: async (app) => {
       const { task } = await app.seed.task({ stage: 'Verifying' });
+      app.checkRunner.script('pnpm test', { exitCode: 1 });
       for (let i = 0; i < 4; i++) {
-        await app.reportChecks.execute(app.identity.worker(task), { passed: false, summary: 'r' });
+        await app.openPr.execute(app.identity.worker(task), { title: 't', body: 'b' });
       }
       return () => app.retryStage.execute(task.id);
     },

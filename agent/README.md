@@ -12,6 +12,7 @@ The Claude Code plugin that defines who Jarvis is and how it works (ADR-0009). I
 | `prompts/worker.md`          | Worker role: the SDD loop from context to draft PR and fix rounds                         |
 | `agents/`                    | Subagents of the worker: `context-researcher`, `plan-verifier`, `implementer`, `reviewer` |
 | `skills/sdd-flow/`           | Artifact contract for `context.md`, `spec.md`, `plan.md`, `tasks.md`, `result.md`         |
+| `skills/memory-review/`      | How the dispatcher reviews and tidies `## Learned` when the owner asks (ADR-0021)         |
 | `templates/`                 | Starting points for the five artifacts                                                    |
 | `settings/worker.json`       | Base permission rules for worker runs                                                     |
 

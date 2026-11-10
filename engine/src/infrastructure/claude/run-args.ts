@@ -7,6 +7,27 @@ import type { RunContext } from './run-context.js';
 const DISPATCHER_READ_TOOLS = ['Read', 'Glob', 'Grep'];
 const DISPATCHER_DENIED_TOOLS = ['Edit', 'Write', 'Bash', 'NotebookEdit'];
 
+/**
+ * ADR-0018: a `ui_check` worker stands in a pull request's head, whose files (`CLAUDE.md`
+ * included) Claude Code reads as instructions. The worker writes no code and runs no checks, so it
+ * needs no shell and no editor — with these denied, the worst an injected instruction can do is
+ * skew a report the owner reads anyway, not open a shell. The diff it reads is precomputed into
+ * `.jarvis/` by the engine (GitWorktreeManager), and the head's code runs only inside
+ * `start_dev_server`. `Write` stays: context.md and result.md are the worker's to write.
+ */
+const UI_CHECK_DENIED_TOOLS = ['Bash', 'Edit', 'NotebookEdit'];
+
+/**
+ * ADR-0021: a `ui_check` task reads the memory and writes none. The use cases refuse these too;
+ * hiding them keeps the model from even trying.
+ */
+const UI_CHECK_HIDDEN_MEMORY_TOOLS = [
+  'note_insight',
+  'confirm_insight',
+  'contradict_insight',
+  'remember_owner',
+];
+
 export const mcpToolName = (tool: string): string => `mcp__jarvis__${tool}`;
 
 /** The argv of one `claude` process (ADR-0003, ADR-0009). The prompt itself goes over stdin. */
@@ -48,6 +69,12 @@ export function buildRunArgs(
     '--append-system-prompt-file',
     join(ctx.runDir, 'system.md'),
   ];
+  if (spec.role === 'worker' && spec.taskKind === 'ui_check') {
+    args.push(
+      '--disallowedTools',
+      [...UI_CHECK_DENIED_TOOLS, ...UI_CHECK_HIDDEN_MEMORY_TOOLS.map(mcpToolName)].join(','),
+    );
+  }
   if (spec.role === 'dispatcher') {
     args.push(
       '--allowedTools',

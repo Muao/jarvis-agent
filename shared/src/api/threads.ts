@@ -66,6 +66,9 @@ const MessageBodySchema = z.discriminatedUnion('kind', [
       taskId: TaskIdSchema,
       summary: z.string(),
       artifacts: z.array(ArtifactNameSchema),
+      /** ADR-0022: the check commands approval freezes. Cards written before this read as absent. */
+      checks: z.array(z.string()).optional(),
+      checksSource: z.enum(['agents_md', 'worker']).optional(),
     }),
   }),
   z.object({

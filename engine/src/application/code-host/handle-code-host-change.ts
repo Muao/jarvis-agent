@@ -12,7 +12,7 @@ import type { Repositories } from '../ports/unit-of-work.js';
 import type { GreenRun, Watch, WatchSummary } from '../ports/watch-repository.js';
 import type { TaskDeps } from '../tasks/deps.js';
 import type { Outbox } from '../transaction.js';
-import { ciFailureInput, names, reviewInput, shortSha } from './worker-input.js';
+import { ciFailureInput, fixLogPath, names, reviewInput, shortSha } from './worker-input.js';
 
 export interface CodeHostChangeInput {
   /** The task, in `PR Open`, with its PR. */
@@ -106,6 +106,8 @@ export class HandleCodeHostChange {
                 failed,
                 round: task.counters.ciFixRounds,
                 maxRounds: limits.ciFixRounds,
+                // The worker's run context names `artifactsDir`; the file is written when the run starts.
+                logPath: `<artifactsDir>/${fixLogPath(ci.headSha)}`,
               }),
             });
           } else {

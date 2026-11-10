@@ -229,7 +229,7 @@ describe('agent tools: dispatcher', () => {
       fact: 'the QuickBlog repo is burnjohn/quick-blog',
     });
 
-    expect(res.json()).toEqual({ ok: true });
+    expect(res.json()).toEqual({ ok: true, id: 'm1' });
     expect(app.profile.learned).toEqual(['the QuickBlog repo is burnjohn/quick-blog']);
   });
 });
@@ -249,35 +249,94 @@ describe('agent tools: worker', () => {
     });
   });
 
-  it('runs the spec, stage, checks and PR tools for the run task', async () => {
+  it('runs the spec, stage and open_pr tools for the run task (ADR-0022)', async () => {
     const { http, app, token, taskId } = await workerRun();
     app.artifacts.write(taskId, 'spec.md', '# spec');
     app.artifacts.write(taskId, 'plan.md', '# plan');
 
     const submitted = await call(http, 'submit_spec_for_approval', token, { summary: 'Add page' });
     await app.answerDecision.execute(submitted.json().cardId, { decision: 'approve' });
-    const staged = await call(http, 'report_stage', token, { stage: 'Verifying' });
-    const checked = await call(http, 'report_checks', token, { passed: true, summary: 'green' });
-    const pr = await call(http, 'report_pr', token, {
-      number: 7,
-      url: 'https://github.com/o/r/pull/7',
+    const staged = await call(http, 'report_stage', token, { stage: 'Reviewing' });
+    const opened = await call(http, 'open_pr', token, {
+      title: 'Add page',
+      body: '## What\nA page.',
     });
 
     expect(submitted.statusCode).toBe(200);
     expect(staged.json()).toEqual({ ok: true });
-    expect(checked.json()).toEqual({ outcome: 'passed' });
-    expect(pr.json()).toEqual({ ok: true });
+    expect(opened.statusCode).toBe(200);
+    expect(opened.json()).toMatchObject({ ok: true, number: 7, created: true });
     expect(app.task(taskId)).toMatchObject({ stage: 'PR Open' });
+  });
+
+  it('answers a refusal of open_pr as a value, not as an error', async () => {
+    const { http, app, token, taskId } = await workerRun();
+    app.checkRunner.script('pnpm test', { exitCode: 1, tail: 'boom' });
+    await app.uow.run(async (tx) => {
+      const task = await tx.tasks.get(taskId);
+      if (task !== null) await tx.tasks.save({ ...task, stage: 'Implementing' });
+    });
+
+    const red = await call(http, 'open_pr', token, { title: 't', body: 'b' });
+    const none = await call(http, 'open_pr', token, {});
+
+    expect(red.statusCode).toBe(200);
+    expect(red.json()).toMatchObject({ ok: false, reason: 'checks_failed', attempt: 1 });
+    expect(none.json()).toMatchObject({ ok: false, reason: 'title_and_body_required' });
+  });
+
+  it('refuses open_pr input with a command in it and for a dispatcher', async () => {
+    const { http, token } = await workerRun();
+    const extra = await call(http, 'open_pr', token, { title: 't', body: 'b', commands: ['x'] });
+    expect(extra.statusCode).toBe(400);
+
+    const dispatcher = await dispatcherRun();
+    const forbidden = await call(
+      dispatcher.http,
+      'open_pr',
+      dispatcher.app.runner.processes[0]?.spec.runToken ?? '',
+      { title: 't', body: 'b' },
+    );
+    expect(forbidden.statusCode).toBe(403);
+  });
+
+  it('answers the retired report_checks and report_pr with a redirect to open_pr', async () => {
+    const { http, app, token, taskId } = await workerRun();
+
+    const checks = await call(http, 'report_checks', token, { passed: true, summary: 'green' });
+    const pr = await call(http, 'report_pr', token, { number: 7, url: 'https://x.dev/pull/7' });
+
+    for (const res of [checks, pr]) {
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({
+        ok: false,
+        reason: 'tool_retired',
+        use: 'open_pr',
+        detail:
+          'Checks, push and the pull request are now done by the engine: commit, then call open_pr.',
+      });
+    }
+    expect(app.task(taskId).stage).not.toBe('PR Open');
+  });
+
+  it('answers a submit with no commands as a value and leaves the stage alone', async () => {
+    const { http, app, token, taskId } = await workerRun();
+    app.repoInfo.found = { checkCommands: [], devCommand: null, warning: null };
+    app.artifacts.write(taskId, 'spec.md', '# spec');
+    app.artifacts.write(taskId, 'plan.md', '# plan');
+
+    const res = await call(http, 'submit_spec_for_approval', token, { summary: 's' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ ok: false, reason: 'checks_required' });
+    expect(app.task(taskId).stage).toBe('Context');
   });
 
   it('maps a domain refusal to 409 and a missing artifact to 404', async () => {
     const { http, token } = await workerRun();
 
     const noSpec = await call(http, 'submit_spec_for_approval', token, { summary: 's' });
-    const illegal = await call(http, 'report_pr', token, {
-      number: 1,
-      url: 'https://x.dev/pull/1',
-    });
+    const illegal = await call(http, 'report_stage', token, { stage: 'Reviewing' });
 
     expect(noSpec.statusCode).toBe(404);
     expect(illegal.statusCode).toBe(409);

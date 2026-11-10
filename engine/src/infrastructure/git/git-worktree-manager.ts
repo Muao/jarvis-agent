@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, stat } from 'node:fs/promises';
+import { join, resolve, sep } from 'node:path';
 import type { Worktree, WorktreeManager } from '../../application/ports/worktree-manager.js';
 import type { AllowedRepoResolver } from './allowed-repo-resolver.js';
 import { cloneOnDemand, type CloneOnDemandOptions } from './clone-on-demand.js';
@@ -29,6 +29,9 @@ interface SourceRepo {
 }
 
 const TASK_ID = /^T-\d+$/;
+
+/** Where the engine leaves what it precomputed for a `ui_check` worker, inside its worktree. */
+const CHECK_DIR = '.jarvis';
 
 /** DSP-01: one branch `jarvis/<taskId>` and one worktree per task. Never deletes anything (SEC-02, DSP-06). */
 export class GitWorktreeManager implements WorktreeManager {
@@ -87,6 +90,10 @@ export class GitWorktreeManager implements WorktreeManager {
       if (current !== branch) {
         throw new Error(`Worktree ${path} exists but is on "${current}", expected "${branch}"`);
       }
+      // A worktree from before the engine precomputed the diff gets it on first reuse.
+      if (!existsSync(join(path, CHECK_DIR, 'diff.patch'))) {
+        await this.writeDiffForCheck(path, await this.resolveSourceRepo(targetRepo));
+      }
       return { branch, path };
     }
 
@@ -101,7 +108,39 @@ export class GitWorktreeManager implements WorktreeManager {
       });
     }
     await runGit(['worktree', 'add', path, branch], { cwd: source.repoPath });
+    await this.writeDiffForCheck(path, source);
     return { branch, path };
+  }
+
+  /** ADR-0021: a cited file counts only if it is a regular file inside the worktree. */
+  async hasFile(worktreePath: string, relativePath: string): Promise<boolean> {
+    const root = resolve(worktreePath);
+    const target = resolve(root, relativePath);
+    if (target !== root && !target.startsWith(`${root}${sep}`)) return false;
+    try {
+      return (await stat(target)).isFile();
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * ADR-0018: a `ui_check` worker has no shell, so the engine computes the diff it will read —
+   * `.jarvis/changed-files.txt` and `.jarvis/diff.patch` at the worktree root. `--output` writes
+   * straight to the file, so a large pull request never hits a stdout buffer, and the merge-base
+   * form (`base...HEAD`) shows the pull request's own changes, not the base branch's drift.
+   */
+  private async writeDiffForCheck(worktreePath: string, source: SourceRepo): Promise<void> {
+    const base = await this.resolveBase(source);
+    const dir = join(worktreePath, CHECK_DIR);
+    await mkdir(dir, { recursive: true });
+    await runGit(
+      ['diff', '--name-status', `${base}...HEAD`, `--output=${join(dir, 'changed-files.txt')}`],
+      { cwd: worktreePath },
+    );
+    await runGit(['diff', `${base}...HEAD`, `--output=${join(dir, 'diff.patch')}`], {
+      cwd: worktreePath,
+    });
   }
 
   /** The configured default repo, or a target repo resolved and cloned on demand (ADR-0012). */

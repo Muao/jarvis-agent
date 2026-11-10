@@ -4,6 +4,9 @@ import type {
   AttachmentUpload,
   CodeHost,
   CommentResult,
+  CreatePullRequestInput,
+  CreatePullRequestResult,
+  FailedCheckLog,
   PullRequestDescription,
   RepoTarget,
 } from '../ports/code-host.js';
@@ -53,6 +56,21 @@ export class FakeCodeHost implements CodeHost {
     url: 'https://github.com/o/r/pull/41#issuecomment-1',
     id: 1,
   };
+  /** Every pull request the engine asked for (ADR-0022), in order. */
+  readonly pullRequests: {
+    readonly input: CreatePullRequestInput;
+    readonly repo: string | null;
+  }[] = [];
+  /** What `createPullRequest` answers; the default pretends a new draft PR #7 was opened. */
+  createPullRequestResult: CreatePullRequestResult = {
+    ok: true,
+    number: 7,
+    url: 'https://github.com/o/r/pull/7',
+    created: true,
+  };
+  /** What `failedCheckLogs` answers (ADR-0022); an `Error` makes it reject. */
+  failedLogs: readonly FailedCheckLog[] | Error = [];
+  readonly failedLogCalls: { prNumber: number; headSha: string; repo: string | null }[] = [];
   private readonly snapshots = new Map<string, PullRequestSnapshot | Error>();
   private readonly descriptions = new Map<string, PullRequestDescription | Error>();
   private rerunFailure: Error | null = null;
@@ -151,5 +169,23 @@ export class FakeCodeHost implements CodeHost {
   async uploadAttachment(upload: AttachmentUpload): Promise<AttachmentResult> {
     this.uploads.push(upload);
     return this.uploadResult;
+  }
+
+  async createPullRequest(
+    input: CreatePullRequestInput,
+    repo?: RepoTarget,
+  ): Promise<CreatePullRequestResult> {
+    this.pullRequests.push({ input, repo: slug(repo) });
+    return this.createPullRequestResult;
+  }
+
+  async failedCheckLogs(
+    prNumber: number,
+    headSha: string,
+    repo?: RepoTarget,
+  ): Promise<readonly FailedCheckLog[]> {
+    this.failedLogCalls.push({ prNumber, headSha, repo: slug(repo) });
+    if (this.failedLogs instanceof Error) throw this.failedLogs;
+    return this.failedLogs;
   }
 }

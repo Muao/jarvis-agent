@@ -83,8 +83,9 @@ describe('RetryStage', () => {
     const app = buildTestApp();
     const seeded = await app.seed.task({ stage: 'Verifying' });
     const identity = app.identity.worker(seeded.task);
+    app.checkRunner.script('pnpm test', { exitCode: 1 });
     for (let i = 0; i < 4; i++) {
-      await app.reportChecks.execute(identity, { passed: false, summary: 'red' });
+      await app.openPr.execute(identity, { title: 't', body: 'b' });
     }
     app.clearEffects();
     return { app, ...seeded };

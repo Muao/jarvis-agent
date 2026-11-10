@@ -1,0 +1,24 @@
+{
+  "steps": [
+    { "type": "init" },
+    { "type": "text", "text": "Spec approved, implementing." },
+    {
+      "type": "git_commit",
+      "message": "feat: add the About page",
+      "files": { "about.txt": "About page\n" }
+    },
+    { "type": "jarvis_tool", "tool": "report_stage", "input": { "stage": "Reviewing" } },
+    {
+      "type": "jarvis_tool",
+      "tool": "open_pr",
+      "input": { "title": "Add an About page", "body": "## What\nAn About page." }
+    },
+    { "type": "text", "text": "Still red; trying again without a fix." },
+    {
+      "type": "jarvis_tool",
+      "tool": "open_pr",
+      "input": { "title": "Add an About page", "body": "## What\nAn About page." }
+    },
+    { "type": "result", "text": "gave up" }
+  ]
+}

@@ -104,6 +104,9 @@ export type TransitionCause =
   | 'spec_approved'
   | 'stage_reported'
   | 'pr_reported'
+  | 'checks_started'
+  | 'checks_red'
+  | 'pr_opened'
   | 'ci_failed'
   | 'review_comment'
   | 'ci_green_approved'
@@ -125,6 +128,9 @@ export const CAUSE_ACTOR: Readonly<Record<TransitionCause, EventActor>> = {
   spec_approved: 'owner',
   stage_reported: 'agent',
   pr_reported: 'agent',
+  checks_started: 'system',
+  checks_red: 'system',
+  pr_opened: 'system',
   ci_failed: 'system',
   review_comment: 'system',
   ci_green_approved: 'system',
@@ -269,6 +275,12 @@ export function recordCheckFailure(
 ): CounterResult<'retry' | 'fail'> {
   const { task: next, granted } = bump(task, 'checkRetries', limits.checkRetries);
   return { task: next, outcome: granted ? 'retry' : 'fail' };
+}
+
+/** ADR-0022: a green gate ends the streak `checkRetries` exists to bound. */
+export function recordCheckPass(task: Task): Task {
+  if (task.counters.checkRetries === 0) return task;
+  return { ...task, counters: { ...task.counters, checkRetries: 0 } };
 }
 
 /** CI-04: a red CI gets `ciFixRounds` fix rounds, then the task blocks. */

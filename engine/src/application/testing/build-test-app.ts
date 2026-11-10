@@ -1,5 +1,6 @@
 import type { TaskStage, TaskKind } from '@jarvis/shared';
 import {
+  attachPullRequest,
   createTask,
   createThread,
   transition,
@@ -10,12 +11,17 @@ import {
 import { createApplication, type Application } from '../create-application.js';
 import type { RunIdentity } from '../run-identity.js';
 import { ThreadMessages } from '../conversation/thread-messages.js';
-import { Outbox } from '../transaction.js';
+import { newWatch } from '../code-host/new-watch.js';
+import { Outbox, transact } from '../transaction.js';
+import { loadWorkerTask } from '../tasks/guards.js';
 import { StatusCard } from '../tasks/status-card.js';
+import { TaskWriter } from '../tasks/task-writer.js';
 import { FakeAgentRunner } from './fake-agent-runner.js';
 import { FakeCodeHost } from './fake-code-host.js';
 import { FakeUnitOfWork } from './fake-unit-of-work.js';
 import {
+  FakeBranchPublisher,
+  FakeCheckRunner,
   FakeClock,
   FakeConfigStatus,
   FakeConnectionChecks,
@@ -70,6 +76,10 @@ export interface TestApp extends Application {
   readonly repos: FakeRepoResolver;
   readonly artifacts: InMemoryArtifactStore;
   readonly codeHost: FakeCodeHost;
+  /** ADR-0022: scripts what the gate's commands do, and records what it was asked to run. */
+  readonly checkRunner: FakeCheckRunner;
+  /** ADR-0022: scripts the worktree's state, and records what would have been pushed. */
+  readonly branchPublisher: FakeBranchPublisher;
   readonly owner: RecordingOwnerChannel;
   readonly events: RecordingEventBus;
   readonly runs: RecordingRunCoordinator;
@@ -83,6 +93,14 @@ export interface TestApp extends Application {
   readonly database: FakeDatabasePing;
   /** ADR-0014: what the UI check asked the engine to start. */
   readonly devServers: FakeDevServerManager;
+  /**
+   * **Test shortcut**, not a use case: puts a task into `PR Open` with this PR, as `OpenPr` would,
+   * without running a gate. For tests of what happens *after* a PR exists (the watcher, the
+   * overview). The real path is `openPr`.
+   */
+  readonly reportPr: {
+    execute(identity: RunIdentity, pr: { number: number; url: string }): Promise<void>;
+  };
   /** Run identities as presentation would resolve them from a run token. */
   readonly identity: {
     dispatcher(threadId: string): RunIdentity;
@@ -115,6 +133,8 @@ export interface TestAppOptions {
    * coordinator. Default false: use cases then only record what they asked `runs` to do.
    */
   readonly realRuns?: boolean;
+  /** ADR-0022: `false` plays an engine with no GitHub token (`open_pr` answers `host_unconfigured`). */
+  readonly hostConfigured?: boolean;
 }
 
 /** In-memory fakes for every port plus the wired use cases; reused by later tasks' tests. */
@@ -128,6 +148,8 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
   const repos = new FakeRepoResolver();
   const artifacts = new InMemoryArtifactStore(clock);
   const codeHost = new FakeCodeHost();
+  const checkRunner = new FakeCheckRunner();
+  const branchPublisher = new FakeBranchPublisher();
   const owner = new RecordingOwnerChannel();
   const events = new RecordingEventBus();
   const runs = new RecordingRunCoordinator();
@@ -150,6 +172,8 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
     repos,
     artifacts,
     codeHost,
+    checkRunner,
+    branchPublisher,
     owner,
     events,
     runner,
@@ -163,8 +187,12 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
     version: '0.0.0-test',
     logger,
     ...(options.realRuns === true ? {} : { coordinator: runs }),
+    ...(options.hostConfigured === undefined ? {} : { hostConfigured: options.hostConfigured }),
   });
-  const statusCard = new StatusCard({ messages: new ThreadMessages({ ids, clock }), config });
+  const threadMessages = new ThreadMessages({ ids, clock });
+  const statusCard = new StatusCard({ messages: threadMessages, config });
+  const writer = new TaskWriter({ clock, statusCard, messages: threadMessages });
+  const notifiers = { owner, events, runs, logger };
 
   const clearEffects = (): void => {
     owner.delivered.length = 0;
@@ -227,6 +255,26 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
     return value;
   };
 
+  const reportPr: TestApp['reportPr'] = {
+    execute: (identity, pr) =>
+      transact({ uow, notifiers }, async (tx, outbox) => {
+        const task = await loadWorkerTask(tx, identity);
+        const firstPr = task.pr === null;
+        const withPr = attachPullRequest(task, pr, clock.now());
+        await writer.move(tx, outbox, withPr, 'PR Open', { cause: 'pr_opened' });
+        const watch = await tx.watches.get(task.id);
+        await tx.watches.save(watch?.prNumber === pr.number ? watch : newWatch(task.id, pr.number));
+        if (firstPr) {
+          await threadMessages.post(tx, outbox, {
+            threadId: task.threadId,
+            taskId: task.id,
+            kind: 'result',
+            body: { taskId: task.id, summary: `Draft PR #${pr.number} opened`, prUrl: pr.url },
+          });
+        }
+      }),
+  };
+
   return {
     ...application,
     db,
@@ -237,6 +285,9 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
     repos,
     artifacts,
     codeHost,
+    checkRunner,
+    branchPublisher,
+    reportPr,
     owner,
     events,
     runs,

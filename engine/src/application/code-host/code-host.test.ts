@@ -166,6 +166,10 @@ describe('PollPullRequests: CI result', () => {
       'ci',
     );
     expect(input).toContain('- test: https://ci.example/test/1');
+    expect(input).toContain(
+      'The failed log is at `<artifactsDir>/fix/ci-aaaaaaa.log`. Fix the cause with a new commit and call `open_pr`.',
+    );
+    expect(input).not.toContain('push');
     expect(input).not.toContain('lint');
     expect(app.runs.calls).toEqual([
       { type: 'deliver_to_worker', taskId: task.id },

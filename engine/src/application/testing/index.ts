@@ -5,6 +5,8 @@ export { FakeAgentRunner, FakeProcess } from './fake-agent-runner.js';
 export { FakeCodeHost } from './fake-code-host.js';
 export { FakeUnitOfWork } from './fake-unit-of-work.js';
 export {
+  FakeBranchPublisher,
+  FakeCheckRunner,
   FakeClock,
   FakeConfigStatus,
   FakeConnectionChecks,
@@ -22,6 +24,6 @@ export {
   StaticConfigProvider,
   defaultTestConfig,
 } from './fakes.js';
-export type { CoordinatorCall } from './fakes.js';
+export type { CoordinatorCall, ScriptedCheck } from './fakes.js';
 export { InMemoryDatabase } from './in-memory-database.js';
 export { FLOW_PR, identityOfProcess, taskInPrOpen } from './pr-open-flow.js';

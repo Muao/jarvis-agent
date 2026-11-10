@@ -87,6 +87,19 @@ describe('DTOs', () => {
       answeredAt: at,
     };
     expect(MessageDtoSchema.parse(decision)).toEqual(decision);
+
+    // ADR-0022: the card carries the check commands approval freezes.
+    const withChecks = {
+      ...decision,
+      body: { ...decision.body, checks: ['pnpm test'], checksSource: 'agents_md' },
+    };
+    expect(MessageDtoSchema.parse(withChecks)).toEqual(withChecks);
+    expect(
+      MessageDtoSchema.safeParse({
+        ...decision,
+        body: { ...decision.body, checksSource: 'model' },
+      }).success,
+    ).toBe(false);
   });
 
   it('parses a task row', () => {

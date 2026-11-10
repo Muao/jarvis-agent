@@ -11,6 +11,7 @@
   "limits": {
     "maxConcurrentWorkers": 1,
     "checkRetries": 3,
+    "checkTimeoutMinutes": 15,
     "ciFixRounds": 2,
     "reviewRounds": 3,
     "taskTimeoutMinutes": 60,
@@ -63,6 +64,10 @@
       "**/*.scss",
       "**/*.html"
     ]
+  },
+  "memory": {
+    "softCapChars": 4000,
+    "backupsKept": 20
   },
   "telemetry": {
     "enabled": false,

@@ -25,16 +25,18 @@ describe('status card (SLK-07)', () => {
     app.artifacts.write(taskId, 'plan.md', 'p');
     const { cardId } = await app.submitSpec.execute(worker, { summary: 's' });
     await app.answerDecision.execute(cardId, { decision: 'approve' });
-    await app.reportStage.execute(worker, { stage: 'Verifying' });
-    await app.reportChecks.execute(worker, { passed: false, summary: 'red' });
-    await app.reportPr.execute(worker, { number: 1, url: 'https://x.dev/pull/1' });
+    // The gate is red once (one retry used), then green: the engine opens the PR (ADR-0022).
+    app.checkRunner.script('pnpm test', { exitCode: 1 });
+    await app.openPr.execute(worker, { title: 't', body: 'b' });
+    app.checkRunner.script('pnpm test', { exitCode: 0 });
+    await app.openPr.execute(worker, { title: 't', body: 'b' });
 
     expect(cardOf()).toHaveLength(1);
     expect(cardOf()[0]?.id).toBe(card?.id);
     expect(cardOf()[0]?.body).toMatchObject({
       taskId,
       stage: 'PR Open',
-      checks: { used: 1, max: 3 },
+      checks: { used: 0, max: 3 },
       ciFixes: { used: 0, max: 2 },
       reviews: { used: 0, max: 3 },
     });
@@ -54,7 +56,7 @@ describe('status card (SLK-07)', () => {
 
     const withSession = { ...task, workerSessionId: 'ses-1' };
     await app.uow.run((tx) => tx.tasks.save(withSession));
-    await app.reportStage.execute(app.identity.worker(withSession), { stage: 'Verifying' });
+    await app.reportStage.execute(app.identity.worker(withSession), { stage: 'Reviewing' });
 
     expect((await cardOf())?.body).toMatchObject({
       workerSessionId: 'ses-1',
@@ -119,7 +121,8 @@ describe('status card (SLK-07)', () => {
       limits: { ...app.config.current().limits, checkRetries: 5 },
     });
 
-    await app.reportChecks.execute(app.identity.worker(task), { passed: false, summary: 'red' });
+    app.checkRunner.script('pnpm test', { exitCode: 1 });
+    await app.openPr.execute(app.identity.worker(task), { title: 't', body: 'b' });
 
     const card = await app.uow.run((tx) => tx.messages.statusCardOf(task.id));
     expect(card?.body).toMatchObject({ checks: { used: 1, max: 5 } });

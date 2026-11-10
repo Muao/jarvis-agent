@@ -1,5 +1,6 @@
 import type { TaskStage } from '@jarvis/shared';
 import {
+  isTerminal,
   taskEvent,
   transition,
   type EventActor,
@@ -7,6 +8,8 @@ import {
   type TaskEvent,
   type TransitionCause,
 } from '../../domain/index.js';
+import type { ThreadMessages } from '../conversation/thread-messages.js';
+import { memorySummaryLine } from '../profile/memory-summary.js';
 import type { Outbox } from '../transaction.js';
 import type { Clock } from '../ports/clock.js';
 import type { Repositories } from '../ports/unit-of-work.js';
@@ -17,7 +20,15 @@ import type { StatusCard } from './status-card.js';
  * always change together, inside the caller's transaction.
  */
 export class TaskWriter {
-  constructor(private readonly deps: { readonly clock: Clock; readonly statusCard: StatusCard }) {}
+  constructor(
+    private readonly deps: {
+      readonly clock: Clock;
+      readonly statusCard: StatusCard;
+      readonly messages: ThreadMessages;
+      /** ADR-0021: is the memory over its cap for this task's repository right now? */
+      readonly memoryOverCap?: (task: Task) => Promise<boolean>;
+    },
+  ) {}
 
   /** A stage change; the domain validates it and builds the journal event. */
   async move(
@@ -34,7 +45,24 @@ export class TaskWriter {
       taskId: task.id,
       threadId: task.threadId,
     });
+    if (isTerminal(to)) await this.sayMemory(tx, outbox, moved.task);
     return moved.task;
+  }
+
+  /** ADR-0021: a task that touched the memory ends with one line saying what it did there. */
+  private async sayMemory(tx: Repositories, outbox: Outbox, task: Task): Promise<void> {
+    const events = await tx.journal.list(task.id);
+    // Only worth a profile read when there is a line to append it to.
+    const probe = memorySummaryLine(events);
+    if (probe === null) return;
+    const capped = (await this.deps.memoryOverCap?.(task)) ?? false;
+    const text = memorySummaryLine(events, capped) ?? probe;
+    await this.deps.messages.post(tx, outbox, {
+      threadId: task.threadId,
+      taskId: task.id,
+      kind: 'system',
+      body: { text },
+    });
   }
 
   /** A change that is not a stage change (counters, PR link, first save of a new task). */

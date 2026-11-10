@@ -6,8 +6,17 @@ import {
   type JarvisConfig,
   type StreamEvent,
 } from '@jarvis/shared';
+import { memoryEntries, parseMemory } from '../../domain/index.js';
 import type { IsoTime, Message } from '../../domain/index.js';
 import type { ArtifactBlob, ArtifactFile, ArtifactStore } from '../ports/artifact-store.js';
+import type { BranchPublisher, BranchStatus, PushResult } from '../ports/branch-publisher.js';
+import type {
+  CheckResult,
+  CheckRunOutcome,
+  CheckRunner,
+  CheckRunSpec,
+} from '../ports/check-runner.js';
+import type { RepoTarget } from '../ports/code-host.js';
 import type { Clock } from '../ports/clock.js';
 import type { ConfigProvider, ConfigStatus } from '../ports/config-provider.js';
 import type { ConnectionChecks, ConnectionOutcome } from '../ports/connection-checks.js';
@@ -18,7 +27,7 @@ import type { RepoCommands, RepoInfo } from '../ports/repo-info.js';
 import type { EventBus } from '../ports/event-bus.js';
 import type { IdGenerator } from '../ports/id-generator.js';
 import type { LogContext, Logger } from '../ports/logger.js';
-import type { ProfileStore } from '../ports/profile-store.js';
+import type { ProfileEdit, ProfileMutateOptions, ProfileStore } from '../ports/profile-store.js';
 import type { OwnerChannel } from '../ports/owner-channel.js';
 import type { RepoResolver } from '../ports/repo-resolver.js';
 import type { QueuedWorkerRun, RunCoordinator, WorkerRunReason } from '../ports/run-coordinator.js';
@@ -133,10 +142,28 @@ export class FakeWorktreeManager implements WorktreeManager {
     this.created.push(worktree);
     return worktree;
   }
+
+  /** Files that exist, as `<worktree path>/<relative path>`; see `addFile`. */
+  private readonly files = new Set<string>();
+
+  /** ADR-0021: makes `relativePath` exist in the worktree at `worktreePath`. */
+  addFile(worktreePath: string, relativePath: string): void {
+    this.files.add(`${worktreePath}/${relativePath}`);
+  }
+
+  async hasFile(worktreePath: string, relativePath: string): Promise<boolean> {
+    return this.files.has(`${worktreePath}/${relativePath}`);
+  }
 }
 
 export class FakeRepoResolver implements RepoResolver {
   private readonly allowed = new Set<string>();
+  /** ADR-0021: the configured default repository. */
+  default: { owner: string; name: string } | null = { owner: 'acme', name: 'app' };
+
+  defaultRepo(): { owner: string; name: string } | null {
+    return this.default;
+  }
 
   /** Allow `ownerSlashName` to resolve; everything else rejects. */
   allow(ownerSlashName: string): void {
@@ -155,6 +182,7 @@ export class FakeRepoResolver implements RepoResolver {
 export class InMemoryArtifactStore implements ArtifactStore {
   private readonly files = new Map<string, { content: string; updatedAt: IsoTime }>();
   private readonly images = new Map<string, Uint8Array>();
+  private readonly engineFiles = new Map<string, string>();
 
   constructor(private readonly clock: Clock = new FakeClock()) {}
 
@@ -179,6 +207,25 @@ export class InMemoryArtifactStore implements ArtifactStore {
       name,
       exists: this.files.has(`${taskId}/${name}`),
     }));
+  }
+
+  /** ADR-0022: mirrors `FileArtifactStore.writeEngineFile`, including the refusals. */
+  async writeEngineFile(taskId: string, relativePath: string, content: string): Promise<void> {
+    if (
+      relativePath === '' ||
+      relativePath.startsWith('/') ||
+      relativePath.split(/[\\/]/).includes('..')
+    ) {
+      throw new InvalidInputError(
+        `${JSON.stringify(relativePath)} is outside the task's artifacts directory`,
+      );
+    }
+    this.engineFiles.set(`${taskId}/${relativePath}`, content);
+  }
+
+  /** Test helper: what the engine wrote for the worker, by path; undefined when nothing was. */
+  engineFile(taskId: string, relativePath: string): string | undefined {
+    return this.engineFiles.get(`${taskId}/${relativePath}`);
   }
 
   /** Test helper: a screenshot the UI check produced, by its path under the artifacts folder. */
@@ -355,17 +402,33 @@ export function defaultTestConfig(): JarvisConfig {
 
 /** USER.md in memory; tests change `text` between runs. */
 export class FakeProfileStore implements ProfileStore {
-  /** Facts passed to `appendLearned`, in call order. */
-  readonly learned: string[] = [];
+  /** Backups taken before `mutate(..., { backup: true })`, oldest first. */
+  readonly backups: string[] = [];
 
   constructor(public text: string | null = null) {}
+
+  /** The facts of every entry under `## Learned`, in file order. */
+  get learned(): string[] {
+    return memoryEntries(parseMemory(this.text ?? '')).map((entry) => entry.fact);
+  }
 
   async userPreferences(): Promise<string | null> {
     return this.text;
   }
 
-  async appendLearned(fact: string): Promise<void> {
-    this.learned.push(fact);
+  async read(): Promise<string> {
+    return this.text ?? '';
+  }
+
+  async mutate<T>(
+    fn: (current: string) => ProfileEdit<T>,
+    options: ProfileMutateOptions = {},
+  ): Promise<T> {
+    const edit = fn(this.text ?? '');
+    if (edit.content === (this.text ?? '')) return edit.result;
+    if (options.backup === true && this.text !== null) this.backups.push(this.text);
+    this.text = edit.content;
+    return edit.result;
   }
 }
 
@@ -471,5 +534,100 @@ export class RecordingLogger implements Logger {
 
   error(message: string, context: LogContext = {}): void {
     this.entries.push({ level: 'error', message, context });
+  }
+}
+
+/** One command's scripted outcome; unlisted commands exit 0. */
+export type ScriptedCheck = Partial<Omit<CheckResult, 'command'>>;
+
+/**
+ * ADR-0022: a check runner that runs nothing. Scripts the result per command, records every call
+ * (including the `cwd` and the signal, so a test can abort), and can hold a run open.
+ */
+export class FakeCheckRunner implements CheckRunner {
+  readonly calls: {
+    cwd: string;
+    commands: readonly string[];
+    timeoutMs: number;
+    logPath: string;
+  }[] = [];
+  /** Per command; a later `script` for the same command replaces the earlier one. */
+  private readonly scripted = new Map<string, ScriptedCheck>();
+  /** The next `run` reports this command as unable to start, and stops there. */
+  unavailable: { command: string; detail: string } | null = null;
+  /** Progress lines the next `run` emits through `onProgress`, before it answers. */
+  progress: string[] = [];
+  /** When set, `run` waits for it (or for the abort) before answering: a gate that is still running. */
+  hold: Promise<void> | null = null;
+  /** How many runs ended because their signal was aborted. */
+  aborted = 0;
+
+  script(command: string, outcome: ScriptedCheck): void {
+    this.scripted.set(command, outcome);
+  }
+
+  async run(spec: CheckRunSpec): Promise<CheckRunOutcome> {
+    this.calls.push({
+      cwd: spec.cwd,
+      commands: [...spec.commands],
+      timeoutMs: spec.timeoutMs,
+      logPath: spec.logPath,
+    });
+    for (const line of this.progress) spec.onProgress(line);
+    if (this.hold !== null) {
+      await Promise.race([
+        this.hold,
+        new Promise<void>((resolve) => {
+          if (spec.signal.aborted) resolve();
+          spec.signal.addEventListener('abort', () => resolve(), { once: true });
+        }),
+      ]);
+    }
+    const results: CheckResult[] = [];
+    for (const command of spec.commands) {
+      if (spec.signal.aborted) {
+        this.aborted += 1;
+        break;
+      }
+      if (this.unavailable?.command === command) {
+        return { results, unavailable: this.unavailable };
+      }
+      results.push({
+        command,
+        exitCode: 0,
+        timedOut: false,
+        durationMs: 10,
+        tail: '',
+        ...this.scripted.get(command),
+      });
+    }
+    return { results, unavailable: null };
+  }
+}
+
+/**
+ * ADR-0022: a branch publisher that pushes nothing. `status` and `headSha` are scripted and may
+ * change between calls (`moveHead`); `pushes` records what would have gone out.
+ */
+export class FakeBranchPublisher implements BranchPublisher {
+  sha = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+  state: BranchStatus = { dirtyFiles: [], commitsAhead: 1, changedFiles: ['src/a.ts'] };
+  /** What `push` answers; the default pretends it went through. */
+  pushResult: PushResult = { ok: true };
+  readonly pushes: { taskId: string; repo: RepoTarget; sha: string }[] = [];
+  readonly statusCalls: string[] = [];
+
+  async headSha(): Promise<string> {
+    return this.sha;
+  }
+
+  async status(taskId: string): Promise<BranchStatus> {
+    this.statusCalls.push(taskId);
+    return this.state;
+  }
+
+  async push(input: { taskId: string; repo: RepoTarget; sha: string }): Promise<PushResult> {
+    this.pushes.push(input);
+    return this.pushResult;
   }
 }

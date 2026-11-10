@@ -8,18 +8,10 @@
       "text": "Spec approved, implementing."
     },
     {
-      "type": "jarvis_tool",
-      "tool": "report_stage",
-      "input": {
-        "stage": "Verifying"
-      }
-    },
-    {
-      "type": "jarvis_tool",
-      "tool": "report_checks",
-      "input": {
-        "passed": true,
-        "summary": "test, lint and typecheck are green"
+      "type": "git_commit",
+      "message": "feat: add the About page",
+      "files": {
+        "about.txt": "About page\n"
       }
     },
     {
@@ -49,10 +41,10 @@
     },
     {
       "type": "jarvis_tool",
-      "tool": "report_pr",
+      "tool": "open_pr",
       "input": {
-        "number": 7,
-        "url": "https://github.com/example/repo/pull/7"
+        "title": "Add an About page",
+        "body": "## What\nAn About page at /about.\n\n## Sources\nspec.md\n\n## Open questions\nNone."
       }
     },
     {

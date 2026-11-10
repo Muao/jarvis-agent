@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
-import { readFile, realpath, stat } from 'node:fs/promises';
-import { basename, join, relative, resolve, sep } from 'node:path';
+import { mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { ArtifactNameSchema, type ArtifactName } from '@jarvis/shared';
 import type {
   ArtifactBlob,
@@ -90,6 +90,43 @@ export class FileArtifactStore implements ArtifactStore {
       contentType: IMAGE_TYPES[extension] as string,
       sizeBytes: info.size,
     };
+  }
+
+  /**
+   * ADR-0022: files the engine writes for the worker (check logs, failed CI logs). Containment is
+   * lexical on the way in (no absolute path, no `..` segment) and checked again on the real path
+   * of the directory, so a symlink the worker planted in `checks/` cannot redirect the write.
+   * The write is a temp file and a rename, so a reader never sees half a file.
+   */
+  async writeEngineFile(taskId: string, relativePath: string, content: string): Promise<void> {
+    const segments = relativePath.split(/[\\/]/);
+    if (
+      relativePath === '' ||
+      relativePath.includes('\0') ||
+      isAbsolute(relativePath) ||
+      segments.includes('..') ||
+      segments.includes('')
+    ) {
+      throw new InvalidInputError(
+        `${JSON.stringify(relativePath)} is outside the task's artifacts directory`,
+      );
+    }
+    const root = await realpath(this.dirFor(taskId));
+    const target = resolve(root, relativePath);
+    await mkdir(dirname(target), { recursive: true });
+    if (!isInside(root, await realpath(dirname(target)))) {
+      throw new InvalidInputError(
+        `${JSON.stringify(relativePath)} resolves outside the task's artifacts directory`,
+      );
+    }
+    const temp = `${target}.${process.pid}.${Date.now()}.tmp`;
+    try {
+      await writeFile(temp, content, { encoding: 'utf8', mode: 0o600 });
+      await rename(temp, target);
+    } catch (error) {
+      await rm(temp, { force: true });
+      throw error;
+    }
   }
 
   async list(taskId: string): Promise<readonly Pick<ArtifactFile, 'name' | 'exists'>[]> {

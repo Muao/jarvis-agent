@@ -83,7 +83,8 @@ describe('GetTask', () => {
       reason: null,
       workerSessionId: 's-1',
       counters: {
-        checks: { used: 1, max: 3 },
+        // A red gate used one retry; the green one that opened the PR reset it (ADR-0022).
+        checks: { used: 0, max: 3 },
         ciFixes: { used: 0, max: 2 },
         reviews: { used: 0, max: 3 },
       },
@@ -94,9 +95,13 @@ describe('GetTask', () => {
       'Spec Review',
       'Implementing',
       'Verifying',
+      'Implementing',
+      'Verifying',
       'PR Open',
     ]);
     expect(detail.stages.map((s) => s.exitedAt === null)).toEqual([
+      false,
+      false,
       false,
       false,
       false,
@@ -152,11 +157,15 @@ describe('GetTask', () => {
         'system: Worker session created',
         'agent: Stage: Context → Spec Review',
         'owner: Stage: Spec Review → Implementing',
-        'agent: Stage: Implementing → Verifying',
-        'agent: Checks failed (attempt 1/3) — lint broke',
-        'agent: Checks passed — all green',
-        `agent: Stage: Verifying → PR Open`,
-        `agent: Draft PR #7 reported: ${PR.url}`,
+        'agent: Checks declared: `pnpm test`, `pnpm typecheck`',
+        "owner: Checks fixed by the owner's approval: `pnpm test`, `pnpm typecheck`",
+        'system: Stage: Implementing → Verifying',
+        'system: Checks failed on a1b2c3d (attempt 1/3) — pnpm test',
+        'system: Stage: Verifying → Implementing',
+        'system: Checks passed on a1b2c3d',
+        'system: Branch jarvis/T-1 pushed at a1b2c3d',
+        'system: Stage: Verifying → PR Open',
+        `system: Draft PR #7 opened: ${PR.url}`,
       ]),
     );
     expect(new Set(journal.map((e) => e.id)).size).toBe(journal.length);

@@ -1,0 +1,12 @@
+{
+  "steps": [
+    { "type": "init" },
+    {
+      "type": "jarvis_tool",
+      "tool": "create_task",
+      "input": { "title": "Memory task", "description": "Do a thing that teaches something." }
+    },
+    { "type": "jarvis_tool", "tool": "reply", "input": { "text": "Started." } },
+    { "type": "result", "text": "task created" }
+  ]
+}

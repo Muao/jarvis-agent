@@ -1,0 +1,7 @@
+{
+  "steps": [
+    { "type": "init" },
+    { "type": "save_first_message", "file": "first-message.txt" },
+    { "type": "result", "text": "looked at the failed log" }
+  ]
+}

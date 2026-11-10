@@ -106,6 +106,12 @@ describe('UpdateConfig', () => {
       { ui: { noSandbox: true } },
       { ui: { paths: ['**/*'] } },
       { ui: { enabled: true, devCommand: 'pnpm start' } },
+      // The environment handed to a pull request's build: a patch here would re-expose the
+      // secrets the narrowed inheritance removed.
+      { ui: { env: { GITHUB_TOKEN: '${GITHUB_TOKEN}' } } },
+      { ui: { allowedOrigins: ['https://evil.example'] } },
+      // The only gate before writing to a pull request.
+      { ui: { autoApproveComments: true } },
     ]) {
       await expect(
         app.updateConfig.execute(app.identity.dispatcher(thread.id), { patch }),

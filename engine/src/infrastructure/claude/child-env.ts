@@ -1,4 +1,5 @@
-import type { Role } from '@jarvis/shared';
+import { join } from 'node:path';
+import type { Role, TaskKind } from '@jarvis/shared';
 import type { EnvSource } from '../config/index.js';
 
 /**
@@ -55,11 +56,16 @@ function telemetryEnv(role: Role, t: ChildTelemetry): Record<string, string> {
   };
 }
 
+/** Name of the empty `gh` config directory inside a worker's run directory. */
+export const WORKER_GH_DIR = 'gh';
+
 export function buildChildEnv(
   source: EnvSource,
   options: {
     readonly role: Role;
-    readonly githubToken?: string;
+    readonly taskKind?: TaskKind;
+    /** The run's directory; a worker's empty `gh` config directory lives in it (ADR-0022). */
+    readonly runDir?: string;
     readonly telemetry?: ChildTelemetry;
   },
 ): Record<string, string> {
@@ -68,7 +74,16 @@ export function buildChildEnv(
     const value = source[name];
     if (value !== undefined) env[name] = value;
   }
-  if (options.role === 'worker' && options.githubToken) env['GH_TOKEN'] = options.githubToken;
+  // ADR-0022: no worker, of any task kind, holds a GitHub token: the engine checks, pushes and opens
+  // the pull request itself (ADR-0018 did the same for `ui_check`). These variables also stop the
+  // owner's own `gh` login and global git credential helper (`HOME` is inherited) from being picked
+  // up by accident; they remove the accidental routes, not the deliberate ones.
+  if (options.role === 'worker') {
+    if (options.runDir !== undefined) env['GH_CONFIG_DIR'] = join(options.runDir, WORKER_GH_DIR);
+    env['GIT_CONFIG_GLOBAL'] = '/dev/null';
+    env['GIT_CONFIG_NOSYSTEM'] = '1';
+    env['GIT_TERMINAL_PROMPT'] = '0';
+  }
   if (options.telemetry?.enabled) Object.assign(env, telemetryEnv(options.role, options.telemetry));
   return env;
 }

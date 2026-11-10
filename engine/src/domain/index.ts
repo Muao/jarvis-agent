@@ -9,3 +9,5 @@ export * from './run.js';
 export * from './permission.js';
 export * from './limits.js';
 export * from './watch.js';
+export * from './memory.js';
+export * from './checks.js';

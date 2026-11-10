@@ -1,0 +1,35 @@
+{
+  "steps": [
+    { "type": "init" },
+    { "type": "text", "text": "Spec approved, implementing." },
+    {
+      "type": "git_commit",
+      "message": "feat: add the About page",
+      "files": { "about.txt": "About page\n" }
+    },
+    { "type": "jarvis_tool", "tool": "report_stage", "input": { "stage": "Reviewing" } },
+    {
+      "type": "jarvis_tool",
+      "tool": "open_pr",
+      "input": {
+        "title": "Add an About page",
+        "body": "## What\nAn About page at /about.\n\n## Sources\nspec.md\n\n## Open questions\nNone."
+      }
+    },
+    { "type": "text", "text": "The gate said red; fixing." },
+    {
+      "type": "git_commit",
+      "message": "fix: make the check pass",
+      "files": { "fixed.txt": "fixed\n" }
+    },
+    {
+      "type": "jarvis_tool",
+      "tool": "open_pr",
+      "input": {
+        "title": "Add an About page",
+        "body": "## What\nAn About page at /about.\n\n## Sources\nspec.md\n\n## Open questions\nNone."
+      }
+    },
+    { "type": "result", "text": "draft PR opened" }
+  ]
+}

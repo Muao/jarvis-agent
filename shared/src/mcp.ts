@@ -7,6 +7,40 @@ import { TaskKindSchema, type Role } from './enums.js';
  * run token, never from arguments, so every schema is strict. `task` in `cancel_task` and
  * `send_to_task` names the *target* of a dispatcher action, not the caller.
  */
+const RepoSlugSchema = z.string().regex(/^[^/\s]+\/[^/\s]+$/, 'must look like "owner/name"');
+
+/** ADR-0021: one line, at most 300 characters. */
+const MemoryFactSchema = z
+  .string()
+  .min(1)
+  .max(300)
+  .refine((value) => !/[\r\n]/.test(value), 'must be a single line');
+
+/** ADR-0021: `m<N>`, as the engine numbers entries. */
+const MemoryIdSchema = z.string().regex(/^m\d+$/, 'must look like "m3"');
+
+/**
+ * ADR-0021: a `path:line` (relative, no `..`) or a GitHub URL. Whether the file exists in the
+ * task's worktree is the use case's check, not the schema's.
+ */
+const MemoryCitationSchema = z
+  .string()
+  .refine(
+    (value) =>
+      (/^[^\s:]+:\d+$/.test(value) &&
+        !value.startsWith('/') &&
+        !value.split(/[\\/]/).includes('..')) ||
+      (value.startsWith('https://github.com/') && !/\s/.test(value)),
+    'must be "path:line" (relative) or an https://github.com/ URL',
+  );
+
+/** ADR-0022: one shell command on one line, at most 300 characters. */
+const CheckCommandSchema = z
+  .string()
+  .min(1)
+  .max(300)
+  .refine((value) => !/[\r\n]/.test(value), 'must be a single line');
+
 export const toolInputSchemas = {
   create_task: z.strictObject({
     title: z.string().min(1),
@@ -36,8 +70,20 @@ export const toolInputSchemas = {
     repo: z.string().regex(/^[^/\s]+\/[^/\s]+$/, 'must look like "owner/name"'),
   }),
   reply: z.strictObject({ text: z.string().min(1) }),
-  /** ADR-0013: appends one bullet to `## Learned` in USER.md so a fact survives into new threads. */
-  remember: z.strictObject({ fact: z.string().min(1) }),
+  /**
+   * ADR-0013 / ADR-0021: writes one owner entry under `## Learned` in USER.md so a fact survives
+   * into new threads. With `repo` it applies to that repository only; without, everywhere.
+   */
+  remember: z.strictObject({ fact: MemoryFactSchema, repo: RepoSlugSchema.optional() }),
+  /** ADR-0021: removes one entry, on the owner's request. */
+  forget: z.strictObject({ id: MemoryIdSchema }),
+  /** ADR-0021: replaces several entries of one scope with one; counters are summed. */
+  merge_insights: z.strictObject({
+    ids: z.array(MemoryIdSchema).min(2),
+    fact: MemoryFactSchema,
+  }),
+  /** ADR-0021: the whole `## Learned` section, for the memory-review skill. */
+  read_memory: z.strictObject({}),
   /**
    * ADR-0013: a partial update to `jarvis.config.json`, merged and validated against
    * `JarvisConfigSchema` before writing. Patches to `repo.*`, `repos.allow`,
@@ -51,18 +97,65 @@ export const toolInputSchemas = {
    * task reaches `Done` through the PR watcher and is refused here.
    */
   report_stage: z.strictObject({
-    stage: z.enum(['Implementing', 'Verifying', 'Reviewing', 'Done']),
+    stage: z.enum(['Implementing', 'Reviewing', 'Done']),
     note: z.string().min(1).optional(),
   }),
   ask_owner: z.strictObject({
     question: z.string().min(1),
     options: z.array(z.string().min(1)).min(1).optional(),
   }),
-  submit_spec_for_approval: z.strictObject({ summary: z.string().min(1) }),
+  /**
+   * ADR-0022: `checkCommands` is the list the engine will run before it opens the PR. When
+   * `AGENTS.md` names commands it may only narrow them; otherwise it is the list.
+   */
+  submit_spec_for_approval: z.strictObject({
+    summary: z.string().min(1),
+    checkCommands: z.array(CheckCommandSchema).max(8).optional(),
+  }),
+  /**
+   * ADR-0022: the engine runs the approved checks in the worktree, pushes `jarvis/<task-id>` and
+   * opens the draft PR. `title` and `body` are required on the first call and ignored once the
+   * task has a PR — that rule belongs to the use case, not the schema.
+   */
+  open_pr: z.strictObject({
+    title: z
+      .string()
+      .min(1)
+      .max(200)
+      .refine((value) => !/[\r\n]/.test(value), 'must be a single line')
+      .optional(),
+    body: z.string().min(1).max(20_000).optional(),
+  }),
+  /**
+   * Retired by ADR-0022 and no longer offered to any role. The schemas stay for one release so the
+   * HTTP route can answer an old session with a redirect to `open_pr`.
+   */
   report_checks: z.strictObject({ passed: z.boolean(), summary: z.string().min(1) }),
   report_pr: z.strictObject({ number: z.number().int().min(1), url: z.url() }),
   log_note: z.strictObject({ text: z.string().min(1) }),
   post_update: z.strictObject({ text: z.string().min(1) }),
+
+  /**
+   * ADR-0021: a new agent entry in the task's repository. Needs one to five citations — the
+   * scope, the time and the counters are the engine's, never the model's.
+   */
+  note_insight: z.strictObject({
+    fact: MemoryFactSchema,
+    citations: z.array(MemoryCitationSchema).min(1).max(5),
+  }),
+  /** ADR-0021: ✓ +1 for this task on an entry whose citations still hold. */
+  confirm_insight: z.strictObject({ id: MemoryIdSchema }),
+  /** ADR-0021: ✗ +1 for this task; the reason goes to the journal, the entry stays. */
+  contradict_insight: z.strictObject({ id: MemoryIdSchema, reason: z.string().min(1) }),
+  /**
+   * ADR-0021: an owner entry from words the owner wrote in this task's thread. The engine accepts
+   * it only when `quote` occurs verbatim in an owner message of the thread.
+   */
+  remember_owner: z.strictObject({
+    fact: MemoryFactSchema,
+    quote: z.string().min(8),
+    everywhere: z.boolean().optional(),
+  }),
 
   /**
    * ADR-0014. No arguments on purpose: the command, the URL and the lease come from
@@ -112,6 +205,9 @@ export const toolsByRole = {
     'set_task_target_repo',
     'reply',
     'remember',
+    'forget',
+    'merge_insights',
+    'read_memory',
     'update_config',
     'approve',
   ],
@@ -119,14 +215,17 @@ export const toolsByRole = {
     'report_stage',
     'ask_owner',
     'submit_spec_for_approval',
-    'report_checks',
-    'report_pr',
+    'open_pr',
     'log_note',
     'post_update',
     'start_dev_server',
     'stop_dev_server',
     'attach_image',
     'comment_on_pr',
+    'note_insight',
+    'confirm_insight',
+    'contradict_insight',
+    'remember_owner',
     'approve',
   ],
 } as const satisfies Record<Role, readonly ToolName[]>;

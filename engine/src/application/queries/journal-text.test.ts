@@ -108,6 +108,58 @@ describe('describeJournalEvent', () => {
     ['agent_note', { text: 'Chose option B' }, 'Chose option B', 'stage'],
     ['agent_note', {}, 'Agent note', 'stage'],
     ['something_new', {}, 'Something new', 'stage'],
+    // ADR-0022: rows the engine writes while it runs the checks and opens the PR.
+    [
+      'checks_declared',
+      { commands: ['pnpm test'], source: 'worker' },
+      'Checks declared: `pnpm test` (found by the worker)',
+      'ci',
+    ],
+    [
+      'checks_fixed',
+      { commands: ['pnpm test', 'pnpm lint'], source: 'agents_md' },
+      "Checks fixed by the owner's approval: `pnpm test`, `pnpm lint`",
+      'ci',
+    ],
+    [
+      'checks_started',
+      { attempt: 2, headSha: 'a1b2c3d4e5f6', commands: [] },
+      'Checks started on a1b2c3d (attempt 2)',
+      'ci',
+    ],
+    [
+      'checks_failed',
+      {
+        headSha: 'a1b2c3d4e5f6',
+        attempt: 1,
+        max: 3,
+        results: [
+          { command: 'pnpm test', exitCode: 1 },
+          { command: 'pnpm lint', exitCode: 0 },
+        ],
+      },
+      'Checks failed on a1b2c3d (attempt 1/3) — pnpm test',
+      'ci',
+    ],
+    ['checks_passed', { headSha: 'a1b2c3d4e5f6', results: [] }, 'Checks passed on a1b2c3d', 'ci'],
+    [
+      'checks_unavailable',
+      { command: 'pnpm test', detail: 'not found' },
+      'Checks could not run: pnpm test — not found',
+      'error',
+    ],
+    [
+      'branch_pushed',
+      { branch: 'jarvis/T-1', headSha: 'a1b2c3d4e5f6' },
+      'Branch jarvis/T-1 pushed at a1b2c3d',
+      'stage',
+    ],
+    [
+      'pr_opened',
+      { number: 7, url: 'https://x/7', created: false },
+      'Draft PR #7 updated: https://x/7',
+      'stage',
+    ],
   ])('%s %j -> "%s" (%s)', (type, data, text, group) => {
     expect(describeOf(type, data)).toEqual({ text, group });
   });

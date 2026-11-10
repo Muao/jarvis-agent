@@ -415,3 +415,247 @@ describe('GitHubCodeHost.uploadAttachment (ADR-0014)', () => {
     });
   });
 });
+
+describe('GitHubCodeHost.createPullRequest (ADR-0022)', () => {
+  const input = { head: 'jarvis/T-1', base: 'main', title: 'Add x', body: 'Body' };
+  const LIST = 'GET /repos/o/r/pulls';
+  const CREATE = 'POST /repos/o/r/pulls';
+
+  /** Like `host`, but also keeps the JSON body of every request and the query of the list. */
+  function recording(routes: Record<string, Handler>) {
+    const fake = fakeGitHub(routes);
+    const bodies: { key: string; query: string; body: unknown }[] = [];
+    const wrapped = (async (inputUrl: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(
+        typeof inputUrl === 'string'
+          ? inputUrl
+          : inputUrl instanceof URL
+            ? inputUrl.href
+            : inputUrl.url,
+      );
+      bodies.push({
+        key: `${init?.method ?? 'GET'} ${url.pathname}`,
+        query: url.search,
+        body: typeof init?.body === 'string' ? (JSON.parse(init.body) as unknown) : null,
+      });
+      return fake.fetch(inputUrl, init);
+    }) as typeof fetch;
+    return {
+      bodies,
+      calls: fake.calls,
+      host: new GitHubCodeHost({ token: TOKEN, owner: 'o', repo: 'r', fetch: wrapped }),
+    };
+  }
+
+  it('creates a draft PR from the head into the base when none is open', async () => {
+    const h = recording({
+      [LIST]: { body: [] },
+      [CREATE]: { status: 201, body: { number: 7, html_url: 'https://github.com/o/r/pull/7' } },
+    });
+
+    expect(await h.host.createPullRequest(input)).toEqual({
+      ok: true,
+      number: 7,
+      url: 'https://github.com/o/r/pull/7',
+      created: true,
+    });
+
+    const list = h.bodies.find((b) => b.key === LIST);
+    expect(new URLSearchParams(list?.query).get('head')).toBe('o:jarvis/T-1');
+    expect(new URLSearchParams(list?.query).get('state')).toBe('open');
+    expect(h.bodies.find((b) => b.key === CREATE)?.body).toEqual({
+      head: 'jarvis/T-1',
+      base: 'main',
+      title: 'Add x',
+      body: 'Body',
+      draft: true,
+    });
+  });
+
+  it('returns the open PR for the head instead of creating a second', async () => {
+    const h = recording({
+      [LIST]: { body: [{ number: 5, html_url: 'https://github.com/o/r/pull/5' }] },
+    });
+
+    expect(await h.host.createPullRequest(input)).toEqual({
+      ok: true,
+      number: 5,
+      url: 'https://github.com/o/r/pull/5',
+      created: false,
+    });
+    expect(h.calls).not.toContain(CREATE);
+  });
+
+  it('resolves a 422 "already exists" to the existing PR', async () => {
+    let listed = 0;
+    const h = recording({
+      [LIST]: () => {
+        listed += 1;
+        return {
+          body: listed === 1 ? [] : [{ number: 9, html_url: 'https://github.com/o/r/pull/9' }],
+        };
+      },
+      [CREATE]: {
+        status: 422,
+        body: {
+          message: 'Validation Failed',
+          errors: [{ message: 'A pull request already exists for o:jarvis/T-1.' }],
+        },
+      },
+    });
+
+    expect(await h.host.createPullRequest(input)).toMatchObject({
+      ok: true,
+      number: 9,
+      created: false,
+    });
+  });
+
+  it('targets another repo when given one (ADR-0012)', async () => {
+    const h = recording({
+      'GET /repos/x/y/pulls': { body: [] },
+      'POST /repos/x/y/pulls': { status: 201, body: { number: 3, html_url: 'u' } },
+    });
+
+    expect(await h.host.createPullRequest(input, { owner: 'x', name: 'y' })).toMatchObject({
+      ok: true,
+      number: 3,
+    });
+    expect(new URLSearchParams(h.bodies[0]?.query).get('head')).toBe('x:jarvis/T-1');
+  });
+
+  it('answers a refusal as a value, with the token redacted', async () => {
+    const h = recording({
+      [LIST]: { body: [] },
+      [CREATE]: { status: 403, body: { message: `no access for ${TOKEN}` } },
+    });
+
+    const result = await h.host.createPullRequest(input);
+
+    if (result.ok) throw new Error('expected a refusal');
+    expect(result.reason).toContain('403');
+    expect(result.reason).not.toContain(TOKEN);
+  });
+
+  it('answers a failed lookup as a value too', async () => {
+    const h = recording({ [LIST]: { status: 500, body: { message: 'boom' } } });
+
+    expect((await h.host.createPullRequest(input)).ok).toBe(false);
+  });
+});
+
+describe('GitHubCodeHost.failedCheckLogs (ADR-0022)', () => {
+  const runs = (items: unknown[]) => ({
+    'GET /repos/o/r/commits/abc123/check-runs': {
+      body: { total_count: items.length, check_runs: items },
+    },
+  });
+  /** Job logs are plain text, not JSON: this fake serves them as such. */
+  function withLogs(
+    routes: Record<string, Handler>,
+    logs: Record<string, { status?: number; text: string }>,
+  ) {
+    const base = fakeGitHub(routes);
+    const fetchFn = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(
+        typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
+      );
+      const log = logs[url.pathname];
+      if (log !== undefined) {
+        base.calls.push(`${init?.method ?? 'GET'} ${url.pathname}`);
+        return Object.defineProperty(
+          new Response(log.text, {
+            status: log.status ?? 200,
+            headers: { 'content-type': 'text/plain' },
+          }),
+          'url',
+          { value: url.href },
+        );
+      }
+      return base.fetch(input, init);
+    }) as typeof fetch;
+    return new GitHubCodeHost({ token: TOKEN, owner: 'o', repo: 'r', fetch: fetchFn });
+  }
+
+  const failed = (id: number, over: Record<string, unknown> = {}) =>
+    check(id, { conclusion: 'failure', ...over });
+
+  it('returns each failed Actions job with the last 200 lines of its log', async () => {
+    const lines = Array.from({ length: 500 }, (_, i) => `line ${i + 1}`).join('\n');
+    const host = withLogs(runs([check(1), failed(2)]), {
+      '/repos/o/r/actions/jobs/2/logs': { text: lines },
+    });
+
+    const result = await host.failedCheckLogs(7, 'abc123');
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      name: 'job-2',
+      conclusion: 'failure',
+      url: 'https://github.com/o/r/runs/2',
+    });
+    const tail = (result[0]?.logTail ?? '').split('\n');
+    expect(tail).toHaveLength(200);
+    expect(tail[0]).toBe('line 301');
+    expect(tail.at(-1)).toBe('line 500');
+  });
+
+  it('gives a check that is not an Actions job a null log, and never fetches one', async () => {
+    const h = host(runs([failed(3, { app: { slug: 'circleci' } })]));
+
+    const result = await h.host.failedCheckLogs(7, 'abc123');
+
+    expect(result).toEqual([
+      { name: 'job-3', conclusion: 'failure', url: 'https://github.com/o/r/runs/3', logTail: null },
+    ]);
+    expect(h.fake.calls.some((c) => c.includes('/logs'))).toBe(false);
+  });
+
+  it('counts timed-out jobs as failed and ignores skipped ones', async () => {
+    const host = withLogs(
+      runs([failed(4, { conclusion: 'timed_out' }), check(5, { conclusion: 'skipped' })]),
+      { '/repos/o/r/actions/jobs/4/logs': { text: 'x' } },
+    );
+
+    const result = await host.failedCheckLogs(7, 'abc123');
+
+    expect(result.map((r) => [r.name, r.conclusion])).toEqual([['job-4', 'timed_out']]);
+  });
+
+  it('keeps all logs together under 200 KB', async () => {
+    const big = Array.from({ length: 200 }, () => 'y'.repeat(900)).join('\n');
+    const host = withLogs(runs([failed(1), failed(2), failed(3)]), {
+      '/repos/o/r/actions/jobs/1/logs': { text: big },
+      '/repos/o/r/actions/jobs/2/logs': { text: big },
+      '/repos/o/r/actions/jobs/3/logs': { text: big },
+    });
+
+    const result = await host.failedCheckLogs(7, 'abc123');
+
+    const total = result.reduce((n, r) => n + Buffer.byteLength(r.logTail ?? ''), 0);
+    expect(total).toBeLessThanOrEqual(200 * 1024);
+    expect(result).toHaveLength(3);
+  });
+
+  it('yields a null log when the download fails, not an error', async () => {
+    const host = withLogs(runs([failed(2)]), {
+      '/repos/o/r/actions/jobs/2/logs': { status: 410, text: 'gone' },
+    });
+
+    expect((await host.failedCheckLogs(7, 'abc123'))[0]?.logTail).toBeNull();
+  });
+
+  it('rejects, token redacted, when the checks cannot be listed', async () => {
+    const h = host({
+      'GET /repos/o/r/commits/abc123/check-runs': {
+        status: 500,
+        body: { message: `down ${TOKEN}` },
+      },
+    });
+
+    const error = await h.host.failedCheckLogs(7, 'abc123').catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(CodeHostError);
+    expect((error as Error).message).not.toContain(TOKEN);
+  });
+});

@@ -8,7 +8,7 @@ import {
 } from '../../../application/index.js';
 import { UnauthorizedError } from '../errors.js';
 import { parse } from '../parse.js';
-import { toolCalls } from './agent-tools.js';
+import { RETIRED_TOOLS, toolCalls } from './agent-tools.js';
 
 const BEARER = /^Bearer\s+(\S+)$/i;
 
@@ -36,7 +36,10 @@ export function agentRoutes(app: Application): FastifyPluginAsync {
       if (!isToolName(tool)) throw new NotFoundError('tool', tool);
       const call = toolCalls[tool];
       if (call === undefined) throw new NotFoundError('tool', tool);
-      requireTool(identity, tool);
+      // A worker session from before ADR-0022 still calls the retired tools; it gets the redirect.
+      if (!(identity.role === 'worker' && RETIRED_TOOLS.includes(tool))) {
+        requireTool(identity, tool);
+      }
       return call(app, identity, request.body ?? {});
     });
 

@@ -10,9 +10,11 @@
 
 ## Checks
 
-| Command     | Result |
-| ----------- | ------ |
-| `<command>` | passed |
+From the engine's run: see the PR's Checks section.
+
+| Command     | Result | Head sha |
+| ----------- | ------ | -------- |
+| `<command>` | passed | `<sha7>` |
 
 ## UI verification
 

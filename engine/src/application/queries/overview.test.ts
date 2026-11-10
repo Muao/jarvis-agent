@@ -170,7 +170,7 @@ describe('GetOverview', () => {
     expect(events[0]).toMatchObject({
       taskId,
       type: 'stage',
-      text: `Draft PR #7 reported: ${FLOW_PR.url}`,
+      text: `Draft PR #7 opened: ${FLOW_PR.url}`,
     });
     expect(events.map((e) => e.at)).toEqual([...events.map((e) => e.at)].sort().reverse());
     expect(events.find((e) => e.text.startsWith('Checks failed'))?.type).toBe('ci');

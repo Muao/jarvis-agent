@@ -1,3 +1,4 @@
+import type { TaskKind } from '@jarvis/shared';
 import { describe, expect, it } from 'vitest';
 import { buildChildEnv } from './child-env.js';
 
@@ -57,7 +58,7 @@ describe('buildChildEnv', () => {
   });
 
   it('strips billing, database and chat secrets (ADR-0003, ADR-0015)', () => {
-    const env = buildChildEnv(source, { role: 'worker', githubToken: 'ghp_bot' });
+    const env = buildChildEnv(source, { role: 'worker' });
     for (const name of [
       'ANTHROPIC_API_KEY',
       'ANTHROPIC_AUTH_TOKEN',
@@ -72,18 +73,53 @@ describe('buildChildEnv', () => {
     }
   });
 
-  it('gives GH_TOKEN to workers only', () => {
-    expect(buildChildEnv(source, { role: 'worker', githubToken: 'ghp_bot' })['GH_TOKEN']).toBe(
-      'ghp_bot',
-    );
-    expect(
-      buildChildEnv(source, { role: 'dispatcher', githubToken: 'ghp_bot' }),
-    ).not.toHaveProperty('GH_TOKEN');
-    expect(buildChildEnv(source, { role: 'worker' })).not.toHaveProperty('GH_TOKEN');
+  // ADR-0022: a property over every role/kind, not one case.
+  it('no run of any role or task kind has a GitHub token in its environment', () => {
+    const tokenSource = {
+      ...source,
+      GH_TOKEN: 'fake-token-a',
+      GITHUB_TOKEN: 'fake-token-b',
+      GH_ENTERPRISE_TOKEN: 'fake-token-c',
+      GITHUB_ENTERPRISE_TOKEN: 'fake-token-d',
+    };
+    const kinds: Array<TaskKind | undefined> = [undefined, 'build', 'ui_check'];
+    for (const role of ['worker', 'dispatcher'] as const) {
+      for (const taskKind of kinds) {
+        for (const runDir of [undefined, '/runs/R-1']) {
+          const env = buildChildEnv(tokenSource, {
+            role,
+            ...(taskKind === undefined ? {} : { taskKind }),
+            ...(runDir === undefined ? {} : { runDir }),
+          });
+          for (const name of Object.keys(env))
+            expect(name).not.toMatch(/TOKEN|GITHUB|^GH_(?!CONFIG_DIR$)/);
+          expect(Object.values(env).join('\n')).not.toMatch(/fake-token-/);
+        }
+      }
+    }
+  });
+
+  it('a worker gets the git/gh hardening variables, the dispatcher does not (ADR-0022)', () => {
+    for (const taskKind of ['build', 'ui_check'] as const) {
+      const env = buildChildEnv(source, { role: 'worker', taskKind, runDir: '/runs/R-1' });
+      expect(env['GH_CONFIG_DIR']).toBe('/runs/R-1/gh');
+      expect(env['GIT_CONFIG_GLOBAL']).toBe('/dev/null');
+      expect(env['GIT_CONFIG_NOSYSTEM']).toBe('1');
+      expect(env['GIT_TERMINAL_PROMPT']).toBe('0');
+    }
+    const dispatcher = buildChildEnv(source, { role: 'dispatcher', runDir: '/runs/R-1' });
+    for (const name of [
+      'GH_CONFIG_DIR',
+      'GIT_CONFIG_GLOBAL',
+      'GIT_CONFIG_NOSYSTEM',
+      'GIT_TERMINAL_PROMPT',
+    ]) {
+      expect(dispatcher).not.toHaveProperty(name);
+    }
   });
 
   it('omits allow-listed variables that are not set', () => {
-    expect(buildChildEnv({ PATH: '/bin' }, { role: 'worker' })).toEqual({ PATH: '/bin' });
+    expect(buildChildEnv({ PATH: '/bin' }, { role: 'dispatcher' })).toEqual({ PATH: '/bin' });
   });
 
   describe('telemetry (ADR-0016)', () => {

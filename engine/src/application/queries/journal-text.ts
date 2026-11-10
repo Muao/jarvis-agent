@@ -24,6 +24,21 @@ const num = (data: Data, key: string): string => {
 const withSuffix = (text: string, suffix: string): string =>
   suffix === '' ? text : `${text} — ${suffix}`;
 
+const commandList = (data: Data): string => {
+  const commands = Array.isArray(data['commands']) ? data['commands'].map(String) : [];
+  return commands.length === 0 ? 'none' : commands.map((c) => `\`${c}\``).join(', ');
+};
+
+/** The commands of an engine-written `checks_failed` row that did not exit 0. */
+function failedCommands(data: Data): string {
+  const results = Array.isArray(data['results']) ? (data['results'] as unknown[]) : [];
+  return results
+    .filter((r): r is { command: string } => typeof r === 'object' && r !== null && 'command' in r)
+    .filter((r) => (r as { exitCode?: unknown }).exitCode !== 0)
+    .map((r) => r.command)
+    .join(', ');
+}
+
 function stageChanged(data: Data): JournalText {
   const to = str(data, 'to');
   return {
@@ -69,14 +84,69 @@ export function describeJournalEvent(event: TaskEvent): JournalText {
         group: 'stage',
       };
     case 'checks_passed':
-      return { text: withSuffix('Checks passed', str(data, 'summary')), group: 'ci' };
-    case 'checks_failed':
       return {
         text: withSuffix(
-          `Checks failed (attempt ${num(data, 'attempt')}/${num(data, 'max')})`,
+          `Checks passed${data['headSha'] === undefined ? '' : ` on ${shortSha(str(data, 'headSha'))}`}`,
           str(data, 'summary'),
         ),
         group: 'ci',
+      };
+    case 'checks_failed':
+      return {
+        text: withSuffix(
+          `Checks failed${data['headSha'] === undefined ? '' : ` on ${shortSha(str(data, 'headSha'))}`} (attempt ${num(data, 'attempt')}/${num(data, 'max')})`,
+          str(data, 'summary') || failedCommands(data),
+        ),
+        group: 'ci',
+      };
+    case 'checks_declared':
+      return {
+        text: `Checks declared: ${commandList(data)}${data['source'] === 'worker' ? ' (found by the worker)' : ''}`,
+        group: 'ci',
+      };
+    case 'checks_fixed':
+      return {
+        text: `Checks fixed by the owner's approval: ${commandList(data)}${
+          data['source'] === 'agents_md_fallback'
+            ? " (from AGENTS.md; the task predates the card's list)"
+            : ''
+        }`,
+        group: 'ci',
+      };
+    case 'checks_started':
+      return {
+        text: `Checks started on ${shortSha(str(data, 'headSha'))} (attempt ${num(data, 'attempt')})`,
+        group: 'ci',
+      };
+    case 'checks_unavailable':
+      return {
+        text: `Checks could not run: ${str(data, 'command')} — ${str(data, 'detail')}`,
+        group: 'error',
+      };
+    case 'branch_pushed':
+      return {
+        text: `Branch ${str(data, 'branch')} pushed at ${shortSha(str(data, 'headSha'))}`,
+        group: 'stage',
+      };
+    case 'push_failed':
+      return {
+        text: `Push of ${shortSha(str(data, 'headSha'))} failed (${str(data, 'reason')})`,
+        group: 'error',
+      };
+    case 'pr_created':
+      return {
+        text: `Draft PR #${num(data, 'number')} created: ${str(data, 'url')}`,
+        group: 'stage',
+      };
+    case 'pr_create_failed':
+      return {
+        text: withSuffix('GitHub refused the pull request', str(data, 'reason')),
+        group: 'error',
+      };
+    case 'pr_opened':
+      return {
+        text: `Draft PR #${num(data, 'number')} ${data['created'] === false ? 'updated' : 'opened'}: ${str(data, 'url')}`,
+        group: 'stage',
       };
     case 'pr_reported':
       return {

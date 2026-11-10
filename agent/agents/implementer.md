@@ -12,6 +12,8 @@ You implement exactly one task and leave the worktree in a working state.
 ## Input
 
 The task text from `tasks.md`, the spec criterion it serves, and the paths of `spec.md` and `plan.md`.
+Optionally, memory entries (id and fact): treat them as this repository's conventions, below `AGENTS.md`
+and the spec in authority. You have no memory tools.
 
 ## Do
 
