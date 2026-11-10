@@ -8,6 +8,7 @@ import { QuestionCard } from './QuestionCard';
 import { ResultCard } from './ResultCard';
 import { StatusCard } from './StatusCard';
 import type { MessageOf } from './types';
+import { formatMessageTime } from './messageTime';
 
 interface MessageItemProps {
   message: MessageDto;
@@ -77,7 +78,22 @@ export function SystemCard({ text }: { text: string }) {
 
 const SOURCE_LABEL = { ci: 'CI', review: 'Review' } as const;
 
-export function MessageItem({ message, cancelled, onRetry }: MessageItemProps) {
+/** Every message carries the time it was posted: the owner must see when things happened. */
+export function MessageItem(props: MessageItemProps) {
+  const { message } = props;
+  const own = message.kind === 'owner' && message.body.source === 'owner';
+  const time = formatMessageTime(message.createdAt);
+  return (
+    <div className={own ? styles.entryOwn : styles.entry}>
+      <MessageBody {...props} />
+      <time className={styles.time} dateTime={message.createdAt} title={time.full}>
+        {time.short}
+      </time>
+    </div>
+  );
+}
+
+function MessageBody({ message, cancelled, onRetry }: MessageItemProps) {
   switch (message.kind) {
     case 'owner': {
       const source = message.body.source;

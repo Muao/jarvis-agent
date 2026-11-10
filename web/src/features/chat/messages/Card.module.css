@@ -162,3 +162,28 @@
 .jarvis {
   max-width: 40rem;
 }
+
+/* A message and the time it was posted under it; the owner's own messages sit on the right. */
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-start;
+}
+
+.entryOwn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-end;
+}
+
+.entryOwn > .bubbleRow {
+  align-self: stretch;
+}
+
+.time {
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
