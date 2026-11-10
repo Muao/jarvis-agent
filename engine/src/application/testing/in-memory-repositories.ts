@@ -23,6 +23,7 @@ import type { RunRepository } from '../ports/run-repository.js';
 import type { SessionRepository } from '../ports/session-repository.js';
 import type { TaskRepository } from '../ports/task-repository.js';
 import type { ThreadRepository } from '../ports/thread-repository.js';
+import type { BudgetResetRepository } from '../ports/budget-reset-repository.js';
 import type { Repositories } from '../ports/unit-of-work.js';
 import type { WatchRepository } from '../ports/watch-repository.js';
 import type { InMemoryDatabase } from './in-memory-database.js';
@@ -323,6 +324,14 @@ class InMemoryWatchRepository implements WatchRepository {
       .map(({ watch }) => watch);
 }
 
+class InMemoryBudgetResetRepository implements BudgetResetRepository {
+  constructor(private readonly db: InMemoryDatabase) {}
+  append = async (at: string) => {
+    this.db.tables.budgetResets.push(at);
+  };
+  latest = async () => this.db.tables.budgetResets.at(-1) ?? null;
+}
+
 export function inMemoryRepositories(db: InMemoryDatabase): Repositories {
   return {
     threads: new InMemoryThreadRepository(db),
@@ -333,5 +342,6 @@ export function inMemoryRepositories(db: InMemoryDatabase): Repositories {
     runs: new InMemoryRunRepository(db),
     permissions: new InMemoryPermissionRepository(db),
     watches: new InMemoryWatchRepository(db),
+    budgetResets: new InMemoryBudgetResetRepository(db),
   };
 }

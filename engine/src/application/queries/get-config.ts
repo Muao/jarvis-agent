@@ -4,7 +4,7 @@ import type { ConfigProvider, ConfigStatus } from '../ports/config-provider.js';
 import type { ProfileFiles } from '../ports/profile-files.js';
 import type { RepoInfo } from '../ports/repo-info.js';
 import type { UnitOfWork } from '../ports/unit-of-work.js';
-import { startOfLocalDay } from '../runs/local-day.js';
+import { usageWindowStart } from '../runs/usage-window.js';
 import { usageOf } from './usage.js';
 
 /**
@@ -36,7 +36,9 @@ export class GetConfig {
     }
     const config = this.deps.config.current();
     const now = clock.now();
-    const usage = await this.deps.uow.run((tx) => tx.runs.usageSince(startOfLocalDay(now)));
+    const usage = await this.deps.uow.run(async (tx) =>
+      tx.runs.usageSince(await usageWindowStart(tx, now)),
+    );
     const repository = await this.deps.repoInfo.commands(config.repo.path);
     const spent = Object.values(usage.byRole).reduce((sum, cost) => sum + cost, 0);
     return {

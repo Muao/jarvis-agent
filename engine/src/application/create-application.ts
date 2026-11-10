@@ -35,6 +35,7 @@ import { EnforceTaskTimeouts } from './supervision/enforce-task-timeouts.js';
 import { ExpireOrphanedPermissions } from './supervision/expire-orphaned-permissions.js';
 import { PostProgressUpdates } from './supervision/post-progress-updates.js';
 import { LiveRuns } from './runs/live-runs.js';
+import { ResetDailyUsage } from './runs/reset-daily-usage.js';
 import { ResolveRunIdentity } from './runs/resolve-run-identity.js';
 import { RunEventLog } from './runs/run-event-log.js';
 import { RunRegistry } from './runs/run-registry.js';
@@ -159,6 +160,7 @@ export interface Application {
   readonly attachImage: AttachImage;
   readonly commentOnPr: CommentOnPr;
   readonly scheduler: RunScheduler;
+  readonly resetDailyUsage: ResetDailyUsage;
   readonly resolveRunIdentity: ResolveRunIdentity;
   readonly stopRun: StopRun;
   readonly sendToSession: SendToSession;
@@ -317,6 +319,7 @@ export function createApplication(ports: ApplicationPorts): Application {
       permissions: { request: requestPermission, await: awaitPermission },
     }),
     scheduler,
+    resetDailyUsage: new ResetDailyUsage({ uow, clock, config, events: ports.events, scheduler }),
     resolveRunIdentity: new ResolveRunIdentity(registry),
     stopRun: new StopRun({ ...deps, liveRuns }),
     sendToSession: new SendToSession(deps),

@@ -1,3 +1,4 @@
+export type { BudgetResetRepository } from './budget-reset-repository.js';
 export type { BranchPublisher, BranchStatus, PushResult } from './branch-publisher.js';
 export type { CheckResult, CheckRunOutcome, CheckRunner, CheckRunSpec } from './check-runner.js';
 export type { AgentRunner, RunEventBody, RunHandle, RunListener, RunSpec } from './agent-runner.js';

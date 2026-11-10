@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import { Link } from 'react-router';
 import type { UsageDto } from '@jarvis/shared';
+import { useCanMutate, useResetUsage } from '../api/queries';
+import { ConfirmDialog } from './ConfirmDialog';
 import { RelativeTime } from './RelativeTime';
 import styles from './UsageMeter.module.css';
 
@@ -18,6 +21,36 @@ interface UsageMeterProps {
   usage: UsageDto;
   /** `compact` is the shell link to `/config`; `full` adds the reset time and state text. */
   variant?: 'compact' | 'full';
+}
+
+/** Starts "spent today" over from now (LIM-04); asks first because it cannot be undone. */
+function ResetUsageButton() {
+  const [asking, setAsking] = useState(false);
+  const reset = useResetUsage();
+  const canMutate = useCanMutate();
+  return (
+    <>
+      <button
+        type="button"
+        className={styles.reset}
+        disabled={!canMutate || reset.isPending}
+        onClick={() => setAsking(true)}
+      >
+        Reset
+      </button>
+      <ConfirmDialog
+        open={asking}
+        title="Reset today's usage?"
+        description="Spent today starts again from $0.00 and queued work starts at once. Midnight still resets it as before."
+        confirmLabel="Reset usage"
+        onConfirm={() => {
+          setAsking(false);
+          reset.mutate();
+        }}
+        onCancel={() => setAsking(false)}
+      />
+    </>
+  );
 }
 
 export function UsageMeter({ usage, variant = 'compact' }: UsageMeterProps) {
@@ -41,11 +74,14 @@ export function UsageMeter({ usage, variant = 'compact' }: UsageMeterProps) {
 
   if (variant === 'compact') {
     return (
-      <Link to="/config" className={`${styles.meter} ${styles.compact}`}>
-        <span>{label}</span>
-        {state ? <strong className={styles[level]}>{state}</strong> : null}
-        {bar}
-      </Link>
+      <div className={styles.row}>
+        <Link to="/config" className={`${styles.meter} ${styles.compact}`}>
+          <span>{label}</span>
+          {state ? <strong className={styles[level]}>{state}</strong> : null}
+          {bar}
+        </Link>
+        <ResetUsageButton />
+      </div>
     );
   }
   return (

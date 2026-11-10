@@ -705,6 +705,15 @@ function contract(name: string, make: () => Repositories): void {
         expect(await repos.runs.costSince(at(21))).toBe(0);
       });
 
+      it('keeps every budget reset and reports the latest', async () => {
+        const repos = make();
+        expect(await repos.budgetResets.latest()).toBeNull();
+        await repos.budgetResets.append(at(5));
+        await repos.budgetResets.append(at(10));
+        await repos.budgetResets.append(at(30));
+        expect(await repos.budgetResets.latest()).toBe(at(30));
+      });
+
       it('numbers the events of each run 0, 1, 2 and returns the newest as the last event', async () => {
         const repos = make();
         await seedThread(repos);

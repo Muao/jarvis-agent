@@ -172,6 +172,43 @@ describe('RunScheduler daily budget (LIM-04)', () => {
   });
 });
 
+describe("RunScheduler reset of today's usage (LIM-04)", () => {
+  it('starts queued work at once and counts only runs started after the reset', async () => {
+    const a = app();
+    a.config.set(configWith({ dailyBudgetUsd: 1 }));
+    const first = await createTaskInNewThread(a);
+    await a.runner.forTask(first.taskId)?.succeed(1.5);
+    const second = await createTaskInNewThread(a);
+    expect(a.runner.live).toHaveLength(0);
+
+    a.clock.advanceMinutes(1);
+    const usage = await a.resetDailyUsage.execute();
+
+    expect(usage).toMatchObject({ todayUsd: 0, paused: false });
+    expect(a.runner.live.map((p) => p.spec.taskId)).toEqual([second.taskId]);
+    expect((await a.getOverview.execute()).usage).toMatchObject({ todayUsd: 0, paused: false });
+  });
+
+  it('announces a later exhaustion again to a thread that was told before the reset', async () => {
+    const a = app();
+    a.config.set(configWith({ dailyBudgetUsd: 1 }));
+    const first = await createTaskInNewThread(a);
+    await a.runner.forTask(first.taskId)?.succeed(1.5);
+    const second = await createTaskInNewThread(a);
+    expect(systemTexts(a, second.thread.id)).toHaveLength(1);
+
+    a.clock.advanceMinutes(1);
+    await a.resetDailyUsage.execute();
+    a.clock.advanceMinutes(1);
+    await a.runner.forTask(second.taskId)?.succeed(2);
+    await a.scheduler.requestWorkerRun(second.taskId);
+
+    expect(
+      systemTexts(a, second.thread.id).filter((text) => text.includes('Daily budget')),
+    ).toHaveLength(2);
+  });
+});
+
 describe('RunScheduler expired claude login', () => {
   const expired = {
     status: 'failed',

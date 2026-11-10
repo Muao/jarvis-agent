@@ -243,3 +243,9 @@ export const watches = pgTable('watches', {
   lastGreen: jsonb('last_green').$type<unknown>(),
   rerunHeadSha: text('rerun_head_sha'),
 });
+
+/** The owner's "reset today's usage" moments (LIM-04). Append-only; the latest one counts. */
+export const budgetResets = pgTable('budget_resets', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  at: time('at').notNull(),
+});

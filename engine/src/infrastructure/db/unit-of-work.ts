@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { Repositories, UnitOfWork } from '../../application/ports/unit-of-work.js';
 import type { Executor } from './client.js';
+import { PgBudgetResetRepository } from './budget-reset-repository.js';
 import { PgJournalRepository } from './journal-repository.js';
 import { PgMessageRepository } from './message-repository.js';
 import { PgPermissionRepository } from './permission-repository.js';
@@ -22,6 +23,7 @@ export function createRepositories(db: Executor): Repositories {
     runs: new PgRunRepository(db),
     permissions: new PgPermissionRepository(db),
     watches: new PgWatchRepository(db),
+    budgetResets: new PgBudgetResetRepository(db),
   };
 }
 

@@ -4,7 +4,7 @@ import type { Clock } from '../ports/clock.js';
 import type { ConfigProvider } from '../ports/config-provider.js';
 import type { QueuedWorkerRun, RunCoordinator } from '../ports/run-coordinator.js';
 import type { UnitOfWork } from '../ports/unit-of-work.js';
-import { startOfLocalDay } from '../runs/local-day.js';
+import { usageWindowStart } from '../runs/usage-window.js';
 import { describeJournalEvent } from './journal-text.js';
 import { ciStatusOf } from './pull-request.js';
 import { describeActivity } from './run-activity.js';
@@ -42,7 +42,7 @@ export class GetOverview {
     const data = await this.deps.uow.run(async (tx) => {
       const running = await tx.runs.listRunning();
       return {
-        spent: await tx.runs.costSince(startOfLocalDay(now)),
+        spent: await tx.runs.costSince(await usageWindowStart(tx, now)),
         running,
         lastEvents: new Map<string, RunEvent | null>(
           await Promise.all(

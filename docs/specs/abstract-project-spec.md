@@ -348,7 +348,9 @@ the config.
 
 **LIM-04. Daily budget.** When the estimated cost for the day reaches `limits.dailyBudgetUsd`,
 new runs do not start, a message arrives in the thread, and the web app shows the pause. A run
-already in progress finishes its current step.
+already in progress finishes its current step. The owner can reset the day's usage from the header
+meter (after a confirmation): spent today then counts only runs started after the reset, queued work
+starts at once, and a later exhaustion the same day is announced again. Midnight still resets as before.
 
 **LIM-05. Change without restart.** A config change takes effect for new runs.
 

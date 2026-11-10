@@ -1,3 +1,4 @@
+import type { BudgetResetRepository } from './budget-reset-repository.js';
 import type { JournalRepository } from './journal-repository.js';
 import type { MessageRepository } from './message-repository.js';
 import type { PermissionRepository } from './permission-repository.js';
@@ -16,6 +17,7 @@ export interface Repositories {
   readonly runs: RunRepository;
   readonly permissions: PermissionRepository;
   readonly watches: WatchRepository;
+  readonly budgetResets: BudgetResetRepository;
 }
 
 /**

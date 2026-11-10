@@ -22,6 +22,8 @@ export interface Tables {
   runEvents: Map<string, RunEvent[]>;
   permissions: Map<string, PermissionRequest>;
   watches: Map<string, Watch>;
+  /** Reset moments, oldest first. */
+  budgetResets: string[];
 }
 
 function emptyTables(): Tables {
@@ -35,6 +37,7 @@ function emptyTables(): Tables {
     runEvents: new Map(),
     permissions: new Map(),
     watches: new Map(),
+    budgetResets: [],
   };
 }
 

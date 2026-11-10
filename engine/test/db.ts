@@ -24,6 +24,7 @@ const TABLES = [
   'task_events',
   'tasks',
   'threads',
+  'budget_resets',
 ] as const;
 
 /** Throws unless the URL points at a database whose name ends in `_test`. */

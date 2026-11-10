@@ -74,6 +74,7 @@ The shell on every screen:
 
 - The product name `Jarvis` and the `LOCAL · NO AUTH` badge (ADM-07).
 - A compact `Usage meter`: `notional $X.XX / $Y.YY today` and a bar. Clicking it goes to `/config`.
+  Next to it a `Reset` button (with a confirmation) starts "spent today" over from now (LIM-04).
 - An engine connection indicator: `Live`, `Reconnecting…`, `Offline`.
 - A counter of what is waiting on the owner: questions, spec/plan approvals, permission requests.
   Clicking it goes to the oldest such thread.

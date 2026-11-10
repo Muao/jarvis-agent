@@ -12,6 +12,7 @@ import {
   TaskDtoSchema,
   ThreadDetailDtoSchema,
   ThreadDtoSchema,
+  UsageDtoSchema,
   UsageReportSchema,
   type AnswerMessageBody,
   type AnswerPermissionBody,
@@ -167,6 +168,19 @@ export function useStopRun() {
         queryClient.invalidateQueries({ queryKey: keys.sessions.all }),
         queryClient.invalidateQueries({ queryKey: keys.tasks.all }),
         queryClient.invalidateQueries({ queryKey: keys.overview }),
+      ]),
+  });
+}
+
+/** `POST /api/usage/reset`: spent-today counts from now on (LIM-04). */
+export function useResetUsage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => post('/usage/reset', undefined, UsageDtoSchema),
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.overview }),
+        queryClient.invalidateQueries({ queryKey: keys.config }),
       ]),
   });
 }

@@ -6,6 +6,7 @@ import type { DevServerManager } from '../ports/dev-server.js';
 import type { QueuedWorkerRun, RunCoordinator, WorkerRunReason } from '../ports/run-coordinator.js';
 import { transact, type Notifiers } from '../transaction.js';
 import { startOfLocalDay } from './local-day.js';
+import { usageWindowStart } from './usage-window.js';
 import type { LiveRun, LiveRuns } from './live-runs.js';
 import { StartRun, type StartRunDeps } from './start-run.js';
 
@@ -82,6 +83,14 @@ export class RunScheduler implements RunCoordinator {
   /** Start whatever fits now. Called after a run exits and by the timer that watches the budget. */
   resumeQueued(): Promise<void> {
     return this.exclusive(async () => {
+      await this.fill();
+    });
+  }
+
+  /** The owner reset today's usage: announce a later exhaustion again and start what fits now. */
+  budgetWasReset(): Promise<void> {
+    return this.exclusive(async () => {
+      this.budgetNoticeDay.clear();
       await this.fill();
     });
   }
@@ -197,7 +206,9 @@ export class RunScheduler implements RunCoordinator {
 
   private async budgetLeft(): Promise<boolean> {
     const { uow, clock, config } = this.deps;
-    const spent = await uow.run((tx) => tx.runs.costSince(startOfLocalDay(clock.now())));
+    const spent = await uow.run(async (tx) =>
+      tx.runs.costSince(await usageWindowStart(tx, clock.now())),
+    );
     return canStartRun(spent, config.current().limits).ok;
   }
 
