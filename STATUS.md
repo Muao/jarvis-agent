@@ -197,6 +197,9 @@ Decided, not forgotten.
   run's totals and the CLI offers no breakdown. Visible: what a subagent did. Invisible: what it cost.
 - **Cost arrives only at a run's exit.** Mid-run there are events, not figures; the brakes are the CLI's own
   `--max-turns` and `--max-budget-usd`.
+- **`jarvis` was in the `docker` group on `jarvis-01`** (found 2026-11-10): root-equivalent, so any child
+  `claude` with `Bash` could have read the root-only `/etc/jarvis/infisical.env`. The runbook now forbids it
+  and drives Docker as root only; removed on the server with the redeploy that follows this change.
 - **A child `claude` can read the engine's environment through `/proc`.** Accepted for a single-owner box;
   the real fix is a separate uid for child processes.
 - **Never executed anywhere:** Alloy and the Grafana queries, the systemd units, the Google connector, the

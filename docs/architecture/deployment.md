@@ -33,7 +33,7 @@ the firewall.
 1. Hetzner Cloud → new server: Ubuntu 24.04, 8–16 GB RAM (e.g. CX32/CX42), your SSH key, a firewall with inbound SSH only.
 2. As root:
    ```sh
-   adduser --disabled-password jarvis && usermod -aG docker jarvis   # after installing Docker
+   adduser --disabled-password jarvis                               # NOT in the docker group (see below)
    # Docker Engine, git, gh, Node 22 (nvm or NodeSource), corepack enable (pnpm)
    curl -fsSL https://claude.ai/install.sh | bash                    # as jarvis, Claude Code CLI
    ln -sf /home/jarvis/.local/bin/claude /usr/local/bin/claude      # as root: systemd's PATH has no ~/.local/bin
@@ -41,6 +41,12 @@ the firewall.
    git config --global user.email '<id>+<login>@users.noreply.github.com'   # and a worker's commit fails without one
    curl -fsSL https://tailscale.com/install.sh | sh && tailscale up --ssh
    ```
+
+   **Never add `jarvis` to the `docker` group.** The Docker daemon runs as root, so whoever can talk to its
+   socket can start a container with the host's filesystem mounted and act as root. `jarvis` runs every child
+   `claude`, and a worker has `Bash`, so membership would let a prompt injection read the root-only
+   `/etc/jarvis/infisical.env` and anything else. Docker is driven as root only: the one-off `compose up`
+   below, and any long-lived container a target repository needs (its restart policy keeps it up).
 3. Once `tailscale ssh jarvis@<host>` works, remove SSH from the Hetzner firewall.
 4. Chromium for the UI check (ADR-0014), as root, into a path `jarvis` can read:
    ```sh
@@ -78,7 +84,7 @@ claude -p "ping"  # must answer without ANTHROPIC_API_KEY
 5. Postgres password (ADR-0015): generate one (`openssl rand -base64 24`), store it in Infisical as
    `POSTGRES_PASSWORD` and inside `DATABASE_URL` / `DATABASE_URL_TEST`. `compose.yaml` carries no
    default and refuses to start without it. On a volume created with the old default:
-   `docker compose exec postgres psql -U jarvis -c "ALTER USER jarvis PASSWORD '<new>'"`, then restart
+   `sudo docker compose exec postgres psql -U jarvis -c "ALTER USER jarvis PASSWORD '<new>'"`, then restart
    the engine. The local fallback is the same variables in `~/.jarvis/.env`; keep that file an export
    of Infisical (`infisical export --env=dev`), not a second source of truth.
 
@@ -94,14 +100,18 @@ tailscale ssh jarvis@<host>
 git clone https://github.com/burnjohn/jarvis-agent.git ~/jarvis && cd ~/jarvis
 mkdir -p ~/.jarvis && cp jarvis.config.example.json ~/.jarvis/jarvis.config.json   # set repo.path, limits
 # POSTGRES_PASSWORD has no default (ADR-0015); it comes from Infisical through the machine identity,
-# which only root can read, so compose runs in a transient unit with the engine's EnvironmentFile:
-sudo systemd-run --quiet --wait --pipe --collect --uid=jarvis --same-dir \
+# which only root can read; Docker is root-only too, so compose runs as root with that EnvironmentFile:
+sudo systemd-run --quiet --wait --pipe --collect --same-dir \
   -p EnvironmentFile=/etc/jarvis/infisical.env scripts/with-secrets.sh docker compose up -d
 pnpm install --frozen-lockfile && pnpm --filter @jarvis/web build
 ```
 
 The server keeps no `~/.jarvis/.env`: every secret, the database URL included, comes from Infisical `prod`.
 `scripts/deploy.sh` runs its migrations the same way.
+
+A redeploy never touches the database: `scripts/deploy.sh` does not call Docker, Postgres keeps its data in the
+`pgdata` volume, and migrations are additive (ADR-0008). Only `docker compose down -v` (never part of any script
+here) deletes that volume.
 
 The units are `deploy/systemd/jarvis-engine.service` and `jarvis-web.service`; the wrapper is `scripts/with-secrets.sh`
 (logs in to Infisical with the machine identity and runs `infisical run --env=prod -- <cmd>`; without

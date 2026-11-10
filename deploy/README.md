@@ -86,6 +86,10 @@ what a child inherits; it cannot stop a same-uid process reading a sibling's env
 single-owner box. The real fix is a separate uid for child `claude` processes (a task of its own: ADR-0015, worktree
 permissions, `~/.claude`).
 
+`jarvis` must not be in the `docker` group: that group is root-equivalent, and it would undo the `0600 root`
+protection of `/etc/jarvis/infisical.env` for any child `claude` with `Bash` (deployment.md §1). Check with
+`id -nG jarvis | grep -wc docker` (expect `0`).
+
 ## Not verified yet
 
 Nothing here has been executed on a server:

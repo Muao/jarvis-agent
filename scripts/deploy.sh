@@ -17,6 +17,8 @@
 # jarvis-web is intentionally not enabled yet (public-UI access is still undecided), so step 6
 # is a no-op until that unit exists and is enabled; the script does not fail if it's absent.
 #
+# It never calls Docker: Postgres and its `pgdata` volume are left alone, so a redeploy keeps every row.
+#
 # A lock file stops two deploys from overlapping (e.g. a second SSH session running this by hand
 # while the first is mid-migration).
 set -euo pipefail
