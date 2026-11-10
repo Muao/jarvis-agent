@@ -6,6 +6,7 @@ import { toMessageDto } from './message-dto.js';
 import { latestProgress } from './run-activity.js';
 import { toThreadDto } from './thread-dto.js';
 import { currentTaskOf } from './waiting.js';
+import { workingTasks } from './working-tasks.js';
 
 /** `GET /api/threads/:id`: the thread with its messages, oldest first. */
 export class GetThread {
@@ -20,7 +21,7 @@ export class GetThread {
       const hasOpenCard = messages.some((m) => isCard(m) && !isAnswered(m));
       const running = (await tx.runs.listRunning()).find((run) => run.threadId === id);
       return {
-        ...toThreadDto(thread, task, hasOpenCard),
+        ...toThreadDto(thread, task, hasOpenCard, await workingTasks(tx)),
         dispatcherSessionId: (await tx.sessions.dispatcherOf(id))?.id ?? null,
         dispatcherBusy: await tx.runs.dispatcherBusy(id),
         activeRun:

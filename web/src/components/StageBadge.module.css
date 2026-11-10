@@ -81,3 +81,9 @@
   background: var(--stage-cancelled-bg);
   text-decoration: line-through;
 }
+
+/* PR Open while the worker answers the owner: the PR-open colours, its own symbol and word. */
+.thinking {
+  color: var(--stage-pr-open);
+  background: var(--stage-pr-open-bg);
+}

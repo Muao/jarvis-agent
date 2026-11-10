@@ -27,6 +27,7 @@ export const thread = (patch: Partial<ThreadDto> = {}): ThreadDto => ({
   title: 'Add a page',
   taskId: null,
   stage: null,
+  working: false,
   prNumber: null,
   prUrl: null,
   waitingForOwner: false,

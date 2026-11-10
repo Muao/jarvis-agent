@@ -108,6 +108,7 @@ describe('DTOs', () => {
       threadId: 'th1',
       title: 'Add page',
       stage: 'PR Open',
+      working: false,
       waitingFor: 'ci',
       branch: 'jarvis/T-12',
       prNumber: 34,

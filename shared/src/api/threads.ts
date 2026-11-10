@@ -115,6 +115,8 @@ export const ThreadDtoSchema = z.object({
   title: z.string(),
   taskId: TaskIdSchema.nullable(),
   stage: TaskStageSchema.nullable(),
+  /** The task's worker is running right now. In `PR Open` the UI shows it as `Thinking`. */
+  working: z.boolean(),
   prNumber: z.number().int().nullable(),
   prUrl: z.url().nullable(),
   waitingForOwner: z.boolean(),

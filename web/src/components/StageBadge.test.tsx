@@ -9,6 +9,20 @@ describe('StageBadge', () => {
     expect(screen.getByText(stage)).toBeInTheDocument();
   });
 
+  it('shows PR Open as Thinking while the worker answers the owner', () => {
+    render(<StageBadge stage="PR Open" working />);
+    expect(screen.getByText('Thinking')).toBeInTheDocument();
+    expect(screen.queryByText('PR Open')).not.toBeInTheDocument();
+  });
+
+  it.each(['Fixing', 'Implementing'] as const)(
+    'keeps %s as it is while the worker runs',
+    (stage) => {
+      render(<StageBadge stage={stage} working />);
+      expect(screen.getByText(stage)).toBeInTheDocument();
+    },
+  );
+
   it('gives every stage its own symbol, so colour is never the only cue', () => {
     const symbols = TASK_STAGES.map((stage) => {
       const { container, unmount } = render(<StageBadge stage={stage} />);

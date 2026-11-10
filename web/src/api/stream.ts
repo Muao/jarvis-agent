@@ -64,6 +64,7 @@ export function applyStreamEvent(queryClient: QueryClient, event: StreamEvent): 
     case 'run':
       invalidate(keys.runs.events(event.id));
       invalidate(keys.threads.details); // a run starting or ending shows or hides the working row
+      invalidate(keys.threads.list()); // and turns a PR Open badge into Thinking and back
       invalidate(keys.sessions.all);
       invalidate(keys.tasks.all);
       return;

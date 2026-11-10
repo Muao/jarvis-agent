@@ -9,6 +9,7 @@ import { pullRequestOf } from './pull-request.js';
 import { toRunDto } from './run-dto.js';
 import { stageAt, stageSpans } from './stage-spans.js';
 import { toTaskDto } from './task-dto.js';
+import { workingTasks } from './working-tasks.js';
 import { TaskWaiting } from './waiting.js';
 
 /** `GET /api/tasks/:id`: everything Task detail shows. */
@@ -37,6 +38,7 @@ export class GetTask {
         watch,
         waitingFor: await this.waiting.of(tx, task, watch),
         totals: (await tx.runs.totalsByTask()).get(id),
+        working: await workingTasks(tx),
         runs: await tx.runs.listByTask(id),
         journal: await tx.journal.entries(id),
       };

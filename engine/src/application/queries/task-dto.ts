@@ -9,7 +9,12 @@ const NO_RUNS: RunTotals = { runCount: 0, costUsd: 0 };
 /** A row of the task list; Task detail extends it. */
 export function toTaskDto(
   task: Task,
-  facts: { waitingFor: WaitingFor; watch: Watch | null; totals: RunTotals | undefined },
+  facts: {
+    waitingFor: WaitingFor;
+    watch: Watch | null;
+    totals: RunTotals | undefined;
+    working: ReadonlySet<string>;
+  },
 ): TaskDto {
   const totals = facts.totals ?? NO_RUNS;
   return {
@@ -17,6 +22,7 @@ export function toTaskDto(
     threadId: task.threadId,
     title: task.title,
     stage: task.stage,
+    working: facts.working.has(task.id),
     waitingFor: facts.waitingFor,
     branch: task.branch,
     prNumber: task.pr?.number ?? null,

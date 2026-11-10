@@ -9,6 +9,7 @@ export const task = (patch: Partial<TaskDto> = {}): TaskDto => ({
   threadId: 'th-1',
   title: 'Add the export page',
   stage: 'Implementing',
+  working: false,
   waitingFor: '—',
   branch: 'jarvis/T-12',
   prNumber: null,

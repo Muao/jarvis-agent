@@ -258,7 +258,7 @@ A row per connection: name, status (`Connected`, `Not configured`, `Error`), det
 | `Status card` | Chat | Update in place, a list of steps with checkmarks, attempt counters, links |
 | `Decision buttons` | Decision card, Question card | Primary and secondary action, inactive state after an answer with a caption of who and when |
 | `Permission card` | Chat, Session console, Overview | Who is asking, the tool, description, collapsed input data, `Allow` / `Deny`, a summary after the decision |
-| `Stage badge` | Everywhere a task appears | All `Task Stage` values; terminal states differ not only by color but also by a symbol or a word |
+| `Stage badge` | Everywhere a task appears | All `Task Stage` values; terminal states differ not only by color but also by a symbol or a word. A task in `PR Open` whose worker is running (it answers the owner — a question, a retro) shows `… Thinking`: the stage stays `PR Open` and the PR stays watched; `Fixing` is shown only when the code is being changed (a failed CI run, a review comment, a push the owner asked for) |
 | `Stage stepper` | Overview, Task detail | The current stage, completed ones, upcoming ones; repeats |
 | `CI check row` | Task detail, Overview | Name, status, duration, log link |
 | `Run event row` | Session console | The event types from the list above, collapsing long output |

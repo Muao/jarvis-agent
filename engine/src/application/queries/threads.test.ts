@@ -32,6 +32,19 @@ describe('GetThreads / GetThread', () => {
     expect(threads[1]).toMatchObject({ taskId: null, stage: null, waitingForOwner: false });
   });
 
+  it("flags a thread and its task as working while the task's worker runs", async () => {
+    const app = buildTestApp({ realRuns: true });
+    const { thread, taskId } = await createTaskInNewThread(app);
+
+    expect((await app.getThreads.execute())[0]).toMatchObject({ taskId, working: true });
+    expect(await app.getThread.execute(thread.id)).toMatchObject({ working: true });
+    expect((await app.getTasks.execute())[0]).toMatchObject({ id: taskId, working: true });
+
+    await app.cancelTask.execute({ taskId });
+    expect((await app.getThreads.execute())[0]).toMatchObject({ taskId, working: false });
+    expect((await app.getTasks.execute())[0]).toMatchObject({ id: taskId, working: false });
+  });
+
   it('stops waiting once the card is answered, and shows a finished task on its thread', async () => {
     const app = buildTestApp({ realRuns: true });
     const { taskId } = await createTaskInNewThread(app);

@@ -59,7 +59,7 @@ export function ThreadList({ threads, loading, error, onRetry, selectedId }: Thr
             >
               <span className={styles.title}>{thread.title}</span>
               <span className={styles.meta}>
-                {thread.stage ? <StageBadge stage={thread.stage} /> : null}
+                {thread.stage ? <StageBadge stage={thread.stage} working={thread.working} /> : null}
                 <span className={styles.time}>
                   <RelativeTime at={thread.lastActivityAt} />
                 </span>

@@ -3,6 +3,7 @@ import type { RunCoordinator } from '../ports/run-coordinator.js';
 import type { UnitOfWork } from '../ports/unit-of-work.js';
 import { toTaskDto } from './task-dto.js';
 import { TaskWaiting } from './waiting.js';
+import { workingTasks } from './working-tasks.js';
 
 /** `GET /api/tasks`: every task, most recently updated first. */
 export class GetTasks {
@@ -15,6 +16,7 @@ export class GetTasks {
   execute(): Promise<TaskDto[]> {
     return this.deps.uow.run(async (tx) => {
       const totals = await tx.runs.totalsByTask();
+      const working = await workingTasks(tx);
       const tasks = [...(await tx.tasks.listAll())].sort(
         (a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id),
       );
@@ -26,6 +28,7 @@ export class GetTasks {
             waitingFor: await this.waiting.of(tx, task, watch),
             watch,
             totals: totals.get(task.id),
+            working,
           }),
         );
       }

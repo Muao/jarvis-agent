@@ -23,17 +23,30 @@ const LOOKS: Record<TaskStage, StageLook> = {
   Cancelled: { symbol: '⊘', className: styles.cancelled, terminal: true },
 };
 
-export function StageBadge({ stage }: { stage: TaskStage }) {
-  const look = LOOKS[stage];
+/**
+ * A task in `PR Open` whose worker is running is talking to the owner about the PR (a question, a
+ * retro), not changing it: it shows as `Thinking`. The stage itself stays `PR Open`, so the PR is
+ * still watched; a push moves it to `Fixing`.
+ */
+const THINKING: StageLook = { symbol: '…', className: styles.thinking, terminal: false };
+
+export function StageBadge({ stage, working = false }: { stage: TaskStage; working?: boolean }) {
+  const thinking = working && stage === 'PR Open';
+  const look = thinking ? THINKING : LOOKS[stage];
+  const label = thinking ? 'Thinking' : stage;
   const className = [styles.badge, look.className, look.terminal ? styles.terminal : '']
     .filter(Boolean)
     .join(' ');
   return (
-    <span className={className} data-stage={stage}>
+    <span
+      className={className}
+      data-stage={stage}
+      title={thinking ? 'PR Open — Jarvis is answering you' : undefined}
+    >
       <span aria-hidden="true" className={styles.symbol}>
         {look.symbol}
       </span>
-      {stage}
+      {label}
     </span>
   );
 }

@@ -94,7 +94,7 @@ function LoadedThread({ thread }: { thread: ThreadDetailDto }) {
             PR #{thread.prNumber} ↗
           </a>
         ) : null}
-        {thread.stage ? <StageBadge stage={thread.stage} /> : null}
+        {thread.stage ? <StageBadge stage={thread.stage} working={thread.working} /> : null}
         <ThreadMenu thread={thread} onStatus={showStatus} />
       </header>
       <div className={styles.feed} ref={feed} role="log" aria-label="Messages">

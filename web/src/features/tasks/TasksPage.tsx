@@ -105,7 +105,7 @@ function TasksTable({ tasks }: { tasks: TaskDto[] }) {
               </td>
               <td>{task.title}</td>
               <td>
-                <StageBadge stage={task.stage} />
+                <StageBadge stage={task.stage} working={task.working} />
               </td>
               <td>{task.waitingFor}</td>
               <td className={table.mono}>{task.branch}</td>

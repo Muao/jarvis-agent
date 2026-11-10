@@ -63,7 +63,7 @@ export function TaskHeader({ task, now }: TaskHeaderProps) {
       <p className={styles.id}>{task.id}</p>
       <div className={styles.titleRow}>
         <h1 className={styles.title}>{task.title}</h1>
-        <StageBadge stage={task.stage} />
+        <StageBadge stage={task.stage} working={task.working} />
       </div>
 
       <dl className={styles.facts}>

@@ -52,6 +52,7 @@ describe('event to cache mapping', () => {
     expect(invalidatedKeys()).toContainEqual(keys.runs.events('run-1'));
     expect(invalidatedKeys()).toContainEqual(keys.sessions.all);
     expect(invalidatedKeys()).toContainEqual(keys.threads.details);
+    expect(invalidatedKeys()).toContainEqual(keys.threads.list());
   });
 
   it('invalidates overview and config', () => {

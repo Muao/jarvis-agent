@@ -38,6 +38,8 @@ export const TaskDtoSchema = z.object({
   threadId: z.string(),
   title: z.string(),
   stage: TaskStageSchema,
+  /** The task's worker is running right now. In `PR Open` the UI shows it as `Thinking`. */
+  working: z.boolean(),
   waitingFor: WaitingForSchema,
   branch: z.string(),
   prNumber: z.number().int().nullable(),
