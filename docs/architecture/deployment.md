@@ -89,9 +89,15 @@ preference and the one SSH-tunnel fallback are in [`connectors.md`](connectors.m
 tailscale ssh jarvis@<host>
 git clone https://github.com/burnjohn/jarvis-agent.git ~/jarvis && cd ~/jarvis
 mkdir -p ~/.jarvis && cp jarvis.config.example.json ~/.jarvis/jarvis.config.json   # set repo.path, limits
-docker compose --env-file ~/.jarvis/.env up -d   # POSTGRES_PASSWORD has no default (ADR-0015)
+# POSTGRES_PASSWORD has no default (ADR-0015); it comes from Infisical through the machine identity,
+# which only root can read, so compose runs in a transient unit with the engine's EnvironmentFile:
+sudo systemd-run --quiet --wait --pipe --collect --uid=jarvis --same-dir \
+  -p EnvironmentFile=/etc/jarvis/infisical.env scripts/with-secrets.sh docker compose up -d
 pnpm install --frozen-lockfile && pnpm --filter @jarvis/web build
 ```
+
+The server keeps no `~/.jarvis/.env`: every secret, the database URL included, comes from Infisical `prod`.
+`scripts/deploy.sh` runs its migrations the same way.
 
 The units are `deploy/systemd/jarvis-engine.service` and `jarvis-web.service`; the wrapper is `scripts/with-secrets.sh`
 (logs in to Infisical with the machine identity and runs `infisical run --env=prod -- <cmd>`; without

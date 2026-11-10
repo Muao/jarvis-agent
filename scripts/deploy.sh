@@ -51,7 +51,18 @@ echo "deploy: building web..."
 pnpm --filter @jarvis/web build
 
 echo "deploy: running migrations..."
-scripts/with-secrets.sh pnpm --filter @jarvis/engine db:migrate
+# On the server the Infisical machine identity lives in /etc/jarvis/infisical.env (root:root 0600, so a
+# child `claude` running as jarvis cannot read it). The deploy runs as jarvis, so it borrows the engine
+# unit's view of that file through a transient unit instead of reading it itself. Without the file
+# (laptop rehearsal) it runs as before, with ~/.jarvis/.env as the fallback.
+INFISICAL_ENV_FILE="${INFISICAL_ENV_FILE:-/etc/jarvis/infisical.env}"
+if [ -e "$INFISICAL_ENV_FILE" ]; then
+  sudo systemd-run --quiet --wait --pipe --collect --uid=jarvis --same-dir \
+    -p EnvironmentFile="$INFISICAL_ENV_FILE" \
+    "$REPO_DIR/scripts/with-secrets.sh" pnpm --filter @jarvis/engine db:migrate
+else
+  scripts/with-secrets.sh pnpm --filter @jarvis/engine db:migrate
+fi
 
 echo "deploy: restarting jarvis-engine..."
 sudo systemctl restart jarvis-engine
