@@ -117,7 +117,8 @@ The engine, in order:
 5. **Red** → `{ ok: false, reason: 'checks_failed', attempt, max, results }`, one `checks_failed`
    journal event, `recordCheckFailure` as today; `Verifying` returns to `Implementing`. When
    `limits.checkRetries` is used up the task moves to `Failed` (`checks_exhausted`) exactly as
-   `ReportChecks` does now, and the result says `checks_exhausted`.
+   `ReportChecks` does now, and the result says `checks_exhausted`. (See Amendment 2026-11-10: a command
+   red on the merge base too is not counted.)
 6. **Green** → `checks_passed {headSha, results}`, the failure counter resets (a green gate ends the
    streak the limit exists to bound).
 7. **Push** `headSha` to `refs/heads/jarvis/<task-id>`, fast-forward only, by the engine, with the hardened
@@ -131,7 +132,8 @@ The engine, in order:
 A gate that passed for `headSha` is remembered in the journal: if the push or the host call then fails
 (`host_error`), the next `open_pr` for the same `headSha` does not run the checks again. Failures that
 are not the code's fault — a command that cannot be started (`checks_unavailable`: not found, spawn
-error) — are not counted against `checkRetries`.
+error), or a worktree the engine cannot restore after a base run (see Amendment 2026-11-10) — are not
+counted against `checkRetries`.
 
 `report_pr` and `report_checks` are removed from the worker's tools; `report_stage` no longer accepts
 `Verifying` (the engine sets it). With them gone `open_pr` is the only door to `PR Open` for a `build`
@@ -301,7 +303,8 @@ the owner reading the diff.
 - Bad: a gate over an environment the engine does not have fails where the worker's would have passed —
   a suite that needs a database URL the worker had exported in its own shell. The owner sees `checks_failed`
   with the real output and declares the variable the way `ui.env` does; there is no per-repository
-  check environment yet.
+  check environment yet (superseded in part by Amendment 2026-11-10: the worker may skip such a command and
+  CI decides).
 - Bad: the frozen list is only as good as `parseAgentsMd`, a heuristic that also picks up `build`, `format`
   and `e2e` commands; the card shows them and the owner narrows by returning the spec.
 - Bad: a long gate holds an MCP request open and a worker slot for up to
@@ -320,7 +323,8 @@ the owner reading the diff.
   worker can move a task to `PR Open` except through `OpenPr`.
   CHECK: `shared/src/mcp.ts` `toolsByRole`; unit test that no use case other than `OpenPr` moves a task to
   `PR Open`; `report-stage` test that `Verifying` and `PR Open` are refused.
-- RULE: `open_pr` pushes nothing and creates nothing while any frozen check command exits non-zero, unless it is red on the merge base too or the worker skipped it after it ran red on that commit.
+- RULE: `open_pr` pushes nothing and creates nothing while any frozen check command exits non-zero, unless it
+  is red on the merge base too or the worker skipped it after it ran red on that commit.
   CHECK: use-case test on fakes — a red run leaves the publisher's and the host's call lists empty and the
   task in `Implementing` (or `Fixing`).
 - RULE: the gate runs `HEAD` and pushes exactly the sha it ran; a dirty tree is refused.
@@ -365,7 +369,8 @@ Three rules change how a red check is judged; the gate itself (the engine runs t
    refresh is journalled as `checks_fixed {source: 'base_refresh'}`.
 2. **Red on both is not the task's.** A red command is re-run on the merge base. If it is red there too it
    is "pre-existing": it does not block `open_pr`, counts no retry, is listed in `checks_failed` results as
-   `preexisting: string[]`, and the PR body carries a `## Fails on main too` section.
+   `preexisting: string[]`, and the PR body carries a `## Fails on main too` section. If the engine cannot
+   restore the worktree after the base run, the result is `checks_unavailable`, not counted against retries.
 3. **The worker may skip what the environment breaks.** `open_pr({ skip: [{ command, reason }] })` skips a
    frozen command that ran red on the current head; anything else is refused with `skip_not_allowed`. The PR
    body carries a `## Checks skipped locally — CI decides` section.

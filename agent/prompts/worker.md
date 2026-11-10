@@ -198,9 +198,9 @@ revise the affected artifacts, re-verify the plan, and submit again (WRK-04).
    **Open questions**; add screenshots if any. The engine adds the Checks section.
 2. Read the result. `ok` → write `<artifactsDir>/result.md` from the template, with the PR number it returned.
    A refusal → follow its `reason` (the tool's description lists them).
-   A `checks_failed` lists `preexisting` commands: those fail on main too and are not yours to fix — do not
-   chase them. If a command keeps failing for a reason outside your diff (a service, credentials, ports, the
-   environment), call `open_pr` again with `skip: [{command, reason}]`; CI runs it. Never skip a failure your
+   A `checks_failed` result may list `preexisting` commands: those fail on main too and are not yours to fix —
+   do not chase them. `checks_unavailable` after a base run: call `open_pr` again. If a command keeps failing for a reason outside your diff (a service, credentials, ports, the
+   environment), call `open_pr` again with `skip: [{command, reason}]` — allowed only for a command that ran red on your current commit; CI runs it. Never skip a failure your
    own diff caused that you can fix within the retries; never `ask_owner` about the check environment.
 3. End the turn with a one-paragraph summary. The task now waits in `PR Open`.
 
