@@ -644,7 +644,11 @@ export class FakeBranchPublisher implements BranchPublisher {
 
   constructor(private readonly checkRunner?: FakeCheckRunner) {}
 
+  /** How many times `baseFile` was asked. */
+  baseFileCalls = 0;
+
   async baseFile(input: { path: string }): Promise<string | null> {
+    this.baseFileCalls += 1;
     return this.baseFiles.get(input.path) ?? null;
   }
 

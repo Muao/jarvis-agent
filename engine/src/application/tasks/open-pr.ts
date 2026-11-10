@@ -277,7 +277,10 @@ export class OpenPr {
       };
     }
 
-    const cached = cachedGreen(journal, headSha);
+    // The commands may have just been refreshed: a green on the old list must not be reused, so
+    // the cache is judged on the journal as it is now, after the latest `checks_fixed`.
+    const current = await transact(deps, (tx) => tx.journal.list(task.id));
+    const cached = cachedGreen(current, headSha);
     let results: readonly CheckResult[];
     if (cached === null) {
       const gate = await this.gate({

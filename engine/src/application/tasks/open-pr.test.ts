@@ -124,7 +124,7 @@ describe('OpenPr — the green path', () => {
 
     await app.openPr.execute(worker, TEXT);
 
-    expect(app.codeHost.pullRequests[0]?.input.body).toContain(
+    expect(app.codeHost.pullRequests.at(-1)?.input.body).toContain(
       'Files that define the checks changed in this PR: `package.json`',
     );
   });
@@ -528,6 +528,7 @@ describe('OpenPr — the list follows main', () => {
 
     expect(app.checkRunner.calls[0]?.commands).toEqual(['pnpm test']);
     expect(types(app).filter((t) => t === 'checks_fixed')).toHaveLength(1);
+    expect(app.branchPublisher.baseFileCalls).toBe(0);
   });
 
   it("does nothing when main's list is the same", async () => {
@@ -556,6 +557,22 @@ describe('OpenPr — the list follows main', () => {
     await empty.app.openPr.execute(empty.worker, TEXT);
     expect(empty.app.checkRunner.calls[0]?.commands).toEqual(['pnpm test']);
     expect(types(empty.app).filter((t) => t === 'checks_fixed')).toHaveLength(1);
+  });
+
+  it('a refresh after a green gate and a host_error re-runs the gate with the new list', async () => {
+    const { app, task, worker } = await setup();
+    await freeze(app, task.id, ['pnpm test']);
+    app.codeHost.createPullRequestResult = { ok: false, reason: 'GitHub is down' };
+    expect(await app.openPr.execute(worker, TEXT)).toMatchObject({ reason: 'host_error' });
+
+    app.branchPublisher.baseFiles.set('AGENTS.md', MAIN);
+    app.repoInfo.parsed = ['pnpm test:unit'];
+    app.codeHost.createPullRequestResult = { ok: true, number: 7, url: 'u', created: true };
+    expect(await app.openPr.execute(worker, TEXT)).toMatchObject({ ok: true });
+
+    expect(app.checkRunner.calls).toHaveLength(2);
+    expect(app.checkRunner.calls[1]?.commands).toEqual(['pnpm test:unit']);
+    expect(app.codeHost.pullRequests.at(-1)?.input.body).toContain('pnpm test:unit');
   });
 
   it('treats a frozen row with source null like agents_md', async () => {
