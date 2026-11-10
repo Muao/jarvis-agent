@@ -28,7 +28,15 @@ describe('Shell', () => {
     expect(screen.getByText('Jarvis')).toBeInTheDocument();
     expect(screen.getByText('LOCAL · NO AUTH')).toBeInTheDocument();
     const nav = screen.getByRole('navigation', { name: 'Main' });
-    for (const name of ['Chat', 'Overview', 'Tasks', 'Usage', 'Config', 'Connections']) {
+    for (const name of [
+      'Chat',
+      'Overview',
+      'Tasks',
+      'Capabilities',
+      'Usage',
+      'Config',
+      'Connections',
+    ]) {
       expect(within(nav).getByRole('link', { name })).toBeInTheDocument();
     }
   });

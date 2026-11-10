@@ -25,4 +25,9 @@ export const keys = {
   overview: ['overview'] as const,
   config: ['config'] as const,
   connections: ['connections'] as const,
+  capabilities: {
+    all: ['capabilities'] as const,
+    list: () => ['capabilities', 'list'] as const,
+    owner: (kind: string, name: string) => ['capabilities', 'owner', kind, name] as const,
+  },
 };

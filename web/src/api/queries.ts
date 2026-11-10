@@ -2,9 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import {
   ArtifactDtoSchema,
+  CapabilitiesSchema,
   ConfigDtoSchema,
   ConnectionsDtoSchema,
   OverviewDtoSchema,
+  OwnerCapabilityDocSchema,
   RunEventsDtoSchema,
   SendSessionMessageResultSchema,
   SessionDtoSchema,
@@ -17,11 +19,14 @@ import {
   type AnswerMessageBody,
   type AnswerPermissionBody,
   type ArtifactName,
+  type CapabilityKind,
+  type OwnerAgentInput,
+  type OwnerSkillInput,
   type PostMessageBody,
   type SendSessionMessageBody,
   type UsageQuery,
 } from '@jarvis/shared';
-import { get, post, postVoid } from './client';
+import { del, get, post, postVoid, put } from './client';
 import { keys } from './keys';
 
 /* Hooks are the only thing features import from `api/`. */
@@ -199,6 +204,51 @@ export function useSendSessionMessage(sessionId: string) {
         SendSessionMessageResultSchema,
       ),
     onSettled: () => queryClient.invalidateQueries({ queryKey: keys.sessions.all }),
+  });
+}
+
+/* ---- capabilities (ADR-0025) ---- */
+
+/** `GET /api/capabilities`: skills, subagents and MCP servers from every source. */
+export const useCapabilities = () =>
+  useQuery({
+    queryKey: keys.capabilities.list(),
+    queryFn: () => get('/capabilities', CapabilitiesSchema),
+  });
+
+/** One of the owner's own items in full, for the editor. */
+export const useOwnerCapability = (kind: CapabilityKind, name: string | undefined) =>
+  useQuery({
+    queryKey: keys.capabilities.owner(kind, name ?? ''),
+    queryFn: () =>
+      get(
+        `/capabilities/owner/${kind}/${encodeURIComponent(name ?? '')}`,
+        OwnerCapabilityDocSchema,
+      ),
+    enabled: name !== undefined,
+    // The editor must show the file as it is now, not a cached copy.
+    gcTime: 0,
+  });
+
+/** `PUT`: creates or replaces one of the owner's own skills or subagents. */
+export function useSaveOwnerCapability(kind: CapabilityKind) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: string; body: OwnerSkillInput | OwnerAgentInput }) =>
+      put(
+        `/capabilities/owner/${kind}/${encodeURIComponent(input.name)}`,
+        input.body,
+        OwnerCapabilityDocSchema,
+      ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.capabilities.all }),
+  });
+}
+
+export function useDeleteOwnerCapability(kind: CapabilityKind) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => del(`/capabilities/owner/${kind}/${encodeURIComponent(name)}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.capabilities.all }),
   });
 }
 

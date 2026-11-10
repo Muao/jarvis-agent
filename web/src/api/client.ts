@@ -53,7 +53,11 @@ async function toApiError(res: Response): Promise<ApiError> {
   return new ApiError(res.status, 'unknown', `Request failed (${res.status}).`);
 }
 
-async function send(method: 'GET' | 'POST', path: string, body?: unknown): Promise<Response> {
+async function send(
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+  path: string,
+  body?: unknown,
+): Promise<Response> {
   let res: Response;
   try {
     res = await fetch(path, {
@@ -92,4 +96,14 @@ export async function post<T>(path: string, body: unknown, schema: ZodType<T>): 
 /** POST whose response body is not used; callers invalidate the affected queries instead. */
 export async function postVoid(path: string, body?: unknown): Promise<void> {
   await send('POST', buildPath(path), body);
+}
+
+/** PUT whose response body is parsed with `schema`. */
+export async function put<T>(path: string, body: unknown, schema: ZodType<T>): Promise<T> {
+  return parseWith(await send('PUT', buildPath(path), body), schema);
+}
+
+/** DELETE with no response body (204); callers invalidate the affected queries. */
+export async function del(path: string): Promise<void> {
+  await send('DELETE', buildPath(path));
 }

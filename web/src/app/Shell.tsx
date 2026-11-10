@@ -14,6 +14,7 @@ const MAIN_NAV = [
 ] as const;
 
 const SERVICE_NAV = [
+  { to: '/capabilities', label: 'Capabilities' },
   { to: '/usage', label: 'Usage' },
   { to: '/config', label: 'Config' },
   { to: '/connections', label: 'Connections' },
