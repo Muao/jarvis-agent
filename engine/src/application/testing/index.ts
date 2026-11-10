@@ -2,6 +2,7 @@ export { buildTestApp } from './build-test-app.js';
 export type { SeededTask, TestApp } from './build-test-app.js';
 export { createTaskInNewThread, systemTexts } from './create-task-flow.js';
 export { FakeAgentRunner, FakeProcess } from './fake-agent-runner.js';
+export { FakeCapabilityCatalog, FakeOwnerPluginStore } from './fake-capabilities.js';
 export { FakeCodeHost } from './fake-code-host.js';
 export { FakeUnitOfWork } from './fake-unit-of-work.js';
 export {

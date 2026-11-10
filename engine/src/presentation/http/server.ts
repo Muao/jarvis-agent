@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastif
 import type { Application } from '../../application/index.js';
 import { registerErrorHandling } from './errors.js';
 import { agentRoutes } from './routes/agent.js';
+import { capabilityRoutes } from './routes/capabilities.js';
 import { healthRoutes } from './routes/health.js';
 import { cardRoutes } from './routes/cards.js';
 import { sessionRoutes } from './routes/sessions.js';
@@ -44,6 +45,7 @@ export function buildServer(app: Application, options: ServerOptions): FastifyIn
     statusRoutes(app),
     healthRoutes(app),
     usageRoutes(app),
+    capabilityRoutes(app),
     streamRoutes(options.stream, options.heartbeatMs ?? HEARTBEAT_MS),
     agentRoutes(app),
   ];

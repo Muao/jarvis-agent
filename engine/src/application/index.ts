@@ -88,3 +88,10 @@ export type {
   Thread,
   WatchState,
 } from '../domain/index.js';
+
+export { ListCapabilities } from './capabilities/list-capabilities.js';
+export {
+  DeleteOwnerCapability,
+  GetOwnerCapability,
+  SaveOwnerCapability,
+} from './capabilities/owner-capabilities.js';

@@ -17,6 +17,8 @@ describe('jarvisHome', () => {
     expect(h.envFile).toBe('/j/.env');
     expect(h.mcpServersFile).toBe('/j/mcp/servers.json');
     expect(h.dispatcherDir).toBe('/j/dispatcher');
+    expect(h.ownerPluginDir).toBe('/j/plugin');
+    expect(h.pluginBackupsDir).toBe('/j/plugin-backups');
     expect(h.worktreeDir('T-1')).toBe('/j/worktrees/T-1');
     expect(h.taskDir('T-1')).toBe('/j/tasks/T-1');
     expect(h.runDir('r1')).toBe('/j/runs/r1');

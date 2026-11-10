@@ -33,7 +33,7 @@ export const mcpToolName = (tool: string): string => `mcp__jarvis__${tool}`;
 /** The argv of one `claude` process (ADR-0003, ADR-0009). The prompt itself goes over stdin. */
 export function buildRunArgs(
   spec: RunSpec,
-  ctx: Pick<RunContext, 'agentDir' | 'runDir'>,
+  ctx: Pick<RunContext, 'agentDir' | 'runDir' | 'ownerPluginDir' | 'ownerPluginPresent'>,
 ): string[] {
   const args = [
     '-p',
@@ -51,6 +51,10 @@ export function buildRunArgs(
     String(spec.maxBudgetUsd),
     '--plugin-dir',
     ctx.agentDir,
+    // ADR-0025: the owner's own plugin, for every role, after the built-in one.
+    ...(ctx.ownerPluginDir !== undefined && ctx.ownerPluginPresent === true
+      ? ['--plugin-dir', ctx.ownerPluginDir]
+      : []),
     '--setting-sources',
     // ADR-0018: a `ui_check` run's working directory is a pull request's head, which may be
     // someone else's. `project` and `local` read `.claude/settings.json` from exactly there. They

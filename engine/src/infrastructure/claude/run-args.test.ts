@@ -29,6 +29,31 @@ describe('buildRunArgs', () => {
     expect(valueOf(args, '--append-system-prompt-file')).toBe('/home/runs/R-1/system.md');
   });
 
+  // ADR-0025: the owner's own plugin, for every role, after the built-in one.
+  describe('the owner plugin (ADR-0025)', () => {
+    const pluginDirs = (args: string[]) =>
+      args.flatMap((arg, i) => (arg === '--plugin-dir' ? [args[i + 1]] : []));
+    const withOwner = { ...ctx, ownerPluginDir: '/home/.jarvis/plugin', ownerPluginPresent: true };
+
+    it.each([
+      ['dispatcher', specOf({ role: 'dispatcher' })],
+      ['worker', specOf({ role: 'worker' })],
+      ['ui_check', specOf({ taskKind: 'ui_check' })],
+    ])('is loaded after the built-in plugin for a %s run', (_role, spec) => {
+      expect(pluginDirs(buildRunArgs(spec, withOwner))).toEqual([
+        '/repo/agent',
+        '/home/.jarvis/plugin',
+      ]);
+    });
+
+    it('is left out until the plugin exists', () => {
+      expect(
+        pluginDirs(buildRunArgs(specOf(), { ...withOwner, ownerPluginPresent: false })),
+      ).toEqual(['/repo/agent']);
+      expect(pluginDirs(buildRunArgs(specOf(), ctx))).toEqual(['/repo/agent']);
+    });
+  });
+
   // A ui_check run's working directory is the pull request's head. `project` and `local` would
   // read `.claude/settings.json` from that tree: it cannot widen permissions (project `allow`
   // rules wait for workspace trust, which a task worktree never has), but its `deny` and `ask`

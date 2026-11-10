@@ -17,6 +17,7 @@ import { loadWorkerTask } from '../tasks/guards.js';
 import { StatusCard } from '../tasks/status-card.js';
 import { TaskWriter } from '../tasks/task-writer.js';
 import { FakeAgentRunner } from './fake-agent-runner.js';
+import { FakeCapabilityCatalog, FakeOwnerPluginStore } from './fake-capabilities.js';
 import { FakeCodeHost } from './fake-code-host.js';
 import { FakeUnitOfWork } from './fake-unit-of-work.js';
 import {
@@ -93,6 +94,8 @@ export interface TestApp extends Application {
   readonly database: FakeDatabasePing;
   /** ADR-0014: what the UI check asked the engine to start. */
   readonly devServers: FakeDevServerManager;
+  readonly capabilities: FakeCapabilityCatalog;
+  readonly ownerPlugin: FakeOwnerPluginStore;
   /**
    * **Test shortcut**, not a use case: puts a task into `PR Open` with this PR, as `OpenPr` would,
    * without running a gate. For tests of what happens *after* a PR exists (the watcher, the
@@ -162,6 +165,8 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
   const connections = new FakeConnectionChecks();
   const database = new FakeDatabasePing();
   const devServers = new FakeDevServerManager();
+  const ownerPlugin = new FakeOwnerPluginStore();
+  const capabilities = new FakeCapabilityCatalog(ownerPlugin);
 
   const application = createApplication({
     uow,
@@ -184,6 +189,8 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
     connections,
     database,
     devServers,
+    capabilities,
+    ownerPlugin,
     version: '0.0.0-test',
     logger,
     ...(options.realRuns === true ? {} : { coordinator: runs }),
@@ -300,6 +307,8 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
     connections,
     database,
     devServers,
+    capabilities,
+    ownerPlugin,
     identity: {
       dispatcher: (threadId) => ({ runId: 'run-d', role: 'dispatcher', threadId }),
       worker: (task) => ({

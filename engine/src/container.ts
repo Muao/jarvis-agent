@@ -1,4 +1,5 @@
 // Composition root (ADR-0002): the only place adapters are constructed and wired to the application.
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import type { JarvisConfig } from '@jarvis/shared';
@@ -17,6 +18,9 @@ import { ProcessDevServer } from './infrastructure/dev-server/process-dev-server
 import { HttpHeartbeat } from './infrastructure/heartbeat/http-heartbeat.js';
 import { buildChildEnv } from './infrastructure/claude/child-env.js';
 import { ClaudeCliRunner } from './infrastructure/claude/index.js';
+import { listMcpServers } from './infrastructure/claude/mcp-listing.js';
+import { FileCapabilityCatalog } from './infrastructure/capabilities/file-capability-catalog.js';
+import { FileOwnerPluginStore } from './infrastructure/capabilities/file-owner-plugin-store.js';
 import type { RunSpec } from './application/index.js';
 import { SystemClock } from './infrastructure/clock/system-clock.js';
 import {
@@ -57,6 +61,11 @@ import type { TimerDeps } from './presentation/timers/index.js';
 const AGENT_DIR = fileURLToPath(new URL('../../agent', import.meta.url));
 const TSX_LOADER = import.meta.resolve('tsx');
 const MCP_ENTRY = fileURLToPath(new URL('./presentation/mcp/main.ts', import.meta.url));
+
+const MCP_SERVER = {
+  command: process.execPath,
+  args: ['--import', TSX_LOADER, MCP_ENTRY],
+} as const;
 
 const LOGIN_CHECK_TIMEOUT_MS = 10_000;
 
@@ -227,6 +236,8 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
       const current = provider.current();
       return {
         agentDir: AGENT_DIR,
+        ownerPluginDir: home.ownerPluginDir,
+        ownerPluginPresent: existsSync(join(home.ownerPluginDir, '.claude-plugin', 'plugin.json')),
         runDir: home.runDir(spec.runId),
         config: {
           repo: current.repo,
@@ -234,7 +245,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
           telemetry: current.telemetry,
           ui: current.ui,
         },
-        mcpServer: { command: process.execPath, args: ['--import', TSX_LOADER, MCP_ENTRY] },
+        mcpServer: MCP_SERVER,
         apiUrl,
         connectorsFile: home.mcpServersFile,
         connectorSecrets: {
@@ -286,6 +297,25 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
             : { remoteUrl: options.publisherRemoteUrl }),
         });
 
+  // ADR-0025: the owner's own plugin is written only through the HTTP API's use cases.
+  const ownerPlugin = new FileOwnerPluginStore({
+    pluginDir: home.ownerPluginDir,
+    backupsDir: home.pluginBackupsDir,
+  });
+  const capabilities = new FileCapabilityCatalog({
+    agentDir: AGENT_DIR,
+    ownerPluginDir: home.ownerPluginDir,
+    reposRoot: join(home.root, 'repos'),
+    allowedRepos: () => provider.current().repos.allow,
+    mcpServers: () =>
+      listMcpServers({
+        config: provider.current(),
+        mcpServer: MCP_SERVER,
+        apiUrl,
+        connectorsFile: home.mcpServersFile,
+      }),
+  });
+
   const app = createApplication({
     uow: new PgUnitOfWork(createDatabase(pool)),
     ids: new CryptoIdGenerator(),
@@ -309,6 +339,8 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
     }),
     artifacts: new FileArtifactStore(join(home.root, 'tasks')),
     devServers,
+    capabilities,
+    ownerPlugin,
     codeHost: options.codeHost ?? github ?? unconfiguredCodeHost,
     checkRunner: new ShellCheckRunner({ env: options.env }),
     branchPublisher,

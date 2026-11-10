@@ -79,7 +79,7 @@ export const BROWSER_DENIED_TOOLS = ['browser_evaluate', 'browser_run_code_unsaf
 export const playwrightToolName = (tool: string): string => `mcp__playwright__${tool}`;
 
 /** The Playwright MCP server for one worker run: headless, profile-less, pinned to the dev server. */
-export function playwrightServer(ctx: RunContext, screenshotsDir: string): Json {
+export function playwrightServer(ctx: Pick<RunContext, 'config'>, screenshotsDir: string): Json {
   const { ui } = ctx.config;
   // The app's own origin plus whatever else the owner declared it talks to (an API on another
   // port). Playwright MCP takes one **semicolon**-separated list: joined with commas it reads the
@@ -145,6 +145,16 @@ function baseBranchDenies(remote: string, baseBranch: string): string[] {
   ];
 }
 
+/**
+ * ADR-0025: a worker reads untrusted text all day, so it may not rewrite the instructions the next
+ * run starts with. `//` is how a permission rule names an absolute path.
+ */
+function ownerPluginDenies(ctx: RunContext): string[] {
+  if (ctx.ownerPluginDir === undefined) return [];
+  const path = `/${ctx.ownerPluginDir.replace(/\/+$/, '')}/**`;
+  return [`Edit(${path})`, `Write(${path})`];
+}
+
 export async function buildWorkerSettings(ctx: RunContext): Promise<Json> {
   const base = await readJson(join(ctx.agentDir, 'settings', 'worker.json'));
   const permissions = (base['permissions'] ?? {}) as Json;
@@ -164,6 +174,7 @@ export async function buildWorkerSettings(ctx: RunContext): Promise<Json> {
         ...stringList(permissions['deny']),
         ...baseBranchDenies(remote, baseBranch),
         ...BROWSER_DENIED_TOOLS.map(playwrightToolName),
+        ...ownerPluginDenies(ctx),
       ]),
     },
   };
@@ -192,7 +203,10 @@ function substitute(value: unknown, secrets: RunContext['connectorSecrets']): un
   return value;
 }
 
-async function readConnectors(ctx: RunContext): Promise<Json> {
+/** The connector servers exactly as written in `servers.json`: `${VAR}` placeholders untouched. */
+export async function readRawConnectors(
+  ctx: Pick<RunContext, 'connectorsFile'>,
+): Promise<Record<string, Json>> {
   if (!ctx.connectorsFile) return {};
   let raw: Json;
   try {
@@ -201,30 +215,49 @@ async function readConnectors(ctx: RunContext): Promise<Json> {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {};
     throw error;
   }
-  const servers = substitute(raw['mcpServers'] ?? {}, ctx.connectorSecrets);
-  return servers as Json;
+  return (raw['mcpServers'] ?? {}) as Record<string, Json>;
+}
+
+async function readConnectors(ctx: RunContext): Promise<Json> {
+  return substitute(await readRawConnectors(ctx), ctx.connectorSecrets) as Json;
+}
+
+/** The engine's own MCP server (ADR-0004): how to start it and what it is told about the run. */
+export function jarvisServer(
+  ctx: Pick<RunContext, 'mcpServer' | 'apiUrl'>,
+  role: RunSpec['role'],
+  runToken: string,
+): Json {
+  return {
+    command: ctx.mcpServer.command,
+    args: [...ctx.mcpServer.args],
+    env: {
+      JARVIS_API_URL: ctx.apiUrl,
+      JARVIS_RUN_TOKEN: runToken,
+      JARVIS_ROLE: role,
+    },
+  };
+}
+
+/** ADR-0014: the browser is a worker tool, and only when the owner turned the UI check on. */
+export function playwrightEnabled(
+  role: RunSpec['role'],
+  ctx: Pick<RunContext, 'config'>,
+  screenshotsDir: string | undefined,
+): boolean {
+  return role === 'worker' && ctx.config.ui.enabled && screenshotsDir !== undefined;
 }
 
 export async function buildMcpConfig(spec: RunSpec, ctx: RunContext): Promise<Json> {
   const connectors = spec.role === 'worker' ? await readConnectors(ctx) : {};
-  // ADR-0014: the browser is a worker tool, and only when the owner turned the UI check on.
-  const playwright =
-    spec.role === 'worker' && ctx.config.ui.enabled && spec.screenshotsDir !== undefined
-      ? { playwright: playwrightServer(ctx, spec.screenshotsDir) }
-      : {};
+  const playwright = playwrightEnabled(spec.role, ctx, spec.screenshotsDir)
+    ? { playwright: playwrightServer(ctx, spec.screenshotsDir as string) }
+    : {};
   return {
     mcpServers: {
       ...connectors,
       ...playwright,
-      jarvis: {
-        command: ctx.mcpServer.command,
-        args: [...ctx.mcpServer.args],
-        env: {
-          JARVIS_API_URL: ctx.apiUrl,
-          JARVIS_RUN_TOKEN: spec.runToken,
-          JARVIS_ROLE: spec.role,
-        },
-      },
+      jarvis: jarvisServer(ctx, spec.role, spec.runToken),
     },
   };
 }

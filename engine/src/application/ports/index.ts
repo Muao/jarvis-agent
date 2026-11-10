@@ -51,3 +51,4 @@ export type {
   WatchSummary,
 } from './watch-repository.js';
 export type { Worktree, WorktreeManager } from './worktree-manager.js';
+export type { CapabilityCatalog, OwnerCapabilityInput, OwnerPluginStore } from './capabilities.js';

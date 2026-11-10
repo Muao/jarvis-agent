@@ -7,6 +7,13 @@ import type { JarvisConfig } from '@jarvis/shared';
 export interface RunContext {
   /** `<repo>/agent`: the plugin (ADR-0009). */
   readonly agentDir: string;
+  /**
+   * `~/.jarvis/plugin`: the owner's own skills and subagents (ADR-0025). Always set, because a
+   * worker is denied writing there even before the plugin exists.
+   */
+  readonly ownerPluginDir?: string;
+  /** True when `ownerPluginDir` is a plugin (has `.claude-plugin/plugin.json`): every run loads it after `agentDir`. */
+  readonly ownerPluginPresent?: boolean;
   /** `~/.jarvis/runs/<runId>`: holds `system.md`, `mcp.json`, `settings.json`. */
   readonly runDir: string;
   readonly config: Pick<JarvisConfig, 'repo' | 'allowlist' | 'telemetry' | 'ui'>;

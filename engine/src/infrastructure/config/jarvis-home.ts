@@ -9,6 +9,9 @@ export interface JarvisHome {
   readonly envFile: string;
   readonly mcpServersFile: string;
   readonly dispatcherDir: string;
+  /** ADR-0025: the owner's own skills and subagents, a second plugin outside the git checkout. */
+  readonly ownerPluginDir: string;
+  readonly pluginBackupsDir: string;
   worktreeDir(taskId: string): string;
   taskDir(taskId: string): string;
   runDir(runId: string): string;
@@ -30,6 +33,8 @@ export function jarvisHome(root: string): JarvisHome {
     envFile: join(root, '.env'),
     mcpServersFile: join(root, 'mcp', 'servers.json'),
     dispatcherDir: join(root, 'dispatcher'),
+    ownerPluginDir: join(root, 'plugin'),
+    pluginBackupsDir: join(root, 'plugin-backups'),
     worktreeDir: (taskId) => join(root, 'worktrees', segment(taskId)),
     taskDir: (taskId) => join(root, 'tasks', segment(taskId)),
     runDir: (runId) => join(root, 'runs', segment(runId)),

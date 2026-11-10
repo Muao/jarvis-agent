@@ -1,6 +1,12 @@
 import { HandleCodeHostChange } from './code-host/handle-code-host-change.js';
 import { PollPullRequests } from './code-host/poll-pull-requests.js';
 import { ListTasks } from './conversation/list-tasks.js';
+import { ListCapabilities } from './capabilities/list-capabilities.js';
+import {
+  DeleteOwnerCapability,
+  GetOwnerCapability,
+  SaveOwnerCapability,
+} from './capabilities/owner-capabilities.js';
 import { UpdateConfig } from './config/update-config.js';
 import { ConfirmInsight } from './profile/confirm-insight.js';
 import { ContradictInsight } from './profile/contradict-insight.js';
@@ -49,6 +55,7 @@ import { ThreadMessages } from './conversation/thread-messages.js';
 import type { AgentRunner } from './ports/agent-runner.js';
 import type { ArtifactStore } from './ports/artifact-store.js';
 import type { BranchPublisher } from './ports/branch-publisher.js';
+import type { CapabilityCatalog, OwnerPluginStore } from './ports/capabilities.js';
 import type { CheckRunner } from './ports/check-runner.js';
 import type { Clock } from './ports/clock.js';
 import type { CodeHost } from './ports/code-host.js';
@@ -117,6 +124,10 @@ export interface ApplicationPorts extends Omit<Notifiers, 'runs'> {
   readonly database: DatabasePing;
   /** ADR-0014: the engine-owned dev server the worker's UI check runs against. */
   readonly devServers: DevServerManager;
+  /** ADR-0025: skills, subagents and MCP servers a run can use (read side). */
+  readonly capabilities: CapabilityCatalog;
+  /** ADR-0025: the owner's own plugin. Used by the HTTP use cases only, never by an agent tool. */
+  readonly ownerPlugin: OwnerPluginStore;
   /** The engine's version, read once at start-up. */
   readonly version: string;
   /**
@@ -187,6 +198,11 @@ export interface Application {
   readonly getConnections: GetConnections;
   readonly getHealth: GetHealth;
   readonly getUsage: GetUsage;
+  /** ADR-0025: the Capabilities page and the owner's own skills and subagents. */
+  readonly listCapabilities: ListCapabilities;
+  readonly getOwnerCapability: GetOwnerCapability;
+  readonly saveOwnerCapability: SaveOwnerCapability;
+  readonly deleteOwnerCapability: DeleteOwnerCapability;
 }
 
 /** Wires the use cases of conversation/, tasks/, runs/, permissions/, code-host/, supervision/ and recovery/ over the given ports. */
@@ -258,6 +274,7 @@ export function createApplication(ports: ApplicationPorts): Application {
   });
   const handler = new HandleCodeHostChange({ ...deps, config });
 
+  const capabilityDeps = { catalog: ports.capabilities, store: ports.ownerPlugin };
   const answerQuestion = new AnswerQuestion(deps);
   const answerDecision = new AnswerDecision(deps);
   return {
@@ -363,6 +380,10 @@ export function createApplication(ports: ApplicationPorts): Application {
     }),
     getConnections: new GetConnections({ checks: ports.connections, clock }),
     getUsage: new GetUsage({ uow, clock }),
+    listCapabilities: new ListCapabilities({ catalog: ports.capabilities }),
+    getOwnerCapability: new GetOwnerCapability(capabilityDeps),
+    saveOwnerCapability: new SaveOwnerCapability(capabilityDeps),
+    deleteOwnerCapability: new DeleteOwnerCapability(capabilityDeps),
     getHealth: new GetHealth({
       database: ports.database,
       checks: ports.connections,

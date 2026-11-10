@@ -284,6 +284,17 @@ describe('writeRunFiles', () => {
       expect(allow).not.toContain('mcp__jarvis__approve');
     });
 
+    // ADR-0025: the owner's skills and subagents are the agent's own instructions.
+    it('denies the worker writing the owner plugin, even before it exists', async () => {
+      await writeRunFiles(runDir, specOf(), ctxOf({ ownerPluginDir: '/home/o/.jarvis/plugin' }));
+      expect(permissions().deny).toEqual(
+        expect.arrayContaining([
+          'Edit(//home/o/.jarvis/plugin/**)',
+          'Write(//home/o/.jarvis/plugin/**)',
+        ]),
+      );
+    });
+
     it('denies force push, delete, merge and pushes to the base branch', async () => {
       await writeRunFiles(runDir, specOf(), ctxOf());
       const { deny } = permissions();
