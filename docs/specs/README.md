@@ -9,3 +9,4 @@ What Jarvis does and why. One file per feature: `docs/specs/<feature-slug>.md`.
 | [UI verification of a change before the PR](ui-verification.md) — Playwright MCP, `ui-tester` subagent, screenshots in the PR | draft (2026-11-08) |
 | [UI check on demand](ui-check-on-demand.md) — "test this PR": a `ui_check` task kind, criteria from the diff and the PR body | draft (2026-11-08) |
 | [Run retrospective](run-retrospective.md) — after a long task, analyze the runs' token spend and propose only savings ≥ the threshold | draft (2026-11-09) |
+| [Agent capabilities](agent-capabilities.md) — a page listing skills, subagents and MCP servers, and the owner's own skills and subagents as a second plugin | draft (2026-11-10) |

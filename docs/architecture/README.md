@@ -124,9 +124,13 @@ Postgres tables (indicative): `threads`, `messages`, `tasks`, `task_events`, `ru
 | Threads, messages, tasks, journal, runs, run events, permissions, watches, usage | Postgres | no |
 | Claude session transcripts and the subscription login | `~/.claude` (managed by Claude Code); Jarvis stores only `session_id` | no |
 | Project rules and check commands | target repo `AGENTS.md` | target repo |
+| The owner's own skills and subagents (ADR-0025) | `~/.jarvis/plugin` — a second plugin, also loaded per run; backups in `~/.jarvis/plugin-backups` | no |
 
 Runs use `--setting-sources project,local` so the owner's personal `~/.claude` plugins and hooks do not
 leak into the agent, and `--mcp-config ... --strict-mcp-config` so only Jarvis and connector servers load.
+The owner's skills and subagents are written only by the Capabilities page through the owner's HTTP API, never by an
+agent tool; the page also lists the built-in, repository and MCP capabilities read-only (ADR-0025,
+[`agent-capabilities`](../specs/agent-capabilities.md)).
 Visual overview: [`overview.html`](overview.html), published at https://claude.ai/artifact/DwL6g8WNwwMThtbhqgZztn
 
 ## Configuration and secrets (ADR-0005, ADR-0015)

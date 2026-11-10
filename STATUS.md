@@ -91,6 +91,9 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
 - **Checks in the working tree (2026-11-10)**: `pnpm typecheck`, `pnpm lint`, `pnpm format:check`
   clean; engine 1255 (unit + integration, with `~/.jarvis/.env` loaded), shared 101, web 186.
   Integration tests fail with `28P01` unless that environment is loaded.
+- **Capabilities page (ADR-0025, 2026-11-10)**: lists skills, subagents and MCP servers from every
+  source (no secret values); the owner writes his own skills and subagents in `~/.jarvis/plugin`, a second
+  plugin every run loads, only through the HTTP API, with backups. Spec `docs/specs/agent-capabilities.md`.
 - **Limits and models** (2026-11-08): Opus for dispatcher, worker and reviewer; `maxTurnsPerRun 120`,
   `maxBudgetUsdPerRun 10`, `dailyBudgetUsd 50`, `taskTimeoutMinutes 120`, one worker slot, `checkRetries 3`,
   `ciFixRounds 2`, `reviewRounds 3`. On a Max subscription the budget is an estimate, not a bill — a brake

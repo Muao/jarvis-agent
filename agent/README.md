@@ -34,6 +34,10 @@ task or owner message. Dispatcher runs get the preferences and the message only.
 prompt because the CLI fixes the system prompt for the life of a session; the first user message is re-sent on
 each run, so profile edits apply from the next run.
 
+The owner's own skills and subagents are a second plugin, `~/.jarvis/plugin` (`jarvis-owner`), passed as an extra
+`--plugin-dir` after this one when it exists. It is written only from the web UI's Capabilities page, never by an agent,
+and may not reuse a name from this plugin (ADR-0025).
+
 The `deny` rules in `settings/worker.json` implement SEC-01 and SEC-02 and must stay: deny wins over allow.
 
 ## Connectors (`~/.jarvis/mcp/servers.json`)
