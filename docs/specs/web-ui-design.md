@@ -109,7 +109,7 @@ DSP-01, DSP-04…DSP-07, WRK-04, WRK-05, SEC-01.
 | `Question card` | A worker question (WRK-05) with options or a free-form answer | option buttons, `Answer` |
 | `Permission card` | A permission request (SLK-05, DSP-09): who is asking (the dispatcher or worker `T-12`), tool, description, input data (collapsed if long) | `Allow`, `Deny` |
 | `Result card` | Draft PR opened, CI result, final summary (WRK-09, CI-03, CI-08) | `Open PR ↗`, `Open result.md` |
-| `System line` | A service event: "Task queued — starts when a worker is free", "Worker restarted from stage Implementing", "Cancelled" | — |
+| `System message` | A service event, shown as a message card labelled `system`: "Task queued — starts when a worker is free", "Worker restarted from stage Implementing", "Cancelled" | — |
 
 After an answer, decision, question and permission cards become inactive and show what was chosen, by whom and when
 (`Approved · 14:32`). A card cannot be answered twice.
@@ -283,7 +283,7 @@ A row per connection: name, status (`Connected`, `Not configured`, `Error`), det
 | Two simultaneous permission requests from different workers | Two separate cards in the corresponding threads; the "waiting for you" counter = 2 | SLK-05, DSP-09 |
 | The owner clicked `Allow` twice or in two tabs | The second click does nothing; the card shows the first decision | SLK-05 |
 | An answer to a question arrives when the task is already `Cancelled` | The card is inactive with a "Task cancelled" explanation | DSP-06 |
-| A third task while the slots are busy | A `System line` "Queued — position N", the task appears in Overview → Queue | DSP-08 |
+| A third task while the slots are busy | A `System message` "Queued — position N", the task appears in Overview → Queue | DSP-08 |
 | A worker is silent for over 10 minutes | A warning on the worker card and in the thread | DSP-09 |
 | Very long tool output (thousands of lines) | The first lines, `Show more`, no page freeze | ADM-04 |
 | A run ended due to `max turns` | A `limit reached` status and an explanation of what Jarvis does next | WRK-11 |

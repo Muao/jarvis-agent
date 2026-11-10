@@ -42,8 +42,13 @@ export function OwnerBubble({
 }
 
 /** Plain text only: owner-typed and automatic text never goes through HTML (SEC-03). */
-export function SystemLine({ text }: { text: string }) {
-  return <p className={styles.system}>{text}</p>;
+export function SystemCard({ text }: { text: string }) {
+  return (
+    <article className={`${styles.card} ${styles.inactive}`} aria-label="System">
+      <h3 className={styles.heading}>system</h3>
+      <p className={styles.text}>{text}</p>
+    </article>
+  );
 }
 
 const SOURCE_LABEL = { ci: 'CI', review: 'Review' } as const;
@@ -53,7 +58,7 @@ export function MessageItem({ message, cancelled, onRetry }: MessageItemProps) {
     case 'owner': {
       const source = message.body.source;
       if (source !== 'owner') {
-        return <SystemLine text={`${SOURCE_LABEL[source]}: ${message.body.text}`} />;
+        return <SystemCard text={`${SOURCE_LABEL[source]}: ${message.body.text}`} />;
       }
       return <OwnerBubble message={message} onRetry={onRetry} />;
     }
@@ -74,6 +79,6 @@ export function MessageItem({ message, cancelled, onRetry }: MessageItemProps) {
     case 'result':
       return <ResultCard message={message} />;
     case 'system':
-      return <SystemLine text={message.body.text} />;
+      return <SystemCard text={message.body.text} />;
   }
 }

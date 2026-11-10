@@ -314,7 +314,7 @@ describe('message kinds', () => {
     expect(screen.getByText('<script>alert(1)</script>')).toBeInTheDocument();
   });
 
-  it('renders ci and review owner messages as system lines, not owner bubbles', async () => {
+  it('renders ci and review owner messages as system cards, not owner bubbles', async () => {
     openThread([
       msg({
         id: 'c',
@@ -330,6 +330,7 @@ describe('message kinds', () => {
     expect(await screen.findByText('CI: check lint failed')).toBeInTheDocument();
     expect(screen.getByText('Review: please rename')).toBeInTheDocument();
     expect(screen.queryByText('queued')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('article', { name: 'System' })).toHaveLength(2);
   });
 
   it('renders a status card with steps and counters', async () => {

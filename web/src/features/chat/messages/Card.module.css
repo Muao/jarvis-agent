@@ -159,14 +159,6 @@
   color: var(--color-danger);
 }
 
-.system {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  text-align: center;
-  overflow-wrap: anywhere;
-}
-
 .jarvis {
   max-width: 40rem;
 }
