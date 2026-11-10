@@ -243,3 +243,99 @@ describe('GitBranchPublisher.push with a hostile clone config (ADR-0022)', () =>
     expect(existsSync(helper.marker)).toBe(false);
   });
 });
+
+describe('GitBranchPublisher base reads', () => {
+  /** A newer commit on the remote `main`, made from a scratch clone of the bare repository. */
+  const advanceRemoteMain = (file: string, content: string): void => {
+    const clone = join(fx.root, 'scratch-clone');
+    git(fx.root, 'clone', '-q', fx.bare, clone);
+    git(clone, 'config', 'user.email', 't@example.com');
+    git(clone, 'config', 'user.name', 'Test');
+    git(clone, 'config', 'commit.gpgsign', 'false');
+    writeFileSync(join(clone, file), content);
+    git(clone, 'add', file);
+    git(clone, 'commit', '-qm', `main: ${file}`);
+    git(clone, 'push', '-q', 'origin', 'main');
+  };
+
+  it('baseFile returns AGENTS.md from the remote base tip, not from the task branch', async () => {
+    fx.commit('AGENTS.md', 'task version');
+    advanceRemoteMain('AGENTS.md', 'remote main version');
+
+    expect(
+      await publisher(fileRemote).baseFile({ taskId: 'T-1', repo: REPO, path: 'AGENTS.md' }),
+    ).toBe('remote main version');
+  });
+
+  it('baseFile returns null for a missing file and for an unreachable remote', async () => {
+    const input = { taskId: 'T-1', repo: REPO, path: 'AGENTS.md' };
+
+    expect(await publisher(fileRemote).baseFile(input)).toBeNull();
+    expect(
+      await publisher(() => `file://${join(fx.root, 'nowhere.git')}`).baseFile(input),
+    ).toBeNull();
+  });
+
+  it('baseFile returns null for a path that escapes the tree', async () => {
+    const p = publisher(fileRemote);
+
+    expect(await p.baseFile({ taskId: 'T-1', repo: REPO, path: '../a.txt' })).toBeNull();
+    expect(await p.baseFile({ taskId: 'T-1', repo: REPO, path: '/a.txt' })).toBeNull();
+  });
+
+  it("baseFile does not read the clone's config", async () => {
+    advanceRemoteMain('AGENTS.md', 'real content');
+    git(fx.repo, 'config', `url.${fileRemote()}.insteadOf`, 'file:///bogus');
+    git(fx.repo, 'config', `url.file:///bogus.insteadOf`, fileRemote());
+
+    expect(
+      await publisher(fileRemote).baseFile({ taskId: 'T-1', repo: REPO, path: 'AGENTS.md' }),
+    ).toBe('real content');
+  });
+
+  it('onBase runs on the merge base and restores the task branch, even when run throws', async () => {
+    const p = publisher(fileRemote);
+    const taskHead = fx.commit('b.txt');
+    const base = await p.mergeBase('T-1');
+    expect(base).toBe(sha(fx.repo, 'main'));
+
+    const seen = await p.onBase('T-1', base, async () => git(fx.worktree, 'rev-parse', 'HEAD'));
+    expect(seen).toBe(base);
+    expect(git(fx.worktree, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('jarvis/T-1');
+
+    await expect(
+      p.onBase('T-1', base, async () => {
+        throw new Error('boom');
+      }),
+    ).rejects.toThrow('boom');
+    expect(git(fx.worktree, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('jarvis/T-1');
+    expect(sha(fx.worktree, 'HEAD')).toBe(taskHead);
+  });
+
+  it('onBase refuses a dirty tree and a malformed sha', async () => {
+    const p = publisher(fileRemote);
+    const base = await p.mergeBase('T-1');
+    writeFileSync(join(fx.worktree, 'a.txt'), 'dirty');
+
+    await expect(p.onBase('T-1', base, async () => 1)).rejects.toThrow();
+    await expect(p.onBase('T-1', 'not-a-sha', async () => 1)).rejects.toThrow(/Invalid commit id/);
+  });
+
+  it('onBase does not run a post-checkout hook', async () => {
+    const p = publisher(fileRemote);
+    fx.commit('b.txt');
+    const base = await p.mergeBase('T-1');
+    const hooks = join(
+      git(fx.worktree, 'rev-parse', '--path-format=absolute', '--git-common-dir'),
+      'hooks',
+    );
+    mkdirSync(hooks, { recursive: true });
+    const marker = join(fx.root, 'hook.ran');
+    writeFileSync(join(hooks, 'post-checkout'), `#!/bin/sh\necho ran > "${marker}"\n`);
+    chmodSync(join(hooks, 'post-checkout'), 0o755);
+
+    await p.onBase('T-1', base, async () => undefined);
+
+    expect(existsSync(marker)).toBe(false);
+  });
+});

@@ -30,4 +30,20 @@ export interface BranchPublisher {
     readonly repo: RepoTarget;
     readonly sha: string;
   }): Promise<PushResult>;
+  /**
+   * The file's content at the tip of the remote base branch, fetched now (not the worktree's
+   * possibly stale copy). `null` when the file does not exist or the fetch fails; never throws.
+   */
+  baseFile(input: {
+    readonly taskId: string;
+    readonly repo: RepoTarget;
+    readonly path: string;
+  }): Promise<string | null>;
+  /** `git merge-base HEAD <base>` in the worktree: read-only, no network. */
+  mergeBase(taskId: string): Promise<string>;
+  /**
+   * Detaches the worktree at `sha`, runs `run`, and checks `jarvis/<taskId>` out again, even when
+   * `run` throws. Throws if the tree is dirty before the switch.
+   */
+  onBase<T>(taskId: string, sha: string, run: () => Promise<T>): Promise<T>;
 }

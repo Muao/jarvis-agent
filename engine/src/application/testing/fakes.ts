@@ -558,6 +558,10 @@ export class FakeCheckRunner implements CheckRunner {
   }[] = [];
   /** Per command; a later `script` for the same command replaces the earlier one. */
   private readonly scripted = new Map<string, ScriptedCheck>();
+  /** Per command, answered while `onBase` is true; a command with none is green on the base. */
+  private readonly scriptedOnBase = new Map<string, ScriptedCheck>();
+  /** True while the branch publisher's `onBase` callback runs: the worktree is on the merge base. */
+  onBase = false;
   /** The next `run` reports this command as unable to start, and stops there. */
   unavailable: { command: string; detail: string } | null = null;
   /** Progress lines the next `run` emits through `onProgress`, before it answers. */
@@ -569,6 +573,10 @@ export class FakeCheckRunner implements CheckRunner {
 
   script(command: string, outcome: ScriptedCheck): void {
     this.scripted.set(command, outcome);
+  }
+
+  scriptOnBase(command: string, outcome: ScriptedCheck): void {
+    this.scriptedOnBase.set(command, outcome);
   }
 
   async run(spec: CheckRunSpec): Promise<CheckRunOutcome> {
@@ -603,7 +611,7 @@ export class FakeCheckRunner implements CheckRunner {
         timedOut: false,
         durationMs: 10,
         tail: '',
-        ...this.scripted.get(command),
+        ...(this.onBase ? this.scriptedOnBase : this.scripted).get(command),
       });
     }
     return { results, unavailable: null };
@@ -621,6 +629,31 @@ export class FakeBranchPublisher implements BranchPublisher {
   pushResult: PushResult = { ok: true };
   readonly pushes: { taskId: string; repo: RepoTarget; sha: string }[] = [];
   readonly statusCalls: string[] = [];
+  /** Path → content of what the remote base branch holds; a missing path answers `null`. */
+  readonly baseFiles = new Map<string, string>();
+  /** The shas `onBase` was asked to switch to. */
+  readonly onBaseCalls: string[] = [];
+  mergeBaseSha = 'b4s3b4s3e5f60718293a4b5c6d7e8f9012345678';
+
+  constructor(private readonly checkRunner?: FakeCheckRunner) {}
+
+  async baseFile(input: { path: string }): Promise<string | null> {
+    return this.baseFiles.get(input.path) ?? null;
+  }
+
+  async mergeBase(): Promise<string> {
+    return this.mergeBaseSha;
+  }
+
+  async onBase<T>(_taskId: string, sha: string, run: () => Promise<T>): Promise<T> {
+    this.onBaseCalls.push(sha);
+    if (this.checkRunner) this.checkRunner.onBase = true;
+    try {
+      return await run();
+    } finally {
+      if (this.checkRunner) this.checkRunner.onBase = false;
+    }
+  }
 
   async headSha(): Promise<string> {
     return this.sha;

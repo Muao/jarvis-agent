@@ -165,6 +165,61 @@ export class GitBranchPublisher implements BranchPublisher {
     }
   }
 
+  async baseFile(input: {
+    readonly taskId: string;
+    readonly repo: RepoTarget;
+    readonly path: string;
+  }): Promise<string | null> {
+    const { taskId, repo, path } = input;
+    if (!TASK_ID.test(taskId)) throw new Error(`Invalid task id: ${JSON.stringify(taskId)}`);
+    if (!isSafePath(path)) return null;
+    if (!isSegment(repo.owner) || !isSegment(repo.name)) return null;
+
+    let scratch: string | null = null;
+    try {
+      scratch = await mkdtemp(join(tmpdir(), 'jarvis-base-'));
+      const gitDir = join(scratch, 'git');
+      await this.git(['init', '--bare', '--quiet', '--template=', gitDir], {
+        cwd: scratch,
+        env: this.baseEnv(),
+      });
+      const url = this.options.remoteUrl?.(repo) ?? githubUrl(repo);
+      await this.git(
+        [...HARDENING, 'fetch', '--quiet', '--depth=1', '--no-tags', url, this.options.baseBranch],
+        {
+          cwd: gitDir,
+          env: this.pushEnv(url),
+          timeoutMs: this.options.pushTimeoutMs ?? PUSH_TIMEOUT_MS,
+        },
+      );
+      return await this.git([...READ_ONLY, 'show', `FETCH_HEAD:${path}`], {
+        cwd: gitDir,
+        env: this.baseEnv(),
+      });
+    } catch {
+      return null;
+    } finally {
+      if (scratch !== null) await rm(scratch, { recursive: true, force: true });
+    }
+  }
+
+  async mergeBase(taskId: string): Promise<string> {
+    const base = await this.baseRef(this.worktreeOf(taskId));
+    return (await this.read(taskId, ['merge-base', 'HEAD', base])).trim();
+  }
+
+  async onBase<T>(taskId: string, sha: string, run: () => Promise<T>): Promise<T> {
+    if (!SHA.test(sha)) throw new Error(`Invalid commit id: ${JSON.stringify(sha)}`);
+    const dirty = await this.read(taskId, ['status', '--porcelain=v1', '--untracked-files=no']);
+    if (dirty.trim() !== '') throw new Error('The worktree has uncommitted changes');
+    await this.read(taskId, ['checkout', '--detach', '--quiet', sha]);
+    try {
+      return await run();
+    } finally {
+      await this.read(taskId, ['checkout', '--quiet', `jarvis/${taskId}`]);
+    }
+  }
+
   private worktreeOf(taskId: string): string {
     if (!TASK_ID.test(taskId)) throw new Error(`Invalid task id: ${JSON.stringify(taskId)}`);
     return join(this.options.worktreesDir, taskId);
@@ -264,5 +319,10 @@ const HARDENING = [
 
 const basicCredential = (token: string): string => `x-access-token:${token}`;
 const githubUrl = (repo: RepoTarget): string => `https://github.com/${repo.owner}/${repo.name}.git`;
+const isSafePath = (path: string): boolean =>
+  path !== '' &&
+  !path.startsWith('/') &&
+  !path.includes('\0') &&
+  !path.split('/').some((part) => part === '..');
 const isSegment = (value: string): boolean =>
   SEGMENT.test(value) && value !== '.' && value !== '..';

@@ -155,6 +155,9 @@ const unconfiguredCodeHost: CodeHost = {
 const unconfiguredBranchPublisher: BranchPublisher = {
   headSha: () => Promise.reject(notConfigured()),
   status: () => Promise.reject(notConfigured()),
+  baseFile: () => Promise.resolve(null),
+  mergeBase: () => Promise.reject(notConfigured()),
+  onBase: () => Promise.reject(notConfigured()),
   push: () =>
     Promise.resolve({ ok: false, reason: 'unreachable', detail: notConfigured().message }),
 };
