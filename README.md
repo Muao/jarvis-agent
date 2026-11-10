@@ -35,6 +35,19 @@ Postgres container and never start the real `claude`).
 After the first `pnpm dev`, `curl -s http://127.0.0.1:4310/api/connections` should report `claude: ok` with your
 plan; the engine refuses to start while that check fails.
 
+### Local UI against the server's engine
+
+To work on the UI while the agent itself runs on the server (`docs/architecture/deployment.md`), skip the local
+engine and point the dev proxy at the server's tailnet address:
+
+```sh
+cp web/.env.remote.example web/.env.remote   # set JARVIS_API_URL (`tailscale serve status` on the server)
+pnpm dev:remote                              # UI with hot reload on http://127.0.0.1:5180, /api -> the server
+```
+
+It checks the server's `/api/health` first and needs port 5180 free, so stop the rehearsal containers if they run.
+Tasks, threads and runs are the server's; nothing runs on the laptop but Vite.
+
 ### If the engine cannot run `claude`
 
 The engine runs the binary named by `engine.claudeBinary` (default `claude`) and gives the connection probe eight

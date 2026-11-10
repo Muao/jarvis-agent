@@ -8,6 +8,7 @@
   "packageManager": "pnpm@10.23.0",
   "scripts": {
     "dev": "pnpm --parallel --filter @jarvis/engine --filter @jarvis/web dev",
+    "dev:remote": "bash scripts/dev-remote.sh",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
