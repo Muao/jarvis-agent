@@ -118,6 +118,18 @@ describe('buildChildEnv', () => {
     }
   });
 
+  it('passes the commit identity to a worker, whose global git config is off (ADR-0022)', () => {
+    const identity = {
+      GIT_AUTHOR_NAME: 'Jarvis',
+      GIT_AUTHOR_EMAIL: '1+bot@users.noreply.github.com',
+      GIT_COMMITTER_NAME: 'Jarvis',
+      GIT_COMMITTER_EMAIL: '1+bot@users.noreply.github.com',
+    };
+    const env = buildChildEnv({ ...source, ...identity }, { role: 'worker', runDir: '/r' });
+    expect(env).toMatchObject(identity);
+    expect(env['GIT_CONFIG_GLOBAL']).toBe('/dev/null');
+  });
+
   it('omits allow-listed variables that are not set', () => {
     expect(buildChildEnv({ PATH: '/bin' }, { role: 'dispatcher' })).toEqual({ PATH: '/bin' });
   });

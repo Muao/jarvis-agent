@@ -5,4 +5,4 @@ export {
   type ConnectionChecker,
 } from './github-code-host.js';
 export { CodeHostError } from './errors.js';
-export { parseRemote, type RepoRef } from './remote.js';
+export { defaultGitHubRepo, parseRemote, type RepoRef } from './remote.js';

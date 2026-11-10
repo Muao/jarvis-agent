@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseRemote } from './remote.js';
+import { defaultGitHubRepo, parseRemote } from './remote.js';
 
 describe('parseRemote', () => {
   it.each([
@@ -17,5 +17,33 @@ describe('parseRemote', () => {
   it('returns null for other hosts and garbage', () => {
     expect(parseRemote('git@gitlab.com:a/b.git')).toBeNull();
     expect(parseRemote('not a url')).toBeNull();
+  });
+});
+
+describe('defaultGitHubRepo', () => {
+  it("prefers repo.path's GitHub remote", () => {
+    expect(defaultGitHubRepo('git@github.com:acme/widgets.git', ['other/repo'])).toEqual({
+      owner: 'acme',
+      repo: 'widgets',
+    });
+  });
+
+  it('falls back to the first allow-listed repo when repo.path has no remote', () => {
+    expect(defaultGitHubRepo(null, ['acme/blog', 'acme/shop'])).toEqual({
+      owner: 'acme',
+      repo: 'blog',
+    });
+  });
+
+  it('falls back to the allow-list when the remote is not GitHub', () => {
+    expect(defaultGitHubRepo('https://gitlab.com/acme/widgets.git', ['acme/blog'])).toEqual({
+      owner: 'acme',
+      repo: 'blog',
+    });
+  });
+
+  it('is null with neither a GitHub remote nor an allow-list', () => {
+    expect(defaultGitHubRepo(null, [])).toBeNull();
+    expect(defaultGitHubRepo('/srv/local.git', [])).toBeNull();
   });
 });

@@ -21,6 +21,12 @@ const INHERITED = [
   // ADR-0014: Playwright MCP is a grandchild (engine -> claude -> MCP server); without this it
   // looks for Chromium in the default cache instead of where the runtime image installed it.
   'PLAYWRIGHT_BROWSERS_PATH',
+  // The commit identity. A worker runs with GIT_CONFIG_GLOBAL=/dev/null (ADR-0022), so a global
+  // `user.name` never reaches it; these set the author of its commits instead. Not credentials.
+  'GIT_AUTHOR_NAME',
+  'GIT_AUTHOR_EMAIL',
+  'GIT_COMMITTER_NAME',
+  'GIT_COMMITTER_EMAIL',
 ] as const;
 
 /**

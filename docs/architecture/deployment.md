@@ -37,9 +37,18 @@ the firewall.
    # Docker Engine, git, gh, Node 22 (nvm or NodeSource), corepack enable (pnpm)
    curl -fsSL https://claude.ai/install.sh | bash                    # as jarvis, Claude Code CLI
    ln -sf /home/jarvis/.local/bin/claude /usr/local/bin/claude      # as root: systemd's PATH has no ~/.local/bin
-   git config --global user.name Jarvis                             # as jarvis: the engine sets no commit identity,
-   git config --global user.email '<id>+<login>@users.noreply.github.com'   # and a worker's commit fails without one
    curl -fsSL https://tailscale.com/install.sh | sh && tailscale up --ssh
+   ```
+
+   **Commit identity.** A worker runs with `GIT_CONFIG_GLOBAL=/dev/null` (ADR-0022), so `git config --global`
+   never reaches it. Give the engine unit the identity instead; the engine passes `GIT_AUTHOR_*` and
+   `GIT_COMMITTER_*` through to every child `claude`:
+
+   ```sh
+   sudo systemctl edit jarvis-engine   # then, in the drop-in:
+   # [Service]
+   # Environment=GIT_AUTHOR_NAME=Jarvis GIT_COMMITTER_NAME=Jarvis
+   # Environment=GIT_AUTHOR_EMAIL=<id>+<login>@users.noreply.github.com GIT_COMMITTER_EMAIL=<id>+<login>@users.noreply.github.com
    ```
 
    **Never add `jarvis` to the `docker` group.** The Docker daemon runs as root, so whoever can talk to its

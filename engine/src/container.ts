@@ -42,7 +42,7 @@ import { runGit } from './infrastructure/git/run-git.js';
 import { GitWorktreeManager } from './infrastructure/git/git-worktree-manager.js';
 import { AllowedRepoResolver, selfRepoRef } from './infrastructure/git/allowed-repo-resolver.js';
 import type { RepoResolver } from './application/index.js';
-import { CodeHostError, GitHubCodeHost, parseRemote } from './infrastructure/github/index.js';
+import { CodeHostError, GitHubCodeHost, defaultGitHubRepo } from './infrastructure/github/index.js';
 import { CryptoIdGenerator } from './infrastructure/ids/crypto-id-generator.js';
 import { ConsoleLogger } from './infrastructure/logging/console-logger.js';
 import { FileProfileFiles } from './infrastructure/profile/file-profile-files.js';
@@ -170,14 +170,12 @@ async function createGitHub(
 ): Promise<GitHubCodeHost | null> {
   if (env.githubToken === undefined) return null;
   const { path, remote } = config.repo;
-  try {
-    const url = await runGit(['remote', 'get-url', remote], { cwd: path });
-    const ref = parseRemote(url);
-    if (ref !== null) return new GitHubCodeHost({ token: env.githubToken, ...ref });
-    logger.warn('repo.remote is not a GitHub repository; CI follow-up is off', { remote });
-  } catch {
-    logger.warn(`git remote "${remote}" not found in repo.path; CI follow-up is off`, { remote });
-  }
+  const url = await runGit(['remote', 'get-url', remote], { cwd: path }).catch(() => null);
+  const ref = defaultGitHubRepo(url, config.repos.allow);
+  if (ref !== null) return new GitHubCodeHost({ token: env.githubToken, ...ref });
+  logger.warn('neither repo.remote nor repos.allow names a GitHub repository; GitHub is off', {
+    remote,
+  });
   return null;
 }
 
