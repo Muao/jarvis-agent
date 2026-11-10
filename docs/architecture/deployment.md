@@ -138,9 +138,16 @@ Then `systemctl enable --now jarvis-engine jarvis-web` and `tailscale serve --bg
 
 ## 5. Update
 
+From the laptop, over Tailscale SSH:
+
 ```sh
-cd ~/jarvis && pnpm run deploy
+pnpm run deploy:remote   # = ssh root@jarvis-01 /home/jarvis/jarvis/scripts/deploy.sh
 ```
+
+`jarvis` has no password and no sudo rule, so the deploy runs as root; the script then runs every git and
+pnpm step as `jarvis` (`runuser`), so nothing in the checkout ends up owned by root, and only `systemctl` and
+`systemd-run` run as root. On the server as `jarvis`, `cd ~/jarvis && pnpm run deploy` works too, but only once a
+sudo rule for those two commands exists.
 
 `pnpm run deploy` runs [`scripts/deploy.sh`](../../deploy/README.md#deploy-script), which wraps the exact sequence
 above (pull, install, build, migrate, restart) behind one lock-protected command. Use `pnpm run deploy`, not

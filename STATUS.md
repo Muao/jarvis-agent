@@ -156,8 +156,8 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
    `jarvis-engine` and `jarvis-web` enabled under systemd, secrets from Infisical `prod` through the
    `jarvis-agent` machine identity (no `~/.jarvis/.env` on the server), `/api/health` ok (database ok,
    claude ok), UI at the tailnet-only `tailscale serve` address, 4310/5180/5433 on loopback only. Left:
-   `scripts/deploy.sh` calls `sudo`, but `jarvis` has no password (owner to choose a narrow NOPASSWD
-   rule or deploying as root); rotate the identity's client secret (it passed through a chat); check the
+   ~~`scripts/deploy.sh` calls `sudo`~~ — deploys now run as root over Tailscale SSH
+   (`pnpm run deploy:remote`), the script doing git and pnpm as `jarvis`; rotate the identity's client secret (it passed through a chat); check the
    Hetzner firewall no longer allows port 22; the identity also reads `dev`.
 8. **The first live task, on the server** — Phase 5 of the iteration-1 plan. The laptop sleeps mid-task;
    that, more than secrets, is why the first real run belongs on an always-on box.

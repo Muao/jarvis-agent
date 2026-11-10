@@ -15,7 +15,10 @@ about how to *change* the deploy flow without breaking the properties it current
 
 ## Current flow
 
-`pnpm run deploy` (as `jarvis`, from `~/jarvis` on the server) runs `scripts/deploy.sh`:
+`pnpm run deploy:remote` from the laptop (`ssh root@jarvis-01 /home/jarvis/jarvis/scripts/deploy.sh`) runs
+`scripts/deploy.sh` as root, which does every git and pnpm step as `jarvis` through `runuser` and only `systemctl` /
+`systemd-run` as root. `jarvis` has no sudo rule, so `pnpm run deploy` as `jarvis` on the server only works once one
+exists. The script body is a single function, so step 1 rewriting the script mid-run is safe:
 
 1. `git fetch` + `git merge --ff-only origin/main` — refuses to run if the local checkout has diverged, instead
    of silently rewriting it.
