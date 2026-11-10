@@ -74,7 +74,7 @@ describe('AskOwner', () => {
 });
 
 describe('AnswerQuestion', () => {
-  async function blocked(stage: 'Context' | 'Implementing' = 'Implementing') {
+  async function blocked(stage: 'Context' | 'Implementing' | 'PR Open' = 'Implementing') {
     const app = buildTestApp();
     const seeded = await app.seed.task({ stage });
     const { cardId } = await app.askOwner.execute(app.identity.worker(seeded.task), {
@@ -98,6 +98,20 @@ describe('AnswerQuestion', () => {
       actor: 'owner',
       data: { from: 'Blocked', to: 'Context', cause: 'owner_answered' },
     });
+  });
+
+  it('answers a question asked from PR Open in Fixing, where the worker can push', async () => {
+    const { app, task, cardId } = await blocked('PR Open');
+
+    await app.answerQuestion.execute(cardId, 'Push it');
+
+    expect(app.task(task.id)).toMatchObject({ stage: 'Fixing', resumeStage: null });
+    const moves = app.db.tables.journal.filter((e) => e.type === 'stage_changed').slice(-2);
+    expect(moves.map((e) => e.data)).toMatchObject([
+      { from: 'Blocked', to: 'PR Open', cause: 'owner_answered' },
+      { from: 'PR Open', to: 'Fixing', cause: 'owner_request' },
+    ]);
+    expect(app.runs.calls).toEqual([{ type: 'worker_run', taskId: task.id, reason: 'resume' }]);
   });
 
   it('takes one answer only', async () => {
