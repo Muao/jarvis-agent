@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { startRun, type Run } from '../../domain/index.js';
+import type { RunEventBody } from '../ports/agent-runner.js';
 import { buildTestApp, type TestApp } from '../testing/build-test-app.js';
 import { activeWorkerMs } from './active-worker-time.js';
 
@@ -211,8 +212,44 @@ describe('PostProgressUpdates', () => {
     await app.postProgressUpdates.execute();
 
     expect(systemTexts(app, seeded.thread.id)).toEqual([
-      `The worker of ${seeded.task.id} is working — Implementing, 3 min in. Now: Bash: npm run lint.`,
+      `The worker of ${seeded.task.id} is working — Implementing, 3 min in. Now: Bash npm run lint.`,
     ]);
+  });
+
+  it('posts a first update after 30 s with the last note and tool, never a result', async () => {
+    const app = buildTestApp();
+    const seeded = await app.seed.task({ stage: 'PR Open' });
+    const run = await runningWorker(app, seeded);
+    const append = (body: RunEventBody) =>
+      app.uow.run((tx) => tx.runs.appendEvent(run.id, body, app.clock.now()));
+    await append({
+      kind: 'text',
+      payload: { text: '\n  Applying fixes: icon, sticky band.\nmore' },
+    });
+    await append({
+      kind: 'tool_use',
+      payload: { toolUseId: 'u1', name: 'Edit', input: { file_path: 'client/src/Chart.tsx' } },
+    });
+    await append({
+      kind: 'tool_result',
+      payload: { toolUseId: 'u1', content: 'SECRET-TOKEN', isError: false },
+    });
+    await append({ kind: 'system', payload: { subtype: 'thinking_tokens' } });
+
+    app.clock.advanceMinutes(20 / 60);
+    await app.postProgressUpdates.execute();
+    expect(systemTexts(app, seeded.thread.id)).toEqual([]);
+
+    app.clock.advanceMinutes(15 / 60);
+    await app.postProgressUpdates.execute();
+    expect(systemTexts(app, seeded.thread.id)).toEqual([
+      `The worker of ${seeded.task.id} is working — PR Open, 35 s in. Last note: Applying fixes: icon, sticky band. · Now: Edit client/src/Chart.tsx.`,
+    ]);
+
+    // The next one waits a whole `progressUpdateMinutes`.
+    app.clock.advanceMinutes(40 / 60);
+    await app.postProgressUpdates.execute();
+    expect(systemTexts(app, seeded.thread.id)).toHaveLength(1);
   });
 
   it('stays quiet while the run is stalled or waiting for a permission answer', async () => {

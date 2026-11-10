@@ -746,6 +746,29 @@ function contract(name: string, make: () => Repositories): void {
         expect(await repos.runs.lastEvent('r-1')).toEqual(c);
         expect((await repos.runs.lastEvent('r-2'))?.seq).toBe(0);
       });
+
+      it('lists the newest events of the wanted kinds, newest first', async () => {
+        const repos = make();
+        await seedThread(repos);
+        await seedRun(repos, 'r-1');
+        await seedRun(repos, 'r-2');
+        const tool = (id: string): RunEventBody => ({
+          kind: 'tool_use',
+          payload: { toolUseId: id, name: 'Edit', input: { file_path: 'a.ts' } },
+        });
+        await repos.runs.appendEvent('r-1', text('a'), at(1));
+        await repos.runs.appendEvent('r-1', tool('u1'), at(2));
+        await repos.runs.appendEvent('r-1', text('b'), at(3));
+        await repos.runs.appendEvent('r-1', { kind: 'system', payload: { subtype: 's' } }, at(4));
+        await repos.runs.appendEvent('r-2', text('other'), at(5));
+
+        const seqs = async (kinds: RunEventBody['kind'][], limit: number) =>
+          (await repos.runs.lastEventsOfKinds('r-1', kinds, limit)).map((e) => e.seq);
+        expect(await seqs(['text'], 1)).toEqual([2]);
+        expect(await seqs(['text', 'tool_use'], 5)).toEqual([2, 1, 0]);
+        expect(await seqs(['error'], 1)).toEqual([]);
+        expect(await seqs([], 1)).toEqual([]);
+      });
     });
 
     describe('permissions', () => {

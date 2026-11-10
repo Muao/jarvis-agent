@@ -221,7 +221,10 @@ describe('run exit', () => {
 
     await a.runner.forTask(taskId)?.exit(result('error_max_turns'));
 
-    expect(systemTexts(a, thread.id)).toEqual(['Run stopped at its limit: max turns reached.']);
+    expect(systemTexts(a, thread.id)).toEqual([
+      'The worker of T-1 started — Context.',
+      'Run stopped at its limit: max turns reached.',
+    ]);
   });
 
   it('forgets the run token', async () => {

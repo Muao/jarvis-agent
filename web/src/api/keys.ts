@@ -3,6 +3,7 @@ export const keys = {
   threads: {
     all: ['threads'] as const,
     list: () => ['threads', 'list'] as const,
+    details: ['threads', 'detail'] as const,
     detail: (id: string) => ['threads', 'detail', id] as const,
   },
   tasks: {

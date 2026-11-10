@@ -34,11 +34,15 @@ export const useThreads = () =>
     queryFn: () => get('/threads', z.array(ThreadDtoSchema)),
   });
 
+const ACTIVE_RUN_POLL_MS = 5_000;
+
 export const useThread = (id: string | undefined) =>
   useQuery({
     queryKey: keys.threads.detail(id ?? ''),
     queryFn: () => get(`/threads/${encodeURIComponent(id ?? '')}`, ThreadDetailDtoSchema),
     enabled: id !== undefined,
+    // A live run's latest note and tool come with the thread; poll it while one is working.
+    refetchInterval: (query) => (query.state.data?.activeRun ? ACTIVE_RUN_POLL_MS : false),
   });
 
 export const useTasks = () =>

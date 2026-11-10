@@ -28,7 +28,8 @@ describe('JarvisConfigSchema', () => {
       dailyBudgetUsd: 20,
       permissionTimeoutMinutes: 30,
       stallMinutes: 10,
-      progressUpdateMinutes: 2,
+      firstProgressUpdateSeconds: 30,
+      progressUpdateMinutes: 1,
     });
     expect(config.watch.pollSeconds).toBe(60);
     expect(config.models).toEqual({ dispatcher: 'sonnet', worker: 'sonnet', reviewer: 'sonnet' });

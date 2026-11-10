@@ -5,6 +5,7 @@ import { useCanMutate, useOverview, usePostMessage, useThread } from '../../api/
 import { ErrorBlock } from '../../components/ErrorBlock';
 import { Loading } from '../../components/Loading';
 import { StageBadge } from '../../components/StageBadge';
+import { ActiveRunRow } from './ActiveRunRow';
 import { Composer } from './Composer';
 import { MessageItem, OwnerBubble } from './messages/MessageItem';
 import { ThreadMenu } from './ThreadMenu';
@@ -74,7 +75,7 @@ function LoadedThread({ thread }: { thread: ThreadDetailDto }) {
   useEffect(() => {
     const element = feed.current;
     if (element) element.scrollTop = element.scrollHeight;
-  }, [lastMessage, failed.length, thread.dispatcherBusy]);
+  }, [lastMessage, failed.length, thread.dispatcherBusy, thread.activeRun?.runId]);
 
   const cancelled = thread.stage === 'Cancelled';
   const paused = overview.data?.usage.paused ?? false;
@@ -107,6 +108,7 @@ function LoadedThread({ thread }: { thread: ThreadDetailDto }) {
             onRetry={() => retryFailed(entry)}
           />
         ))}
+        {thread.activeRun ? <ActiveRunRow run={thread.activeRun} /> : null}
       </div>
       <Composer
         value={draft}
@@ -114,7 +116,7 @@ function LoadedThread({ thread }: { thread: ThreadDetailDto }) {
         onSend={send}
         offline={!canMutate}
         paused={paused}
-        thinking={thread.dispatcherBusy}
+        thinking={thread.dispatcherBusy && thread.activeRun === null}
       />
     </section>
   );

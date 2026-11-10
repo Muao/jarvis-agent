@@ -74,6 +74,12 @@ export interface RunRepository {
   usageReport(window: UsageWindow, groupBy: UsageGroupBy): Promise<UsageAggregate>;
   /** The newest event of the run, if it produced any (stall detection, DSP-09). */
   lastEvent(runId: string): Promise<RunEvent | null>;
+  /** The newest events of the run whose kind is one of `kinds`, newest first, at most `limit`. */
+  lastEventsOfKinds(
+    runId: string,
+    kinds: readonly RunEvent['kind'][],
+    limit: number,
+  ): Promise<readonly RunEvent[]>;
   /** Events of the run with `seq` greater than `afterSeq` (all when omitted), in `seq` order. */
   events(runId: string, afterSeq?: number): Promise<readonly RunEvent[]>;
   /** Store an event under the run's next `seq` (0, 1, 2, ...) and return it. */

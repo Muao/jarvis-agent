@@ -51,6 +51,7 @@ describe('event to cache mapping', () => {
     FakeEventSource.current.push({ type: 'run', id: 'run-1' });
     expect(invalidatedKeys()).toContainEqual(keys.runs.events('run-1'));
     expect(invalidatedKeys()).toContainEqual(keys.sessions.all);
+    expect(invalidatedKeys()).toContainEqual(keys.threads.details);
   });
 
   it('invalidates overview and config', () => {

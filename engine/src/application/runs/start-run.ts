@@ -447,6 +447,19 @@ export class StartRun {
         code: null,
         message: `could not start claude: ${error instanceof Error ? error.message : String(error)}`,
       });
+      return;
+    }
+    // One line at once, so the owner sees the run began; `PostProgressUpdates` follows after ~30 s.
+    const { task } = prepared;
+    if (task !== null) {
+      await transact(this.deps, async (tx, outbox) => {
+        await this.deps.messages.post(tx, outbox, {
+          threadId: task.threadId,
+          taskId: task.id,
+          kind: 'system',
+          body: { text: `The worker of ${task.id} started — ${task.stage}.` },
+        });
+      });
     }
   }
 }

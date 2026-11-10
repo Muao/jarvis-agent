@@ -56,8 +56,9 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
     `https://x-access-token:<token>@…` into `remote.origin.url`, in plain text, for the life of the clone.
     The remote is clean now and a credential helper reads the token from the environment; old clones are
     repaired on next use. See ADR-0012.
-  - **The chat no longer looks dead.** `PostProgressUpdates` posts a mechanical heartbeat every
-    `limits.progressUpdateMinutes` (default 2) for every running run that is not already stalled — the
+  - **The chat no longer looks dead.** `PostProgressUpdates` posts a mechanical heartbeat after
+    `limits.firstProgressUpdateSeconds` (default 30), then every `limits.progressUpdateMinutes` (default 1),
+    with the run's last note and tool for every running run that is not already stalled — the
     worker prompt's soft "post an update" instruction was simply not obeyed.
   - Also: a `RouteError` boundary for stale lazy chunks (a white "Failed to fetch dynamically imported
     module" screen after a redeploy), and artifacts expandable inline in the decision card, because the

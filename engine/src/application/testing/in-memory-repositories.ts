@@ -281,6 +281,12 @@ class InMemoryRunRepository implements RunRepository {
     return { rows, total: figures(inWindow.map((run) => wholeRun(run, ''))) };
   };
   lastEvent = async (runId: string) => this.db.tables.runEvents.get(runId)?.at(-1) ?? null;
+  lastEventsOfKinds = async (runId: string, kinds: readonly RunEvent['kind'][], limit: number) =>
+    (this.db.tables.runEvents.get(runId) ?? [])
+      .filter((e) => kinds.includes(e.kind))
+      .slice()
+      .reverse()
+      .slice(0, limit);
   events = async (runId: string, afterSeq = -1) =>
     (this.db.tables.runEvents.get(runId) ?? []).filter((e) => e.seq > afterSeq);
   appendEvent = async (runId: string, body: RunEventBody, at: string): Promise<RunEvent> => {

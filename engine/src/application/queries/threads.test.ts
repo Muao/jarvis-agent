@@ -61,6 +61,7 @@ describe('GetThreads / GetThread', () => {
     expect(ThreadDetailDtoSchema.parse(await app.getThread.execute(thread.id))).toMatchObject({
       dispatcherSessionId: null,
       dispatcherBusy: false,
+      activeRun: null,
       messages: [],
     });
 
@@ -74,6 +75,12 @@ describe('GetThreads / GetThread', () => {
     const detail = ThreadDetailDtoSchema.parse(await app.getThread.execute(thread.id));
     expect(detail).toMatchObject({ id: thread.id, dispatcherBusy: true, taskId: null });
     expect(detail.dispatcherSessionId).toMatch(/^s-/);
+    expect(detail.activeRun).toMatchObject({
+      role: 'dispatcher',
+      taskId: null,
+      note: 'Looking it up',
+      tool: null,
+    });
     expect(detail.messages).toMatchObject([
       {
         kind: 'owner',

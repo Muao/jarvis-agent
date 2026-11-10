@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { CounterSchema, IsoDateSchema, TaskIdSchema, TextBodySchema } from '../common.js';
-import { TaskStageSchema } from '../enums.js';
+import { RoleSchema, TaskStageSchema } from '../enums.js';
 import { ArtifactNameSchema } from './tasks.js';
 
 /* Answers to cards (one answer per card). */
@@ -122,11 +122,26 @@ export const ThreadDtoSchema = z.object({
 });
 export type ThreadDto = z.infer<typeof ThreadDtoSchema>;
 
+/** The run that is working in a thread right now, for the "Jarvis is working" row. */
+export const ActiveRunDtoSchema = z.object({
+  runId: z.string(),
+  role: RoleSchema,
+  taskId: TaskIdSchema.nullable(),
+  startedAt: IsoDateSchema,
+  /** First line of the run's latest assistant text, trimmed; null before it wrote any. */
+  note: z.string().nullable(),
+  /** The latest tool call: its name and a short target. Never a result. */
+  tool: z.string().nullable(),
+});
+export type ActiveRunDto = z.infer<typeof ActiveRunDtoSchema>;
+
 /** `GET /api/threads/:id` and the result of `POST /api/threads`. */
 export const ThreadDetailDtoSchema = ThreadDtoSchema.extend({
   dispatcherSessionId: z.string().nullable(),
   /** The dispatcher is handling a message ("thinking" indicator). */
   dispatcherBusy: z.boolean(),
+  /** A run (dispatcher or the task's worker) is working in this thread; null when none. */
+  activeRun: ActiveRunDtoSchema.nullable(),
   messages: z.array(MessageDtoSchema),
 });
 export type ThreadDetailDto = z.infer<typeof ThreadDetailDtoSchema>;

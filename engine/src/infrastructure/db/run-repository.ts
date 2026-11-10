@@ -7,7 +7,7 @@ import {
   type TaskStage,
   type UsageGroupBy,
 } from '@jarvis/shared';
-import { and, asc, desc, eq, gt, gte, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, sql } from 'drizzle-orm';
 import type { RunEventBody } from '../../application/ports/agent-runner.js';
 import type {
   RunRepository,
@@ -347,6 +347,21 @@ export class PgRunRepository implements RunRepository {
       .orderBy(desc(runEvents.seq))
       .limit(1);
     return row === undefined ? null : eventToDomain(row);
+  }
+
+  async lastEventsOfKinds(
+    runId: string,
+    kinds: readonly RunEvent['kind'][],
+    limit: number,
+  ): Promise<readonly RunEvent[]> {
+    if (kinds.length === 0 || limit <= 0) return [];
+    const rows = await this.db
+      .select()
+      .from(runEvents)
+      .where(and(eq(runEvents.runId, runId), inArray(runEvents.kind, [...kinds])))
+      .orderBy(desc(runEvents.seq))
+      .limit(limit);
+    return rows.map(eventToDomain);
   }
 
   /**

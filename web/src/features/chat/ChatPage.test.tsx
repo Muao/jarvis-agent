@@ -24,6 +24,7 @@ function detail(messages: MessageDto[], patch: Partial<ThreadDetailDto> = {}): T
     }),
     dispatcherSessionId: 'sess-1',
     dispatcherBusy: false,
+    activeRun: null,
     messages,
     ...patch,
   };
@@ -181,6 +182,33 @@ describe('composer', () => {
   it('shows the thinking indicator while the dispatcher is busy', async () => {
     openThread([], { dispatcherBusy: true });
     expect(await screen.findByText('Jarvis is thinking…')).toBeInTheDocument();
+  });
+
+  it('shows what the running worker is doing, and nothing when no run is live', async () => {
+    const startedAt = new Date(Date.now() - 125_000).toISOString();
+    openThread([], {
+      activeRun: {
+        runId: 'r-1',
+        role: 'worker',
+        taskId: 'T-12',
+        startedAt,
+        note: 'Applying fixes: icon, sticky band',
+        tool: 'Edit client/src/Chart.tsx',
+      },
+    });
+    const row = await screen.findByRole('status', { name: 'Jarvis is working' });
+    expect(row).toHaveTextContent('Jarvis is working…');
+    expect(row).toHaveTextContent('worker of T-12');
+    expect(row).toHaveTextContent('2 min');
+    expect(row).toHaveTextContent('Applying fixes: icon, sticky band');
+    expect(row).toHaveTextContent('Edit client/src/Chart.tsx');
+    expect(screen.queryByText('Jarvis is thinking…')).not.toBeInTheDocument();
+  });
+
+  it('shows no working row without an active run', async () => {
+    openThread([]);
+    await screen.findByRole('log', { name: 'Messages' });
+    expect(screen.queryByText('Jarvis is working…')).not.toBeInTheDocument();
   });
 
   it('marks a queued message and offers Retry on a failed one', async () => {

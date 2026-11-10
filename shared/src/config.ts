@@ -59,7 +59,9 @@ export const JarvisConfigSchema = z.strictObject({
       dailyBudgetUsd: positiveNumber(20),
       permissionTimeoutMinutes: positiveInt(30),
       stallMinutes: positiveInt(10),
-      progressUpdateMinutes: positiveInt(2),
+      /** The first chat update of a run, so the owner is not left wondering for a whole interval. */
+      firstProgressUpdateSeconds: positiveInt(30),
+      progressUpdateMinutes: positiveInt(1),
     })
     .prefault({}),
   watch: z.strictObject({ pollSeconds: positiveInt(60) }).prefault({}),

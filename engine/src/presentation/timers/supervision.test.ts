@@ -28,7 +28,7 @@ function setup() {
 }
 
 describe('supervision', () => {
-  it('schedules the 30 s supervisors and the 60 s queue resume', async () => {
+  it('schedules the 10 s supervisors and the 60 s queue resume', async () => {
     const { timers, supervision } = setup();
     supervision.start();
     expect(timers.delays).toEqual([SUPERVISION_INTERVAL_MS, RESUME_INTERVAL_MS]);

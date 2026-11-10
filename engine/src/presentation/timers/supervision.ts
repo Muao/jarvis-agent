@@ -3,7 +3,7 @@ import type { Application } from '../../application/index.js';
 import type { Logger } from '../../application/ports/logger.js';
 import { IntervalJob, type TimerApi } from './interval-job.js';
 
-export const SUPERVISION_INTERVAL_MS = 30_000;
+export const SUPERVISION_INTERVAL_MS = 10_000;
 export const RESUME_INTERVAL_MS = 60_000;
 
 export interface SupervisionDeps {
@@ -22,7 +22,7 @@ export interface Supervision {
   stop(): Promise<void>;
 }
 
-/** Every 30 s the three supervisors, one after another; every 60 s and on a config change, the queue resume. */
+/** Every 10 s the three supervisors, one after another; every 60 s and on a config change, the queue resume. */
 export function createSupervision(deps: SupervisionDeps): Supervision {
   const { app, logger } = deps;
   const timers = deps.timers === undefined ? {} : { timers: deps.timers };

@@ -3,6 +3,7 @@ import { isAnswered, isCard } from '../../domain/index.js';
 import { NotFoundError } from '../errors.js';
 import type { UnitOfWork } from '../ports/unit-of-work.js';
 import { toMessageDto } from './message-dto.js';
+import { latestProgress } from './run-activity.js';
 import { toThreadDto } from './thread-dto.js';
 import { currentTaskOf } from './waiting.js';
 
@@ -17,10 +18,21 @@ export class GetThread {
       const messages = await tx.messages.listByThread(id);
       const task = currentTaskOf(await tx.tasks.listByThread(id));
       const hasOpenCard = messages.some((m) => isCard(m) && !isAnswered(m));
+      const running = (await tx.runs.listRunning()).find((run) => run.threadId === id);
       return {
         ...toThreadDto(thread, task, hasOpenCard),
         dispatcherSessionId: (await tx.sessions.dispatcherOf(id))?.id ?? null,
         dispatcherBusy: await tx.runs.dispatcherBusy(id),
+        activeRun:
+          running === undefined
+            ? null
+            : {
+                runId: running.id,
+                role: running.role,
+                taskId: running.taskId,
+                startedAt: running.startedAt,
+                ...(await latestProgress(tx.runs, running.id)),
+              },
         messages: messages.map(toMessageDto),
       };
     });
