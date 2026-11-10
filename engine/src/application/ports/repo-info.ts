@@ -10,4 +10,6 @@ export interface RepoCommands {
 
 export interface RepoInfo {
   commands(repoPath: string): Promise<RepoCommands>;
+  /** The check commands an `AGENTS.md` text lists, in order (empty when it names none). */
+  parseCommands(markdown: string): string[];
 }

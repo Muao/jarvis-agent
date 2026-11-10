@@ -118,6 +118,10 @@ function frozenCommands(journal: readonly TaskEvent[]): string[] | null {
   return at >= 0 && commands.length > 0 ? commands : null;
 }
 
+function latestFixedSource(journal: readonly TaskEvent[]): unknown {
+  return journal[lastIndexOfType(journal, 'checks_fixed')]?.data['source'];
+}
+
 /**
  * A green gate for exactly this commit that no later approval has invalidated: the push or the
  * host failed after it, so the next call must not run everything again.
@@ -263,7 +267,7 @@ export class OpenPr {
     }
     const headSha = await deps.branchPublisher.headSha(task.id);
 
-    const commands = await this.commandsFor(task, journal, worktree.path);
+    const commands = await this.commandsFor(task, journal, worktree.path, repo);
     if (commands === null) {
       return {
         ok: false,
@@ -302,9 +306,10 @@ export class OpenPr {
     task: Task,
     journal: readonly TaskEvent[],
     worktreePath: string,
+    repo: RepoTarget,
   ): Promise<string[] | null> {
     const frozen = frozenCommands(journal);
-    if (frozen !== null) return frozen;
+    if (frozen !== null) return this.refreshed(task, journal, frozen, repo);
     const found = await this.deps.repoInfo.commands(worktreePath);
     const resolved = resolveCheckCommands({ agentsMd: found.checkCommands, proposed: undefined });
     if (!resolved.ok) return null;
@@ -317,6 +322,52 @@ export class OpenPr {
       }),
     );
     return commands;
+  }
+
+  /**
+   * A list the engine found (not the worker) follows main: when main's `AGENTS.md` names other
+   * commands, the new list is journalled, announced and used. The file is read from the remote base
+   * tip, never from the task's worktree or branch.
+   */
+  private async refreshed(
+    task: Task,
+    journal: readonly TaskEvent[],
+    frozen: string[],
+    repo: RepoTarget,
+  ): Promise<string[]> {
+    const { deps } = this;
+    if (latestFixedSource(journal) === 'worker') return frozen;
+    const markdown = await deps.branchPublisher.baseFile({
+      taskId: task.id,
+      repo,
+      path: 'AGENTS.md',
+    });
+    if (markdown === null) return frozen;
+    const fresh = deps.repoInfo.parseCommands(markdown);
+    if (
+      fresh.length === 0 ||
+      (fresh.length === frozen.length && fresh.every((c, i) => c === frozen[i]))
+    ) {
+      return frozen;
+    }
+    await transact(deps, async (tx, outbox) => {
+      await deps.writer.note(tx, task.id, 'checks_fixed', 'system', {
+        commands: fresh,
+        source: 'base_refresh',
+        cardId: null,
+        previous: frozen,
+      });
+      const body: BodyOf<'system'> = {
+        text: `Checks updated from main's AGENTS.md: ${frozen.join(', ')} → ${fresh.join(', ')}.`,
+      };
+      await deps.messages.post(tx, outbox, {
+        threadId: task.threadId,
+        taskId: task.id,
+        kind: 'system',
+        body,
+      });
+    });
+    return fresh;
   }
 
   /** Runs the gate and writes its outcome. A `refusal` is the whole answer; `results` means green. */

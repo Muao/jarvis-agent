@@ -105,6 +105,9 @@ export function describeJournalEvent(event: TaskEvent): JournalText {
         group: 'ci',
       };
     case 'checks_fixed':
+      if (data['source'] === 'base_refresh') {
+        return { text: `Checks updated from main: ${commandList(data)}`, group: 'ci' };
+      }
       return {
         text: `Checks fixed by the owner's approval: ${commandList(data)}${
           data['source'] === 'agents_md_fallback'

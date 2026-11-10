@@ -467,8 +467,15 @@ export class FakeRepoInfo implements RepoInfo {
     warning: null,
   };
 
+  /** What `parseCommands` answers; `found.checkCommands` when left `null`. */
+  parsed: string[] | null = null;
+
   async commands(): Promise<RepoCommands> {
     return this.found;
+  }
+
+  parseCommands(): string[] {
+    return this.parsed ?? [...this.found.checkCommands];
   }
 }
 

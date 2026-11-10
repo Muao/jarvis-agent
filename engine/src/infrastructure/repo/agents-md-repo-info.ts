@@ -5,6 +5,10 @@ import { parseAgentsMd } from './parse-agents-md.js';
 
 /** Reads `<repo>/AGENTS.md` fresh on every call, so an edit shows up on the next look (CON-04). */
 export class AgentsMdRepoInfo implements RepoInfo {
+  parseCommands(markdown: string): string[] {
+    return [...parseAgentsMd(markdown).checkCommands];
+  }
+
   async commands(repoPath: string): Promise<RepoCommands> {
     const file = join(repoPath, 'AGENTS.md');
     let markdown: string;

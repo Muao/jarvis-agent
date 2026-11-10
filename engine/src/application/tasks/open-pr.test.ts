@@ -480,6 +480,103 @@ describe('OpenPr — the command list is the one fixed at approval', () => {
   });
 });
 
+describe('OpenPr — the list follows main', () => {
+  const MAIN = '# AGENTS.md of main';
+
+  it("refreshes a frozen agents_md list when main's AGENTS.md lists different commands", async () => {
+    const { app, task, worker } = await setup();
+    await freeze(app, task.id, ['pnpm test']);
+    app.branchPublisher.baseFiles.set('AGENTS.md', MAIN);
+    app.repoInfo.parsed = ['pnpm test:unit'];
+
+    await app.openPr.execute(worker, TEXT);
+
+    expect(app.checkRunner.calls[0]?.commands).toEqual(['pnpm test:unit']);
+    const fixed = app.db.tables.journal.filter((e) => e.type === 'checks_fixed');
+    expect(fixed).toHaveLength(2);
+    expect(fixed[1]).toMatchObject({
+      actor: 'system',
+      data: {
+        commands: ['pnpm test:unit'],
+        source: 'base_refresh',
+        cardId: null,
+        previous: ['pnpm test'],
+      },
+    });
+    const notes = app
+      .messagesOf(task.threadId)
+      .filter((m) => JSON.stringify(m.body).includes('pnpm test:unit'));
+    expect(notes).toHaveLength(1);
+    expect(notes[0]?.kind).toBe('system');
+  });
+
+  it('leaves a worker-found list alone', async () => {
+    const { app, task, worker } = await setup();
+    await app.uow.run((tx) =>
+      tx.journal.append(
+        taskEvent(task.id, 'checks_fixed', app.clock.now(), 'owner', {
+          commands: ['pnpm test'],
+          source: 'worker',
+          cardId: 'm1',
+        }),
+      ),
+    );
+    app.branchPublisher.baseFiles.set('AGENTS.md', MAIN);
+    app.repoInfo.parsed = ['pnpm test:unit'];
+
+    await app.openPr.execute(worker, TEXT);
+
+    expect(app.checkRunner.calls[0]?.commands).toEqual(['pnpm test']);
+    expect(types(app).filter((t) => t === 'checks_fixed')).toHaveLength(1);
+  });
+
+  it("does nothing when main's list is the same", async () => {
+    const { app, task, worker } = await setup();
+    await freeze(app, task.id, ['pnpm test']);
+    app.branchPublisher.baseFiles.set('AGENTS.md', MAIN);
+    app.repoInfo.parsed = ['pnpm test'];
+
+    await app.openPr.execute(worker, TEXT);
+    await app.openPr.execute(worker, TEXT);
+
+    expect(types(app).filter((t) => t === 'checks_fixed')).toHaveLength(1);
+    expect(JSON.stringify(app.messagesOf(task.threadId))).not.toContain('Checks updated');
+  });
+
+  it("runs the frozen list when main's AGENTS.md is missing or names no commands", async () => {
+    const missing = await setup();
+    await freeze(missing.app, missing.task.id, ['pnpm test']);
+    await missing.app.openPr.execute(missing.worker, TEXT);
+    expect(missing.app.checkRunner.calls[0]?.commands).toEqual(['pnpm test']);
+
+    const empty = await setup();
+    await freeze(empty.app, empty.task.id, ['pnpm test']);
+    empty.app.branchPublisher.baseFiles.set('AGENTS.md', MAIN);
+    empty.app.repoInfo.parsed = [];
+    await empty.app.openPr.execute(empty.worker, TEXT);
+    expect(empty.app.checkRunner.calls[0]?.commands).toEqual(['pnpm test']);
+    expect(types(empty.app).filter((t) => t === 'checks_fixed')).toHaveLength(1);
+  });
+
+  it('treats a frozen row with source null like agents_md', async () => {
+    const { app, task, worker } = await setup();
+    await app.uow.run((tx) =>
+      tx.journal.append(
+        taskEvent(task.id, 'checks_fixed', app.clock.now(), 'owner', {
+          commands: ['pnpm test'],
+          cardId: 'm1',
+        }),
+      ),
+    );
+    app.branchPublisher.baseFiles.set('AGENTS.md', MAIN);
+    app.repoInfo.parsed = ['pnpm test:unit'];
+
+    await app.openPr.execute(worker, TEXT);
+
+    expect(app.checkRunner.calls[0]?.commands).toEqual(['pnpm test:unit']);
+  });
+});
+
 describe('OpenPr — a failure after a green gate does not repeat the gate', () => {
   it('host_error: the next call for the same commit skips the checks and finishes', async () => {
     const { app, task, worker } = await setup();
