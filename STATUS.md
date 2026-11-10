@@ -141,15 +141,13 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
    rehearsal container through `scripts/with-secrets.sh`: `/user` 200, `repos/burnjohn/quick-blog` 200,
    `pulls/38` 200, and `git push --dry-run` accepted. Still open for the **laptop** path: `pnpm dev` outside
    the container has no Infisical CLI, so it falls back to the empty `~/.jarvis/.env` and has no token.
-7. **Finish provisioning `jarvis-01`** (checked 2026-11-10; Ubuntu 26.04, 2 vCPU, 3.7 GB RAM — below the
-   runbook's 8 GB). Done: `claude` 2.1.319 logged in (`claude -p` answers), pnpm resolves 10.23.0 through
-   corepack, checkout at `origin/main`, Postgres up with a generated password in `~/.jarvis/.env`
-   (not yet in Infisical), migrations applied, `jarvis.config.json` pointing at `burnjohn/quick-blog`,
-   web built, and a manual engine start answered `/api/health` 200 (database ok, claude ok). Left, all
-   needing sudo or the owner: run `~/setup/root-setup.sh` (Infisical CLI, `claude` on systemd's PATH,
-   `/etc/jarvis/infisical.env`, units, `tailscale serve`), create the `jarvis-vps` machine identity and
-   copy `POSTGRES_PASSWORD` / `DATABASE_URL` into Infisical `prod`, then `systemctl enable --now`.
-   `gh` is not installed and, since ADR-0022, probably not needed.
+7. **`jarvis-01` is up** (2026-11-10; Ubuntu 26.04, 2 vCPU, 3.7 GB RAM — below the runbook's 8 GB):
+   `jarvis-engine` and `jarvis-web` enabled under systemd, secrets from Infisical `prod` through the
+   `jarvis-agent` machine identity (no `~/.jarvis/.env` on the server), `/api/health` ok (database ok,
+   claude ok), UI at the tailnet-only `tailscale serve` address, 4310/5180/5433 on loopback only. Left:
+   `scripts/deploy.sh` calls `sudo`, but `jarvis` has no password (owner to choose a narrow NOPASSWD
+   rule or deploying as root); rotate the identity's client secret (it passed through a chat); check the
+   Hetzner firewall no longer allows port 22; the identity also reads `dev`.
 8. **The first live task, on the server** — Phase 5 of the iteration-1 plan. The laptop sleeps mid-task;
    that, more than secrets, is why the first real run belongs on an always-on box.
 9. **Run retrospective (spec'd, not planned)**: after a `build` task with 5+ worker runs ends, a
