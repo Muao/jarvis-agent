@@ -2,7 +2,7 @@
 
 Where Jarvis stands, what is done, what is next. Updated as work lands — see the rules at the bottom.
 
-**Last updated:** 2026-11-09 · **Branch:** `main` ·
+**Last updated:** 2026-11-10 · **Branch:** `main` ·
 **uncommitted:** the ui_check hardening below (config gate, disarmed worker, precomputed diff, ADR-0019 rewrite)
 
 Registers this file deliberately does not duplicate:
@@ -116,9 +116,8 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
    existing volume (laptop, rehearsal) run
    `docker compose exec postgres psql -U jarvis -c "ALTER USER jarvis PASSWORD '<new>'"`. Until then
    `docker compose up` fails fast asking for the variable (ADR-0015).
-1. **Close the four Important findings** of the final review. `Important 3` — `ExecStartPost`'s `curl -f`
-   treating an honest 503 as failure — **must land before the first `systemctl enable`**; it is the only
-   item with a deadline.
+1. **Close the four Important findings** of the final review. `Important 3` is fixed on `main`
+   (2026-11-10): `ExecStartPost` now runs `scripts/wait-healthy.sh`, which accepts 200 and 503.
 2. **Merge `docs/deployment-and-secrets` into `main`** _(owner decision)_. `scripts/deploy.sh` does
    `git merge --ff-only origin/main`, so until this happens the server can only deploy two-week-old code.
 3. **Run the e2e suite** (`pnpm --filter @jarvis/web e2e`) — never executed, and the cheapest proof that the
@@ -142,10 +141,15 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
    rehearsal container through `scripts/with-secrets.sh`: `/user` 200, `repos/burnjohn/quick-blog` 200,
    `pulls/38` 200, and `git push --dry-run` accepted. Still open for the **laptop** path: `pnpm dev` outside
    the container has no Infisical CLI, so it falls back to the empty `~/.jarvis/.env` and has no token.
-7. **Finish provisioning `jarvis-01`**: it has the OS, user `jarvis`, Tailscale SSH, Node 22, Docker, git and
-   a checkout of `origin/main`. It lacks `claude` _(login is owner-only)_, `gh`, the Infisical CLI
-   _(login and project are owner-only)_, Postgres, `~/.jarvis`, the systemd units and `tailscale serve`; and
-   `pnpm` on PATH is 12.18.0 against the repo's pinned 10.23.0, so `corepack enable` is needed.
+7. **Finish provisioning `jarvis-01`** (checked 2026-11-10; Ubuntu 26.04, 2 vCPU, 3.7 GB RAM — below the
+   runbook's 8 GB). Done: `claude` 2.1.319 logged in (`claude -p` answers), pnpm resolves 10.23.0 through
+   corepack, checkout at `origin/main`, Postgres up with a generated password in `~/.jarvis/.env`
+   (not yet in Infisical), migrations applied, `jarvis.config.json` pointing at `burnjohn/quick-blog`,
+   web built, and a manual engine start answered `/api/health` 200 (database ok, claude ok). Left, all
+   needing sudo or the owner: run `~/setup/root-setup.sh` (Infisical CLI, `claude` on systemd's PATH,
+   `/etc/jarvis/infisical.env`, units, `tailscale serve`), create the `jarvis-vps` machine identity and
+   copy `POSTGRES_PASSWORD` / `DATABASE_URL` into Infisical `prod`, then `systemctl enable --now`.
+   `gh` is not installed and, since ADR-0022, probably not needed.
 8. **The first live task, on the server** — Phase 5 of the iteration-1 plan. The laptop sleeps mid-task;
    that, more than secrets, is why the first real run belongs on an always-on box.
 9. **Run retrospective (spec'd, not planned)**: after a `build` task with 5+ worker runs ends, a

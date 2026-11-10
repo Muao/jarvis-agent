@@ -36,6 +36,7 @@ the firewall.
    adduser --disabled-password jarvis && usermod -aG docker jarvis   # after installing Docker
    # Docker Engine, git, gh, Node 22 (nvm or NodeSource), corepack enable (pnpm)
    curl -fsSL https://claude.ai/install.sh | bash                    # as jarvis, Claude Code CLI
+   ln -sf /home/jarvis/.local/bin/claude /usr/local/bin/claude      # as root: systemd's PATH has no ~/.local/bin
    curl -fsSL https://tailscale.com/install.sh | sh && tailscale up --ssh
    ```
 3. Once `tailscale ssh jarvis@<host>` works, remove SSH from the Hetzner firewall.
@@ -100,7 +101,8 @@ The units are `deploy/systemd/jarvis-engine.service` and `jarvis-web.service`; t
 sudo cp deploy/systemd/jarvis-*.service /etc/systemd/system/ && sudo systemctl daemon-reload
 ```
 
-`After=docker.service` does not mean Postgres accepts connections; the `Restart=on-failure` cycle covers that gap.
+`After=docker.service` does not mean Postgres accepts connections. The unit's start gate
+(`scripts/wait-healthy.sh`) accepts 503 as "alive, database down", so the engine is not killed while Postgres comes up.
 
 Then `systemctl enable --now jarvis-engine jarvis-web` and `tailscale serve --bg 5180`. Open
 `https://<host>.<tailnet>.ts.net` from any device in your tailnet.

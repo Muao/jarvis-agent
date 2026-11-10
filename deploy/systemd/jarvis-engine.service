@@ -11,9 +11,8 @@ Environment=NODE_ENV=production
 Environment=PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 EnvironmentFile=/etc/jarvis/infisical.env
 ExecStart=/home/jarvis/jarvis/scripts/with-secrets.sh pnpm --filter @jarvis/engine start
-# Retries back off 1+2+4+8+16+32 s; --retry-max-time stops new retries after 60 s, so the worst case
-# (~63 s + one 5 s attempt) ends inside TimeoutStartSec.
-ExecStartPost=/usr/bin/curl -fsS --max-time 5 --retry 10 --retry-connrefused --retry-max-time 60 http://127.0.0.1:4310/api/health
+# 200 and 503 both count as started: 503 is an honest "alive, database down", not a crash.
+ExecStartPost=/home/jarvis/jarvis/scripts/wait-healthy.sh
 TimeoutStartSec=90
 Restart=on-failure
 RestartSec=5

@@ -9,7 +9,12 @@ Files for the Hetzner VPS (ADR-0016) with secrets from Infisical (ADR-0015). The
 | `systemd/jarvis-web.service`    | `vite preview` on `127.0.0.1:5180`, proxying `/api` to the engine                                      |
 | `../scripts/with-secrets.sh`    | Logs in with the machine identity and runs `infisical run`; plain `exec` without `INFISICAL_CLIENT_ID` |
 
-The engine unit's `ExecStartPost` calls `GET /api/health`, so the engine must be at a commit that has that route.
+The engine unit's `ExecStartPost` runs `scripts/wait-healthy.sh`, which polls `GET /api/health` for up to 60 s and
+accepts 200 or 503 (alive, database down).
+
+The Claude Code installer puts `claude` in `~/.local/bin`, which is not on systemd's PATH. Link it once, as root:
+`ln -sf /home/jarvis/.local/bin/claude /usr/local/bin/claude`. Do not set `engine.claudeBinary` to an absolute
+path instead: the engine checks the subscription login only when that value is exactly `claude`.
 
 ## Install
 
@@ -68,7 +73,9 @@ The sequence is in [`deployment.md` §5](../docs/architecture/deployment.md#5-up
 
 ## Notes
 
-- `After=docker.service` does not mean Postgres accepts connections; `Restart=on-failure` covers that gap.
+- `After=docker.service` does not mean Postgres accepts connections. `scripts/wait-healthy.sh` (the unit's
+  `ExecStartPost`) accepts both 200 and 503, so an engine that is up while Postgres is not stays up and says so;
+  only a process that never answers fails the start, and `Restart=on-failure` retries that.
 - `with-secrets.sh` passes no `--domain`, so it assumes Infisical Cloud US.
 
 ## Residual risk
