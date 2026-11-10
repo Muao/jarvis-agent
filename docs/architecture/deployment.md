@@ -45,7 +45,9 @@ the firewall.
 4. Chromium for the UI check (ADR-0014), as root, into a path `jarvis` can read:
    ```sh
    export PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-   npx --yes playwright@1.64.1 install --with-deps chromium && chmod -R a+rX /ms-playwright
+   # the version Playwright MCP depends on (ARG PLAYWRIGHT_VERSION in docker/runtime/Dockerfile); another
+   # version installs a Chromium revision the MCP does not look for
+   npx --yes playwright@1.65.0-alpha-2026-10-30 install --with-deps chromium && chmod -R a+rX /ms-playwright
    ```
    Then put `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright` in the engine unit's environment, and set
    `ui.noSandbox: true` in `jarvis.config.json` — the server has no user namespaces for Chromium's
