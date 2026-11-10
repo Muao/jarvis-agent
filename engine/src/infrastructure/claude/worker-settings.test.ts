@@ -14,7 +14,8 @@ const { permissions } = JSON.parse(readFileSync(file, 'utf8')) as {
 // ADR-0022: the worker cannot push or reach GitHub; the engine does. The deny rules are defence in
 // depth, not the boundary (the boundary is the missing token).
 describe('agent/settings/worker.json', () => {
-  it('allows exactly the local tools and read-only/commit git', () => {
+  // The web is open to the worker without a prompt: it holds no token, and what it fetches is data.
+  it('allows exactly the local tools, the web and read-only/commit git', () => {
     expect(permissions.allow).toEqual([
       'Read',
       'Edit',
@@ -22,6 +23,8 @@ describe('agent/settings/worker.json', () => {
       'Glob',
       'Grep',
       'Bash',
+      'WebFetch',
+      'WebSearch',
       'Bash(git status:*)',
       'Bash(git diff:*)',
       'Bash(git log:*)',

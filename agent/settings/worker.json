@@ -7,6 +7,8 @@
       "Glob",
       "Grep",
       "Bash",
+      "WebFetch",
+      "WebSearch",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
