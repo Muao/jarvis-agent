@@ -594,6 +594,128 @@ describe('OpenPr — the list follows main', () => {
   });
 });
 
+describe('OpenPr — red on main too', () => {
+  const BASE = 'b4s3b4s3e5f60718293a4b5c6d7e8f9012345678';
+  const redBoth = (app: TestApp, command: string): void => {
+    app.checkRunner.script(command, { exitCode: 1, tail: 'boom' });
+    app.checkRunner.scriptOnBase(command, { exitCode: 1, tail: 'boom' });
+  };
+  const ofType = (app: TestApp, type: string) =>
+    app.db.tables.journal.filter((e) => e.type === type);
+
+  it('opens the PR when every red command is also red on main, counting no retry', async () => {
+    const { app, task, worker } = await setup();
+    redBoth(app, 'pnpm test');
+
+    const result = await app.openPr.execute(worker, TEXT);
+
+    expect(result).toMatchObject({ ok: true, created: true });
+    expect(app.task(task.id).counters.checkRetries).toBe(0);
+    expect(ofType(app, 'check_preexisting')).toHaveLength(1);
+    expect(ofType(app, 'check_preexisting')[0]?.data).toMatchObject({
+      command: 'pnpm test',
+      baseSha: BASE,
+      headSha: SHA,
+    });
+    expect(ofType(app, 'checks_passed')[0]?.data['preexisting']).toEqual(['pnpm test']);
+    const body = app.codeHost.pullRequests[0]?.input.body ?? '';
+    expect(body).toContain('## Fails on main too');
+    expect(body).toContain('`pnpm test` — red on b4s3b4s as well; CI decides.');
+    expect(body).toContain('boom');
+  });
+
+  it('counts a retry when the command is green on main', async () => {
+    const { app, task, worker } = await setup();
+    app.checkRunner.script('pnpm test', { exitCode: 1 });
+
+    const result = await app.openPr.execute(worker, TEXT);
+
+    expect(result).toMatchObject({ ok: false, reason: 'checks_failed', preexisting: [] });
+    expect(app.task(task.id).counters.checkRetries).toBe(1);
+    expect(app.branchPublisher.onBaseCalls).toEqual([BASE]);
+  });
+
+  it('mixed: one red on both, one red only on head', async () => {
+    const { app, task, worker } = await setup();
+    redBoth(app, 'pnpm test');
+    app.checkRunner.script('pnpm typecheck', { exitCode: 2 });
+
+    const result = await app.openPr.execute(worker, TEXT);
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'checks_failed',
+      preexisting: ['pnpm test'],
+    });
+    expect(app.task(task.id).counters.checkRetries).toBe(1);
+    expectNothingPublished(app);
+  });
+
+  it('runs only the red commands on base, and only once per base sha', async () => {
+    const { app, worker } = await setup();
+    redBoth(app, 'pnpm test');
+
+    await app.openPr.execute(worker, TEXT);
+    expect(app.checkRunner.calls.at(-1)?.commands).toEqual(['pnpm test']);
+    expect(app.checkRunner.calls.at(-1)?.logPath).toContain('checks/1-a1b2c3d-base.log');
+
+    // A new head, same merge base: the cached base result answers.
+    app.branchPublisher.sha = 'c0ffee00e5f60718293a4b5c6d7e8f9012345678';
+    app.codeHost.createPullRequestResult = { ok: false, reason: 'down' };
+    const before = app.checkRunner.calls.length;
+    await app.openPr.execute(worker, TEXT);
+
+    expect(app.checkRunner.calls.length).toBe(before + 1);
+    expect(app.branchPublisher.onBaseCalls).toHaveLength(1);
+    expect(ofType(app, 'check_base_result')).toHaveLength(1);
+  });
+
+  it('a base run that throws counts as green on base', async () => {
+    const { app, task, worker } = await setup();
+    app.checkRunner.script('pnpm test', { exitCode: 1 });
+    app.branchPublisher.onBaseError = new Error('worktree is dirty');
+
+    const result = await app.openPr.execute(worker, TEXT);
+
+    expect(result).toMatchObject({ ok: false, reason: 'checks_failed', preexisting: [] });
+    expect(app.task(task.id).counters.checkRetries).toBe(1);
+    expect(ofType(app, 'check_base_result')).toHaveLength(0);
+    expect(await app.branchPublisher.headSha()).toBe(SHA);
+  });
+
+  it('a command that could not be started on base is green on base', async () => {
+    const { app, task, worker } = await setup();
+    app.checkRunner.script('pnpm test', { exitCode: 1 });
+    app.branchPublisher.onBaseHook = () => {
+      app.checkRunner.unavailable = { command: 'pnpm test', detail: 'exit 127' };
+    };
+
+    const result = await app.openPr.execute(worker, TEXT);
+
+    expect(result).toMatchObject({ ok: false, reason: 'checks_failed', preexisting: [] });
+    expect(app.task(task.id).counters.checkRetries).toBe(1);
+    expect(ofType(app, 'check_base_result')).toHaveLength(0);
+  });
+
+  it('on a task that already has a PR, a preexisting failure is told in the thread', async () => {
+    const { app, worker, thread } = await setup();
+    redBoth(app, 'pnpm test');
+    await app.openPr.execute(worker, TEXT);
+    app.branchPublisher.sha = 'c0ffee00e5f60718293a4b5c6d7e8f9012345678';
+
+    const result = await app.openPr.execute(worker, {});
+
+    expect(result).toMatchObject({ ok: true, created: false });
+    expect(app.codeHost.pullRequests).toHaveLength(1);
+    const texts = app
+      .messagesOf(thread.id)
+      .filter((m) => m.kind === 'system')
+      .map((m) => (m.body as { text: string }).text)
+      .filter((t) => t.startsWith('Fails on main too'));
+    expect(texts).toEqual(['Fails on main too: pnpm test']);
+  });
+});
+
 describe('OpenPr — a failure after a green gate does not repeat the gate', () => {
   it('host_error: the next call for the same commit skips the checks and finishes', async () => {
     const { app, task, worker } = await setup();

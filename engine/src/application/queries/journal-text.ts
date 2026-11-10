@@ -99,6 +99,16 @@ export function describeJournalEvent(event: TaskEvent): JournalText {
         ),
         group: 'ci',
       };
+    case 'check_preexisting':
+      return {
+        text: `\`${str(data, 'command')}\` fails on main too (${shortSha(str(data, 'baseSha'))}); not counted against the task`,
+        group: 'ci',
+      };
+    case 'check_base_result':
+      return {
+        text: `\`${str(data, 'command')}\` ${data['red'] === true ? 'is red' : 'is green'} on main (${shortSha(str(data, 'baseSha'))})`,
+        group: 'ci',
+      };
     case 'checks_declared':
       return {
         text: `Checks declared: ${commandList(data)}${data['source'] === 'worker' ? ' (found by the worker)' : ''}`,

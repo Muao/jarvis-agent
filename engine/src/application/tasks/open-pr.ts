@@ -9,6 +9,7 @@ import {
   type Task,
   type TaskEvent,
 } from '../../domain/index.js';
+import { redOnBase } from './base-comparison.js';
 import { ForbiddenError } from '../errors.js';
 import { newWatch } from '../code-host/new-watch.js';
 import type { BodyOf } from '../conversation/message-bodies.js';
@@ -69,6 +70,8 @@ export type OpenPrResult =
       readonly attempt: number;
       readonly max: number;
       readonly results: readonly CheckResultDto[];
+      /** Red on the merge base as well: not the task's to fix. */
+      readonly preexisting: readonly string[];
       /** Relative to the task's artifacts directory. */
       readonly logPath: string;
     }
@@ -126,16 +129,28 @@ function latestFixedSource(journal: readonly TaskEvent[]): unknown {
  * A green gate for exactly this commit that no later approval has invalidated: the push or the
  * host failed after it, so the next call must not run everything again.
  */
-function cachedGreen(journal: readonly TaskEvent[], headSha: string): CheckResult[] | null {
+function cachedGreen(journal: readonly TaskEvent[], headSha: string): GreenGate | null {
   const fixedAt = lastIndexOfType(journal, 'checks_fixed');
   for (let i = journal.length - 1; i > fixedAt; i -= 1) {
     const event = journal[i];
     if (event?.type === 'checks_passed' && event.data['headSha'] === headSha) {
       const results = event.data['results'];
-      return Array.isArray(results) ? (results as CheckResult[]) : [];
+      const baseSha = event.data['baseSha'];
+      return {
+        results: Array.isArray(results) ? (results as CheckResult[]) : [],
+        preexisting: strings(event.data['preexisting']),
+        baseSha: typeof baseSha === 'string' ? baseSha : null,
+      };
     }
   }
   return null;
+}
+
+/** A passed gate: what ran, and which of the red commands main fails as well. */
+interface GreenGate {
+  readonly results: readonly CheckResult[];
+  readonly preexisting: readonly string[];
+  readonly baseSha: string | null;
 }
 
 const isRed = (result: CheckResult): boolean => result.exitCode !== 0 || result.timedOut;
@@ -144,18 +159,39 @@ function duration(ms: number): string {
   return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
 }
 
+/** The commands red on the merge base too: named, with the tail of their output folded away. */
+function failsOnMain(input: {
+  readonly results: readonly CheckResult[];
+  readonly preexisting: readonly string[];
+  readonly baseSha: string | null;
+}): string {
+  const base = input.baseSha === null ? 'main' : sha7(input.baseSha);
+  const items = input.preexisting.map((command) => {
+    const tail = input.results.find((r) => r.command === command)?.tail ?? '';
+    const lastLines = tail.split('\n').slice(-20).join('\n');
+    return [
+      `- ✗ \`${command}\` — red on ${base} as well; CI decides.`,
+      `<details><summary>output</summary>\n\n\`\`\`\n${lastLines}\n\`\`\`\n\n</details>`,
+    ].join('\n\n');
+  });
+  return ['## Fails on main too', ...items].join('\n\n');
+}
+
 /** The engine's own claim, appended to the worker's PR text: what ran, how it ended, on which commit. */
 function pullRequestBody(input: {
   readonly body: string;
   readonly results: readonly CheckResult[];
   readonly headSha: string;
   readonly changedFiles: readonly string[];
+  readonly preexisting: readonly string[];
+  readonly baseSha: string | null;
 }): string {
   const lines = input.results.map(
     (r) =>
       `- ${isRed(r) ? '✗' : '✓'} \`${r.command}\` — ${duration(r.durationMs)} (${sha7(input.headSha)})`,
   );
   const sections = [input.body.trimEnd(), '## Checks (run by Jarvis)', lines.join('\n')];
+  if (input.preexisting.length > 0) sections.push(failsOnMain(input));
   const defining = pathsDefiningChecks(input.changedFiles);
   if (defining.length > 0) {
     sections.push(
@@ -281,7 +317,7 @@ export class OpenPr {
     // the cache is judged on the journal as it is now, after the latest `checks_fixed`.
     const current = await transact(deps, (tx) => tx.journal.list(task.id));
     const cached = cachedGreen(current, headSha);
-    let results: readonly CheckResult[];
+    let green: GreenGate;
     if (cached === null) {
       const gate = await this.gate({
         identity,
@@ -292,16 +328,16 @@ export class OpenPr {
         signal,
       });
       if ('refusal' in gate) return gate.refusal;
-      results = gate.results;
+      green = gate;
     } else {
-      results = cached;
+      green = cached;
     }
 
     // The tree must still be what was checked. The pushed sha is the one that ran either way.
     const after = await this.settled(task.id, headSha);
     if (after.refusal !== null) return after.refusal;
 
-    return this.publish({ identity, task, repo, headSha, results, status: after.status, input });
+    return this.publish({ identity, task, repo, headSha, green, status: after.status, input });
   }
 
   /** The frozen list, or the one `AGENTS.md` gives a task approved before ADR-0022 (journalled). */
@@ -381,7 +417,7 @@ export class OpenPr {
     readonly headSha: string;
     readonly worktreePath: string;
     readonly signal: AbortSignal;
-  }): Promise<{ readonly results: readonly CheckResult[] } | { readonly refusal: OpenPrResult }> {
+  }): Promise<GreenGate | { readonly refusal: OpenPrResult }> {
     const { deps } = this;
     const { task, commands, headSha, signal } = input;
     const { limits } = deps.config.current();
@@ -434,15 +470,22 @@ export class OpenPr {
       }));
     await progress;
 
-    if (signal.aborted) {
-      return {
-        refusal: {
-          ok: false,
-          reason: 'checks_unavailable',
-          detail: 'The run ended while the checks were running; call open_pr again.',
-        },
-      };
-    }
+    if (signal.aborted) return { refusal: runEnded() };
+
+    // Between 2 and 3: a red command that main fails as well is not the task's.
+    const reds = outcome.results.filter(isRed).map((r) => r.command);
+    const base =
+      outcome.unavailable === null && reds.length > 0
+        ? await redOnBase(deps, {
+            taskId: task.id,
+            reds,
+            worktreePath: input.worktreePath,
+            timeoutMs: limits.checkTimeoutMinutes * 60_000,
+            signal,
+            relativeLog: join('checks', `${attempt}-${sha7(headSha)}-base.log`),
+          })
+        : { baseSha: null, preexisting: [] };
+    if (signal.aborted) return { refusal: runEnded() };
 
     // Phase 3: write what happened.
     return transact(deps, async (tx, outbox) => {
@@ -467,13 +510,24 @@ export class OpenPr {
       }
 
       const results = outcome.results;
-      if (!results.some(isRed) && results.length === commands.length) {
+      const { baseSha, preexisting } = base;
+      for (const command of preexisting) {
+        await deps.writer.note(tx, fresh.id, 'check_preexisting', 'system', {
+          command,
+          baseSha,
+          headSha,
+        });
+      }
+      const complete = results.length === commands.length;
+      if (complete && results.filter(isRed).every((r) => preexisting.includes(r.command))) {
         const passed = recordCheckPass(fresh);
         await deps.writer.update(tx, outbox, passed, 'checks_passed', 'system', {
           headSha,
           results,
+          preexisting,
+          baseSha,
         });
-        return { results };
+        return { results, preexisting, baseSha };
       }
 
       // Red. A run that ended with fewer results than commands was cut short: that is not green.
@@ -487,7 +541,7 @@ export class OpenPr {
           recorded.task,
           'checks_failed',
           'system',
-          { headSha, results, attempt: attemptNo, max },
+          { headSha, results, attempt: attemptNo, max, preexisting },
         );
         if (counted.stage === 'Verifying') {
           await deps.writer.move(tx, outbox, counted, 'Implementing', { cause: 'checks_red' });
@@ -499,6 +553,7 @@ export class OpenPr {
             attempt: attemptNo,
             max,
             results,
+            preexisting,
             logPath: relativeLog,
           },
         };
@@ -577,7 +632,7 @@ export class OpenPr {
     readonly task: Task;
     readonly repo: RepoTarget;
     readonly headSha: string;
-    readonly results: readonly CheckResult[];
+    readonly green: GreenGate;
     readonly status: BranchStatus;
     readonly input: OpenPrInput;
   }): Promise<OpenPrResult> {
@@ -619,7 +674,9 @@ export class OpenPr {
           title: input.input.title ?? '',
           body: pullRequestBody({
             body: input.input.body ?? '',
-            results: input.results,
+            results: input.green.results,
+            preexisting: input.green.preexisting,
+            baseSha: input.green.baseSha,
             headSha,
             changedFiles: input.status.changedFiles,
           }),
@@ -663,6 +720,18 @@ export class OpenPr {
       const watch = await tx.watches.get(task.id);
       await tx.watches.save(watch?.prNumber === number ? watch : newWatch(task.id, number));
 
+      if (!firstPr && input.green.preexisting.length > 0) {
+        const note: BodyOf<'system'> = {
+          text: `Fails on main too: ${input.green.preexisting.join(', ')}`,
+        };
+        await deps.messages.post(tx, outbox, {
+          threadId: task.threadId,
+          taskId: task.id,
+          kind: 'system',
+          body: note,
+        });
+      }
+
       if (firstPr) {
         const body: BodyOf<'result'> = {
           taskId: task.id,
@@ -679,6 +748,14 @@ export class OpenPr {
       return { ok: true, number, url, headSha, created };
     });
   }
+}
+
+function runEnded(): OpenPrResult {
+  return {
+    ok: false,
+    reason: 'checks_unavailable',
+    detail: 'The run ended while the checks were running; call open_pr again.',
+  };
 }
 
 function stageChanged(task: Task | null, extra = ''): OpenPrResult {

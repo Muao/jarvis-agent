@@ -641,6 +641,10 @@ export class FakeBranchPublisher implements BranchPublisher {
   /** The shas `onBase` was asked to switch to. */
   readonly onBaseCalls: string[] = [];
   mergeBaseSha = 'b4s3b4s3e5f60718293a4b5c6d7e8f9012345678';
+  /** When set, `onBase` rejects with it instead of running: the base checkout failed. */
+  onBaseError: Error | null = null;
+  /** Runs when `onBase` has switched to the base, before the callback: a test's seam into that moment. */
+  onBaseHook: (() => void) | null = null;
 
   constructor(private readonly checkRunner?: FakeCheckRunner) {}
 
@@ -658,8 +662,10 @@ export class FakeBranchPublisher implements BranchPublisher {
 
   async onBase<T>(_taskId: string, sha: string, run: () => Promise<T>): Promise<T> {
     this.onBaseCalls.push(sha);
+    if (this.onBaseError !== null) throw this.onBaseError;
     if (this.checkRunner) this.checkRunner.onBase = true;
     try {
+      this.onBaseHook?.();
       return await run();
     } finally {
       if (this.checkRunner) this.checkRunner.onBase = false;
