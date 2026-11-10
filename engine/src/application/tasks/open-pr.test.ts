@@ -621,6 +621,7 @@ describe('OpenPr — red on main too', () => {
     const body = app.codeHost.pullRequests[0]?.input.body ?? '';
     expect(body).toContain('## Fails on main too');
     expect(body).toContain('`pnpm test` — red on b4s3b4s as well; CI decides.');
+    expect(body).toContain('Output on this branch');
     expect(body).toContain('boom');
   });
 
@@ -651,11 +652,39 @@ describe('OpenPr — red on main too', () => {
     expectNothingPublished(app);
   });
 
+  it('on exhaustion, the failing list leaves out what main fails too', async () => {
+    const { app, task, worker } = await setup();
+    redBoth(app, 'pnpm test');
+    app.checkRunner.script('pnpm typecheck', { exitCode: 2 });
+
+    let last: OpenPrResult | undefined;
+    for (let i = 0; i < 4; i += 1) {
+      await app.reportStage.execute(worker, { stage: 'Implementing' });
+      last = await app.openPr.execute(worker, TEXT);
+    }
+
+    expect(last).toMatchObject({
+      ok: false,
+      reason: 'checks_exhausted',
+      preexisting: ['pnpm test'],
+    });
+    const reason = String(
+      app.db.tables.journal.find((e) => e.type === 'stage_changed' && e.data['to'] === 'Failed')
+        ?.data['reason'],
+    );
+    expect(reason).toContain('pnpm typecheck');
+    expect(reason).not.toContain('pnpm test');
+    expect(app.task(task.id).stage).toBe('Failed');
+  });
+
   it('runs only the red commands on base, and only once per base sha', async () => {
     const { app, worker } = await setup();
     redBoth(app, 'pnpm test');
+    expect(app.checkRunner.calls).toHaveLength(0);
 
     await app.openPr.execute(worker, TEXT);
+    // `pnpm typecheck` is green on the branch: only the red one runs on base.
+    expect(app.checkRunner.calls).toHaveLength(2);
     expect(app.checkRunner.calls.at(-1)?.commands).toEqual(['pnpm test']);
     expect(app.checkRunner.calls.at(-1)?.logPath).toContain('checks/1-a1b2c3d-base.log');
 
@@ -680,7 +709,21 @@ describe('OpenPr — red on main too', () => {
     expect(result).toMatchObject({ ok: false, reason: 'checks_failed', preexisting: [] });
     expect(app.task(task.id).counters.checkRetries).toBe(1);
     expect(ofType(app, 'check_base_result')).toHaveLength(0);
-    expect(await app.branchPublisher.headSha()).toBe(SHA);
+    expect(ofType(app, 'base_comparison_failed')[0]?.data['detail']).toBe('worktree is dirty');
+  });
+
+  it('refuses, without a retry, when the worktree is not back on the task head after the base run', async () => {
+    const { app, task, worker } = await setup();
+    app.checkRunner.script('pnpm test', { exitCode: 1 });
+    app.branchPublisher.headAfterBase = BASE;
+
+    const result = await app.openPr.execute(worker, TEXT);
+
+    expect(result).toMatchObject({ ok: false, reason: 'checks_unavailable' });
+    expect((result as { detail: string }).detail).toContain('could not restore your worktree');
+    expect(ofType(app, 'base_comparison_failed')).toHaveLength(1);
+    expect(app.task(task.id).counters.checkRetries).toBe(0);
+    expectNothingPublished(app);
   });
 
   it('a command that could not be started on base is green on base', async () => {
@@ -916,6 +959,26 @@ describe('OpenPr — one gate per task, and the gate stops with its run', () => 
     expect(app.checkRunner.aborted).toBe(1);
     expectNothingPublished(app);
     expect(app.task(taskId).counters.checkRetries).toBe(0);
+  });
+
+  it('a base run aborted with the worker run keeps the "run ended" refusal: nothing cached, no retry', async () => {
+    const { app, taskId, process, worker } = await liveWorker();
+    app.checkRunner.script('pnpm test', { exitCode: 1 });
+    app.branchPublisher.onBaseHook = () => {
+      app.checkRunner.hold = new Promise<void>(() => undefined);
+    };
+
+    const running = app.openPr.execute(worker, TEXT);
+    for (let i = 0; i < 20 && app.branchPublisher.onBaseCalls.length === 0; i += 1) await tick();
+    expect(app.branchPublisher.onBaseCalls).toHaveLength(1);
+    await process?.succeed(0.1);
+    const result = await running;
+
+    expect(result).toMatchObject({ ok: false, reason: 'checks_unavailable' });
+    expect((result as { detail: string }).detail).toContain('run ended');
+    expect(app.db.tables.journal.filter((e) => e.type === 'check_base_result')).toEqual([]);
+    expect(app.task(taskId).counters.checkRetries).toBe(0);
+    expectNothingPublished(app);
   });
 
   it('is aborted when the task is cancelled (the cancel stops the run)', async () => {

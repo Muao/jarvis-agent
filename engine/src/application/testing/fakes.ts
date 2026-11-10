@@ -645,6 +645,8 @@ export class FakeBranchPublisher implements BranchPublisher {
   onBaseError: Error | null = null;
   /** Runs when `onBase` has switched to the base, before the callback: a test's seam into that moment. */
   onBaseHook: (() => void) | null = null;
+  /** When set, HEAD is this sha once `onBase` returns: a restore that went wrong. */
+  headAfterBase: string | null = null;
 
   constructor(private readonly checkRunner?: FakeCheckRunner) {}
 
@@ -668,6 +670,7 @@ export class FakeBranchPublisher implements BranchPublisher {
       this.onBaseHook?.();
       return await run();
     } finally {
+      if (this.headAfterBase !== null) this.sha = this.headAfterBase;
       if (this.checkRunner) this.checkRunner.onBase = false;
     }
   }

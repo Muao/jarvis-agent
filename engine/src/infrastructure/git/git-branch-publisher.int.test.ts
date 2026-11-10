@@ -312,6 +312,20 @@ describe('GitBranchPublisher base reads', () => {
     expect(sha(fx.worktree, 'HEAD')).toBe(taskHead);
   });
 
+  it('onBase restores the task branch even when run modified a tracked file', async () => {
+    const p = publisher(fileRemote);
+    const taskHead = fx.commit('a.txt', 'head content');
+    const base = await p.mergeBase('T-1');
+
+    await p.onBase('T-1', base, async () => {
+      writeFileSync(join(fx.worktree, 'a.txt'), 'changed by the base run');
+    });
+
+    expect(git(fx.worktree, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('jarvis/T-1');
+    expect(sha(fx.worktree, 'HEAD')).toBe(taskHead);
+    expect(readFileSync(join(fx.worktree, 'a.txt'), 'utf8')).toBe('head content');
+  });
+
   it('onBase refuses a dirty tree and a malformed sha', async () => {
     const p = publisher(fileRemote);
     const base = await p.mergeBase('T-1');

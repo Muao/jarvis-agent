@@ -80,6 +80,7 @@ export type OpenPrResult =
       readonly reason: 'checks_exhausted';
       readonly max: number;
       readonly results: readonly CheckResultDto[];
+      readonly preexisting: readonly string[];
       readonly logPath: string;
     };
 
@@ -103,6 +104,8 @@ export interface OpenPrDeps extends TaskDeps {
 
 /** The stages `open_pr` may be called from (ADR-0022). `Verifying` is what the engine itself sets. */
 const ALLOWED_STAGES: readonly TaskStage[] = ['Implementing', 'Verifying', 'Reviewing', 'Fixing'];
+
+const TREE_NOT_RESTORED = 'worktree not restored';
 
 const sha7 = (sha: string): string => sha.slice(0, 7);
 
@@ -171,7 +174,7 @@ function failsOnMain(input: {
     const lastLines = tail.split('\n').slice(-20).join('\n');
     return [
       `- ✗ \`${command}\` — red on ${base} as well; CI decides.`,
-      `<details><summary>output</summary>\n\n\`\`\`\n${lastLines}\n\`\`\`\n\n</details>`,
+      `<details><summary>Output on this branch</summary>\n\n\`\`\`\n${lastLines}\n\`\`\`\n\n</details>`,
     ].join('\n\n');
   });
   return ['## Fails on main too', ...items].join('\n\n');
@@ -484,8 +487,28 @@ export class OpenPr {
             signal,
             relativeLog: join('checks', `${attempt}-${sha7(headSha)}-base.log`),
           })
-        : { baseSha: null, preexisting: [] };
+        : null;
     if (signal.aborted) return { refusal: runEnded() };
+    if (base !== null) {
+      const broken = await this.baseRunLeftTheTree(task.id, headSha, base.error);
+      if (broken !== null) {
+        await transact(deps, (tx) =>
+          deps.writer.note(tx, task.id, 'base_comparison_failed', 'system', {
+            headSha,
+            detail: broken,
+          }),
+        );
+        if (broken.startsWith(TREE_NOT_RESTORED)) {
+          return {
+            refusal: {
+              ok: false,
+              reason: 'checks_unavailable',
+              detail: `The engine could not restore your worktree after running the failed checks on main (${broken}). This does not count against your retries; check \`git status\` and call open_pr again.`,
+            },
+          };
+        }
+      }
+    }
 
     // Phase 3: write what happened.
     return transact(deps, async (tx, outbox) => {
@@ -510,7 +533,8 @@ export class OpenPr {
       }
 
       const results = outcome.results;
-      const { baseSha, preexisting } = base;
+      const baseSha = base?.baseSha ?? null;
+      const preexisting = base?.preexisting ?? [];
       for (const command of preexisting) {
         await deps.writer.note(tx, fresh.id, 'check_preexisting', 'system', {
           command,
@@ -564,8 +588,12 @@ export class OpenPr {
         results,
         attempt: fresh.counters.checkRetries,
         max,
+        preexisting,
       });
-      const failing = results.filter(isRed).map((r) => r.command);
+      const failing = results
+        .filter(isRed)
+        .map((r) => r.command)
+        .filter((c) => !preexisting.includes(c));
       const reason = `Checks still failing after ${max} retries: ${failing.join(', ') || 'a command was cut short'}`;
       const failed = await deps.writer.move(tx, outbox, fresh, 'Failed', {
         cause: 'checks_exhausted',
@@ -585,10 +613,38 @@ export class OpenPr {
           reason: 'checks_exhausted' as const,
           max,
           results,
+          preexisting,
           logPath: relativeLog,
         },
       };
     });
+  }
+
+  /**
+   * After the base run the worktree must be on the task's commit, clean. Returns what to journal:
+   * the comparison's own error, or a `TREE_NOT_RESTORED` description (which also refuses the call).
+   */
+  private async baseRunLeftTheTree(
+    taskId: string,
+    headSha: string,
+    error: string | null,
+  ): Promise<string | null> {
+    const { branchPublisher } = this.deps;
+    try {
+      const [now, status] = await Promise.all([
+        branchPublisher.headSha(taskId),
+        branchPublisher.status(taskId),
+      ]);
+      if (now !== headSha) {
+        return `${TREE_NOT_RESTORED}: HEAD is ${sha7(now)}, expected ${sha7(headSha)}`;
+      }
+      if (status.dirtyFiles.length > 0) {
+        return `${TREE_NOT_RESTORED}: ${status.dirtyFiles.length} changed file(s)`;
+      }
+    } catch (checkError) {
+      return `${TREE_NOT_RESTORED}: ${checkError instanceof Error ? checkError.message : String(checkError)}`;
+    }
+    return error;
   }
 
   /** After a green gate: the commit and the tree must be exactly what was checked. */

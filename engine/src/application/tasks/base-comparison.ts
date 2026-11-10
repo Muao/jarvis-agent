@@ -43,7 +43,12 @@ export async function redOnBase(
     readonly signal: AbortSignal;
     readonly relativeLog: string;
   },
-): Promise<{ readonly baseSha: string | null; readonly preexisting: string[] }> {
+): Promise<{
+  readonly baseSha: string | null;
+  readonly preexisting: string[];
+  /** Set when the comparison itself failed (checkout, run, restore); the red then stays the task's. */
+  readonly error: string | null;
+}> {
   const { taskId, reds } = input;
   try {
     const baseSha = await deps.branchPublisher.mergeBase(taskId);
@@ -75,8 +80,12 @@ export async function redOnBase(
         });
       }
     }
-    return { baseSha, preexisting: reds.filter((c) => known.get(c) === true) };
-  } catch {
-    return { baseSha: null, preexisting: [] };
+    return { baseSha, preexisting: reds.filter((c) => known.get(c) === true), error: null };
+  } catch (error) {
+    return {
+      baseSha: null,
+      preexisting: [],
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }

@@ -216,7 +216,8 @@ export class GitBranchPublisher implements BranchPublisher {
     try {
       return await run();
     } finally {
-      await this.read(taskId, ['checkout', '--quiet', `jarvis/${taskId}`]);
+      // The tree was clean before the switch: whatever is changed now, the base run changed.
+      await this.read(taskId, ['checkout', '--force', '--quiet', `jarvis/${taskId}`]);
     }
   }
 
