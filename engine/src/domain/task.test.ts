@@ -287,7 +287,7 @@ describe('journal event', () => {
   });
 
   it('has an actor for every cause', () => {
-    expect(Object.keys(CAUSE_ACTOR)).toHaveLength(21);
+    expect(Object.keys(CAUSE_ACTOR)).toHaveLength(22);
   });
 
   it('carries the reason for Failed', () => {

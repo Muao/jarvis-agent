@@ -40,6 +40,7 @@ export class SendToSession {
         messageId: message.id,
         via: 'console',
       });
+      await this.deps.writer.reopenForOwnerInput(tx, outbox, task, message);
       outbox.deliverToWorker(task.id);
       return message.id;
     });

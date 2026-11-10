@@ -49,6 +49,26 @@ export class TaskWriter {
     return moved.task;
   }
 
+  /**
+   * DSP-04: the owner wrote to a worker whose task waits in `PR Open`. Only `Fixing` lets the worker
+   * push through `open_pr` (and run the UI check), so the task moves there first, like a review
+   * comment would move it. Owner-driven, so it does not use a CI-fix or review round and no limit
+   * stops it; `Blocked` and the terminal stages are not `PR Open` and stay as they are, as does
+   * every other stage and every `ui_check` task (which has no `PR Open`).
+   */
+  async reopenForOwnerInput(
+    tx: Repositories,
+    outbox: Outbox,
+    task: Task,
+    message: { readonly id: string },
+  ): Promise<Task> {
+    if (task.kind !== 'build' || task.stage !== 'PR Open') return task;
+    return this.move(tx, outbox, task, 'Fixing', {
+      cause: 'owner_request',
+      reason: `owner message ${message.id}`,
+    });
+  }
+
   /** ADR-0021: a task that touched the memory ends with one line saying what it did there. */
   private async sayMemory(tx: Repositories, outbox: Outbox, task: Task): Promise<void> {
     const events = await tx.journal.list(task.id);

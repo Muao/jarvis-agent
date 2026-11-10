@@ -93,7 +93,7 @@ describe('ResumeAfterRestart', () => {
   it('gives a thread with unprocessed owner messages and no task its dispatcher turn', async () => {
     const app = buildTestApp();
     const idle = await app.seed.thread();
-    const withTask = await app.seed.task({ stage: 'PR Open' });
+    const withTask = await app.seed.task({ stage: 'Spec Review' });
     await app.postOwnerMessage.execute({ threadId: idle.id, text: 'Add a /health endpoint' });
     await app.postOwnerMessage.execute({ threadId: withTask.thread.id, text: 'status?' });
     app.clearEffects();

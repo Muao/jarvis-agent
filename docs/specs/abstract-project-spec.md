@@ -184,6 +184,9 @@ for managing tasks and replying to the thread (ADR-0004).
 the current run if one is in progress, otherwise the reply starts the next run and arrives in its
 first message. The engine never leaves a reply waiting for a run nobody is going to ask for — a
 task parked in a stage with no watcher would hold it for good, and the owner would get silence.
+A reply to a `build` task in `PR Open` moves it to `Fixing` first, like a failed CI run or a reviewer's
+comment, so the worker can push to the PR; this owner-driven round does not count against the CI-fix or
+review round limits.
 
 **DSP-05. Status on request.** On a "status" request, the dispatcher replies with the list of
 active tasks: the stage, what it is waiting for, a link to the PR.

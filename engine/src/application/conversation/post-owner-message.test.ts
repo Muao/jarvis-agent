@@ -71,6 +71,37 @@ describe('PostOwnerMessage', () => {
     expect(app.db.tables.journal.map((e) => e.type)).toContain('owner_input');
   });
 
+  it('moves a build task in PR Open to Fixing without using a fix round', async () => {
+    const app = buildTestApp();
+    const { thread, task } = await app.seed.task({
+      stage: 'PR Open',
+      pr: { number: 7, url: 'https://example.test/o/r/pull/7' },
+    });
+
+    await app.postOwnerMessage.execute({ threadId: thread.id, text: 'push the visual fixes' });
+
+    const after = app.task(task.id);
+    expect(after.stage).toBe('Fixing');
+    expect(after.counters).toEqual(task.counters);
+    expect(app.db.tables.journal).toContainEqual(
+      expect.objectContaining({
+        type: 'stage_changed',
+        actor: 'owner',
+        data: expect.objectContaining({ from: 'PR Open', to: 'Fixing', cause: 'owner_request' }),
+      }),
+    );
+    expect(app.runs.calls).toEqual([{ type: 'deliver_to_worker', taskId: task.id }]);
+  });
+
+  it('leaves a ui_check task alone', async () => {
+    const app = buildTestApp();
+    const { thread, task } = await app.seed.task({ stage: 'Reviewing', kind: 'ui_check' });
+
+    await app.postOwnerMessage.execute({ threadId: thread.id, text: 'recheck' });
+
+    expect(app.task(task.id).stage).toBe('Reviewing');
+  });
+
   it('goes back to the dispatcher once the thread task is finished', async () => {
     const app = buildTestApp();
     const { thread, task } = await app.seed.task({ stage: 'Implementing' });

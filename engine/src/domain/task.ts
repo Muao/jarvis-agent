@@ -109,6 +109,7 @@ export type TransitionCause =
   | 'pr_opened'
   | 'ci_failed'
   | 'review_comment'
+  | 'owner_request'
   | 'ci_green_approved'
   | 'owner_done'
   | 'ask_owner'
@@ -133,6 +134,7 @@ export const CAUSE_ACTOR: Readonly<Record<TransitionCause, EventActor>> = {
   pr_opened: 'system',
   ci_failed: 'system',
   review_comment: 'system',
+  owner_request: 'owner',
   ci_green_approved: 'system',
   owner_done: 'owner',
   ask_owner: 'agent',

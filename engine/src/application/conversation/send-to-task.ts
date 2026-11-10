@@ -25,6 +25,7 @@ export class SendToTask {
         text: input.message,
       });
       await this.deps.writer.note(tx, task.id, 'owner_input', 'agent', { messageId: message.id });
+      await this.deps.writer.reopenForOwnerInput(tx, outbox, task, message);
       outbox.deliverToWorker(task.id);
     });
   }
