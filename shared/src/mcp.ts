@@ -87,7 +87,7 @@ export const toolInputSchemas = {
   /**
    * ADR-0013: a partial update to `jarvis.config.json`, merged and validated against
    * `JarvisConfigSchema` before writing. Patches to `repo.*`, `repos.allow`,
-   * `repos.allowOwnerRepos`, `engine.*` are always rejected.
+   * `repos.allowOwnerRepos`, `repos.allowSelf`, `engine.*` are always rejected.
    */
   update_config: z.strictObject({ patch: z.record(z.string(), z.unknown()) }),
 

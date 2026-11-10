@@ -105,7 +105,7 @@ describe('GitWorktreeManager', () => {
         worktreesDir,
         targetRepos: {
           resolver: new AllowedRepoResolver(
-            { allow: ['owner/target'], allowOwnerRepos: false },
+            { allow: ['owner/target'], allowOwnerRepos: false, allowSelf: false },
             { botLogin: () => Promise.resolve('irrelevant') },
             null,
           ),

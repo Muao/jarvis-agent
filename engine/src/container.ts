@@ -44,7 +44,11 @@ import {
 } from './infrastructure/db/index.js';
 import { runGit } from './infrastructure/git/run-git.js';
 import { GitWorktreeManager } from './infrastructure/git/git-worktree-manager.js';
-import { AllowedRepoResolver, selfRepoRef } from './infrastructure/git/allowed-repo-resolver.js';
+import {
+  AllowedRepoResolver,
+  remoteRepoRef,
+  sameRepo,
+} from './infrastructure/git/allowed-repo-resolver.js';
 import type { RepoResolver } from './application/index.js';
 import { CodeHostError, GitHubCodeHost, defaultGitHubRepo } from './infrastructure/github/index.js';
 import { CryptoIdGenerator } from './infrastructure/ids/crypto-id-generator.js';
@@ -59,6 +63,8 @@ import type { TimerDeps } from './presentation/timers/index.js';
 
 /** `<repo checkout>/agent`: the Claude Code plugin the runs load (ADR-0009). */
 const AGENT_DIR = fileURLToPath(new URL('../../agent', import.meta.url));
+/** The checkout the engine runs from: its `origin` is Jarvis's own repository (ADR-0012). */
+const JARVIS_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const TSX_LOADER = import.meta.resolve('tsx');
 const MCP_ENTRY = fileURLToPath(new URL('./presentation/mcp/main.ts', import.meta.url));
 
@@ -213,7 +219,21 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
   let apiUrl = `http://${LOOPBACK_HOST}:${port}`;
 
   // ADR-0012: a task may target a repo besides the configured default, clone-on-demand.
-  const selfRepo = await selfRepoRef(config.repo.path, config.repo.remote);
+  const selfRepo = await remoteRepoRef(JARVIS_ROOT, 'origin');
+  const defaultRepo = await remoteRepoRef(config.repo.path, config.repo.remote);
+  if (selfRepo === null) {
+    logger.warn(
+      "Jarvis's own checkout has no readable origin; its repository cannot be told apart",
+      {
+        root: JARVIS_ROOT,
+      },
+    );
+  } else if (defaultRepo !== null && sameRepo(defaultRepo, selfRepo) && !config.repos.allowSelf) {
+    // A task without a targetRepo goes to the default repo without passing the resolver.
+    throw new Error(
+      `repo.path points at Jarvis's own repository (${selfRepo.owner}/${selfRepo.repo}); set repos.allowSelf to allow it`,
+    );
+  }
   const allowedRepoResolver = new AllowedRepoResolver(
     config.repos,
     github ?? unconfiguredCodeHost,
@@ -224,7 +244,8 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
       const ref = await allowedRepoResolver.resolve(ownerSlashName);
       return { owner: ref.owner, name: ref.repo };
     },
-    defaultRepo: () => (selfRepo === null ? null : { owner: selfRepo.owner, name: selfRepo.repo }),
+    defaultRepo: () =>
+      defaultRepo === null ? null : { owner: defaultRepo.owner, name: defaultRepo.repo },
   };
 
   const runner = new ClaudeCliRunner({

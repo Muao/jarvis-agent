@@ -34,7 +34,7 @@ describe('JarvisConfigSchema', () => {
     expect(config.watch.pollSeconds).toBe(60);
     expect(config.models).toEqual({ dispatcher: 'sonnet', worker: 'sonnet', reviewer: 'sonnet' });
     expect(config.allowlist).toEqual({ githubReviewers: [], autoAllowedCommands: [] });
-    expect(config.repos).toEqual({ allow: [], allowOwnerRepos: false });
+    expect(config.repos).toEqual({ allow: [], allowOwnerRepos: false, allowSelf: false });
     expect(config.engine).toEqual({ port: 4310, claudeBinary: 'claude' });
     expect(config.memory).toEqual({ softCapChars: 4000, backupsKept: 20 });
     expect(config.telemetry).toEqual({
@@ -91,7 +91,13 @@ describe('JarvisConfigSchema', () => {
     expect(config.repos).toEqual({
       allow: ['owner/name', 'other-owner/other-repo'],
       allowOwnerRepos: true,
+      allowSelf: false,
     });
+  });
+
+  it('accepts repos.allowSelf, off by default (ADR-0012)', () => {
+    const config = JarvisConfigSchema.parse({ ...minimal, repos: { allowSelf: true } });
+    expect(config.repos.allowSelf).toBe(true);
   });
 
   it('rejects a repos.allow entry that is not "owner/name"', () => {

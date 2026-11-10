@@ -43,6 +43,8 @@ export const JarvisConfigSchema = z.strictObject({
         .array(z.string().regex(/^[^/\s]+\/[^/\s]+$/, 'must look like "owner/name"'))
         .default([]),
       allowOwnerRepos: z.boolean().default(false),
+      /** ADR-0012: Jarvis's own repository may be a task target; the owner's PR review is the gate. */
+      allowSelf: z.boolean().default(false),
     })
     .prefault({}),
   limits: z

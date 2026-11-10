@@ -60,7 +60,8 @@ the architecture description is in `docs/architecture/README.md`, and the design
   and Postgres (Docker) listen on loopback only; there is no public address.
 - **CON-04. Repositories by allowlist.** The agent works with GitHub repositories from
   `repos.allow` or the owner's own repositories (`repos.allowOwnerRepos`), cloned on demand
-  (ADR-0012); a task may carry its own `targetRepo`. An `AGENTS.md` with the check
+  (ADR-0012); a task may carry its own `targetRepo`. Jarvis's own repository is a target only
+  with `repos.allowSelf`, and then only through a pull request the owner merges. An `AGENTS.md` with the check
   commands (tests, lint, typecheck) and the dev-server command is the preferred contract. Without
   it the worker finds the check commands in the repository itself (package scripts, CI workflows,
   README), records them in `context.md` and shows them with the spec; it asks the owner only when

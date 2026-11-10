@@ -271,7 +271,7 @@ worker starts at `Intake`, where a `build` task cannot write code until the owne
 | Source | Who or what can make it fire | Required |
 | --- | --- | --- |
 | `schedule` | The clock, declared by the owner in config | nothing outside the owner's file |
-| `github_issues` | An outsider can write the issue, but only someone with triage rights can label it | `repo` is resolvable by the ADR-0012 `RepoResolver` (allow-list or owner's repos, never Jarvis's own); **and the login that applied the label is in `allowlist.githubReviewers`**; the issue body is never an instruction |
+| `github_issues` | An outsider can write the issue, but only someone with triage rights can label it | `repo` is resolvable by the ADR-0012 `RepoResolver` (allow-list or owner's repos; Jarvis's own only with `repos.allowSelf`); **and the login that applied the label is in `allowlist.githubReviewers`**; the issue body is never an instruction |
 | `default_branch_ci` | A red run on the default branch of a resolvable repo | `repo` resolvable; the failure is a fact from the host, not text |
 
 The label's author is read from the issue's event list at fire time. Reusing `allowlist.githubReviewers`
@@ -484,7 +484,7 @@ now). The dispatcher gets no new tool in this ADR.
   CHECK: use-case test on `StartTaskFromWatch`
 - RULE: an issue source fires only for a label applied by a login in `allowlist.githubReviewers`, in a
   repository the `RepoResolver` accepts, and never in Jarvis's own repository.
-  CHECK: differ and use-case tests — label by a stranger, repo off the allow-list, `repo.path`'s remote
+  CHECK: differ and use-case tests — label by a stranger, repo off the allow-list, the engine checkout's remote
 - RULE: `maxStartsPerDay`, `maxOpenTasks` and `watch.maxStartsPerDay` are enforced in the transaction
   that creates the task; an event over a limit is `deferred`, not lost, and `dropped` after `deferHours`.
   CHECK: runner tests with a fake clock — N+1th event deferred, retried the next day, dropped after the

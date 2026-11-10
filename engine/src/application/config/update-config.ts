@@ -22,6 +22,7 @@ export const FORBIDDEN_PATHS = [
   'repo.baseBranch',
   'repos.allow',
   'repos.allowOwnerRepos',
+  'repos.allowSelf',
   'engine.port',
   'engine.claudeBinary',
   // ADR-0014: the engine executes `ui.devCommand` itself, so chat must not be able to set it.

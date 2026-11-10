@@ -94,6 +94,13 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
 - **Capabilities page (ADR-0025, 2026-11-10)**: lists skills, subagents and MCP servers from every
   source (no secret values); the owner writes his own skills and subagents in `~/.jarvis/plugin`, a second
   plugin every run loads, only through the HTTP API, with backups. Spec `docs/specs/agent-capabilities.md`.
+- **Jarvis may target its own repository, behind a flag** (ADR-0012 revised in place, 2026-11-10):
+  `repos.allowSelf` (off by default, not writable from chat). The self check used to read
+  `repo.path` — the default _target_ — so it blocked the sandbox and left `burnjohn/jarvis-agent`
+  open; it now reads the `origin` of the checkout the engine runs from. The engine refuses to start
+  when `repo.path` is Jarvis's own repository and the flag is off. Before switching it on: branch
+  protection on `main` and CODEOWNERS on the guardrail paths (owner, on GitHub). **Not yet tried on
+  a live task.**
 - **Limits and models** (2026-11-08): Opus for dispatcher, worker and reviewer; `maxTurnsPerRun 120`,
   `maxBudgetUsdPerRun 10`, `dailyBudgetUsd 50`, `taskTimeoutMinutes 120`, one worker slot, `checkRetries 3`,
   `ciFixRounds 2`, `reviewRounds 3`. On a Max subscription the budget is an estimate, not a bill — a brake

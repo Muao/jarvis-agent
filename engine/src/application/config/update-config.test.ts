@@ -35,6 +35,7 @@ describe('UpdateConfig', () => {
     { repo: { baseBranch: 'develop' } },
     { repos: { allow: ['owner/name'] } },
     { repos: { allowOwnerRepos: true } },
+    { repos: { allowSelf: true } },
     { engine: { port: 9999 } },
     { engine: { claudeBinary: '/usr/bin/claude' } },
   ])('rejects a patch touching %j, and writes nothing', async (patch) => {

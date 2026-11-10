@@ -6,7 +6,8 @@
   },
   "repos": {
     "allow": [],
-    "allowOwnerRepos": false
+    "allowOwnerRepos": false,
+    "allowSelf": false
   },
   "limits": {
     "maxConcurrentWorkers": 1,

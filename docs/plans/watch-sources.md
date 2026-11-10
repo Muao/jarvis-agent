@@ -352,8 +352,8 @@ ADR-0023 (or the `TaskKind` stopgap in the table above).
       allowed and `ui_check` is not; after 0023 this reads the registry's flag. `reconcile.ts` and
       config validation call it.
 - [ ] 2C3. `start-task.ts` — `StartTaskFromWatch.execute(tx, outbox, { watch, event, action })`: resolve
-      `action.repo` through the ADR-0012 `RepoResolver` (rejects Jarvis's own repository and anything off
-      the allow-list; a rejection settles the event `dropped` with a notice, not an exception that stalls
+      `action.repo` through the ADR-0012 `RepoResolver` (rejects anything off the allow-list, and Jarvis's own
+      repository unless `repos.allowSelf`; a rejection settles the event `dropped` with a notice, not an exception that stalls
       the tick); open a **new thread** titled with the action's `title`; post a `system` message
       ("Started by schedule `<id>` for slot <slot>") — never an `owner` message; call `createTaskWithin`
       with the action's `description` and `external`; settle the ledger row `applied` with the new

@@ -13,6 +13,8 @@ export class RepoNotAllowedError extends Error {
 export interface RepoAllowlistConfig {
   readonly allow: readonly string[];
   readonly allowOwnerRepos: boolean;
+  /** Jarvis's own repository may be a task target (ADR-0012); off by default. */
+  readonly allowSelf: boolean;
 }
 
 /** The subset of the GitHub adapter the resolver needs (ADR-0007's `CodeHost.botLogin`). */
@@ -31,15 +33,17 @@ function parseOwnerSlashName(value: string): RepoRef {
   return { owner: owner!, repo: repo! };
 }
 
-function sameRepo(a: RepoRef, b: RepoRef): boolean {
+/** Whether two repos are the same, ignoring letter case as GitHub does. */
+export function sameRepo(a: RepoRef, b: RepoRef): boolean {
   return (
     a.owner.toLowerCase() === b.owner.toLowerCase() && a.repo.toLowerCase() === b.repo.toLowerCase()
   );
 }
 
 /**
- * Resolves `owner/name` against `repos.allow` / `repos.allowOwnerRepos` (ADR-0012). Never resolves
- * Jarvis's own repository, whichever way it is asked for.
+ * Resolves `owner/name` against `repos.allow` / `repos.allowOwnerRepos` (ADR-0012). Jarvis's own
+ * repository resolves only when `repos.allowSelf` is on, and is rejected otherwise whichever way it
+ * is asked for.
  */
 export class AllowedRepoResolver {
   constructor(
@@ -52,8 +56,9 @@ export class AllowedRepoResolver {
     const ref = parseOwnerSlashName(ownerSlashName);
 
     if (this.selfRepo !== null && sameRepo(ref, this.selfRepo)) {
+      if (this.config.allowSelf) return ref;
       throw new RepoNotAllowedError(
-        `"${ownerSlashName}" is Jarvis's own repository and cannot be a task target`,
+        `"${ownerSlashName}" is Jarvis's own repository; it can be a task target only with repos.allowSelf`,
       );
     }
 
@@ -72,8 +77,12 @@ export class AllowedRepoResolver {
   }
 }
 
-/** The owner/name of Jarvis's own working repository, for the resolver's self-repo check. Null when unknown. */
-export async function selfRepoRef(repoPath: string, remote: string): Promise<RepoRef | null> {
+/**
+ * The owner/name behind `remote` of the checkout at `repoPath`. Null when it has no readable remote.
+ * Pointed at the engine's own checkout it names Jarvis's own repository; pointed at `repo.path`, the
+ * default target — two different things (ADR-0012).
+ */
+export async function remoteRepoRef(repoPath: string, remote: string): Promise<RepoRef | null> {
   try {
     const url = (await runGit(['remote', 'get-url', remote], { cwd: repoPath })).trim();
     return parseRemote(url);
