@@ -100,4 +100,12 @@ describe('FileCapabilityCatalog', () => {
       description: '',
     });
   });
+
+  it('does not list an agents/README.md as a subagent', async () => {
+    write(join(root, 'repos', 'acme', 'blog', '.claude', 'agents', 'README.md'), '# Agents');
+
+    const { agents } = await catalog(['acme/blog']).list();
+
+    expect(agents.map((a) => a.name)).not.toContain('README');
+  });
 });

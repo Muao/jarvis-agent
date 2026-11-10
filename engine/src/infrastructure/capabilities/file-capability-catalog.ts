@@ -65,7 +65,8 @@ function item(
 
 async function agentsOf(origin: Origin): Promise<CapabilityItem[]> {
   const files = (await entries(join(origin.dir, 'agents')))
-    .filter((e) => e.isFile() && e.name.endsWith('.md'))
+    // A README documents the folder; Claude Code does not load it as a subagent.
+    .filter((e) => e.isFile() && e.name.endsWith('.md') && e.name.toLowerCase() !== 'readme.md')
     .map((e) => e.name)
     .sort();
   const items: CapabilityItem[] = [];
