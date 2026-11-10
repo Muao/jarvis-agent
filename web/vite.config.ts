@@ -21,6 +21,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    // The header badge says "LOCAL UI · SERVER ENGINE" when the dev proxy points at a remote Jarvis.
+    define: { __JARVIS_REMOTE_API__: JSON.stringify(remote ? new URL(target).host : '') },
     server: {
       host: '127.0.0.1',
       port: 5180,

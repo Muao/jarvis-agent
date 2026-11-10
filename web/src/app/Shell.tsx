@@ -4,6 +4,7 @@ import { UsageMeter } from '../components/UsageMeter';
 import { Banners } from './Banners';
 import { ConnectionIndicator } from './ConnectionIndicator';
 import { WaitingCounter } from './WaitingCounter';
+import { currentDeploymentLabel } from './deployment-label';
 import styles from './Shell.module.css';
 
 const MAIN_NAV = [
@@ -33,11 +34,14 @@ function NavItems({ items }: { items: readonly { to: string; label: string }[] }
 export function Shell() {
   const overview = useOverview();
   const threads = useThreads();
+  const deployment = currentDeploymentLabel();
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
         <span className={styles.product}>Jarvis</span>
-        <span className={styles.local}>LOCAL · NO AUTH</span>
+        <span className={styles.local} title={deployment.title}>
+          {deployment.text}
+        </span>
         <div className={styles.status}>
           {overview.data ? <UsageMeter usage={overview.data.usage} /> : null}
           <WaitingCounter threads={threads.data ?? []} />
