@@ -23,6 +23,8 @@ export interface RunCoordinator {
   deliverToWorker(taskId: string): Promise<void>;
   /** Stop the task's running process and drop its queued work (cancel, failure). */
   stopTaskRuns(taskId: string): Promise<void>;
+  /** Start whatever queued work fits now; a held task stays queued and is skipped. */
+  resumeQueued(): Promise<void>;
   /** The task waits for a worker slot (feeds `waitingFor`). */
   isQueued(taskId: string): Promise<boolean>;
   /** The waiting worker work in the order it will start. */

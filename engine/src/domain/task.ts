@@ -1,4 +1,4 @@
-import type { JarvisConfig, TaskKind, TaskStage } from '@jarvis/shared';
+import type { JarvisConfig, TaskKind, TaskModel, TaskStage } from '@jarvis/shared';
 import { DomainError } from './errors.js';
 import { taskEvent, type EventActor, type TaskEvent } from './task-event.js';
 import type { IsoTime } from './time.js';
@@ -39,6 +39,10 @@ export interface Task {
   readonly reason: string | null;
   /** The repo this task's worktree is created in, besides the configured default; null means the default. */
   readonly targetRepo: TargetRepo | null;
+  /** The owner asked to wait: no worker run starts until the task is resumed. The stage is kept. */
+  readonly held: boolean;
+  /** The model the worker runs on, as the owner chose it; null means the configured `models.worker`. */
+  readonly model: TaskModel | null;
 }
 
 export const TERMINAL: readonly TaskStage[] = ['Done', 'Failed', 'Cancelled'];
@@ -172,6 +176,8 @@ export interface NewTask {
   readonly kind?: TaskKind;
   /** ADR-0018: a `ui_check` task knows its pull request from the start; a `build` task earns one. */
   readonly pr?: PullRequestRef | null;
+  /** The model the owner named when asking for the task; else the configured default. */
+  readonly model?: TaskModel | null;
 }
 
 const ZERO_COUNTERS: TaskCounters = { checkRetries: 0, ciFixRounds: 0, reviewRounds: 0 };
@@ -192,6 +198,8 @@ export function createTask(input: NewTask): Task {
     updatedAt: input.at,
     reason: null,
     targetRepo: input.targetRepo ?? null,
+    held: false,
+    model: input.model ?? null,
   };
 }
 
@@ -249,6 +257,31 @@ export function assignWorkerSession(task: Task, sessionId: string, at: IsoTime):
 /** ADR-0012: names the repo this task's worktree is created in, besides the configured default. */
 export function setTargetRepo(task: Task, targetRepo: TargetRepo, at: IsoTime): Task {
   return { ...task, targetRepo, updatedAt: at };
+}
+
+/** A finished task has no run left to hold or resume. */
+function requireOpen(task: Task, what: string): void {
+  if (TERMINAL.includes(task.stage)) {
+    throw new DomainError(
+      'illegal_transition',
+      `Task ${task.id} is ${task.stage}; it cannot be ${what}`,
+    );
+  }
+}
+
+export function holdTask(task: Task, at: IsoTime): Task {
+  requireOpen(task, 'put on hold');
+  return { ...task, held: true, updatedAt: at };
+}
+
+export function resumeTask(task: Task, at: IsoTime): Task {
+  requireOpen(task, 'resumed');
+  return { ...task, held: false, updatedAt: at };
+}
+
+export function setTaskModel(task: Task, model: TaskModel, at: IsoTime): Task {
+  requireOpen(task, 'switched to another model');
+  return { ...task, model, updatedAt: at };
 }
 
 type Limits = JarvisConfig['limits'];

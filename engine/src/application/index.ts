@@ -71,6 +71,8 @@ export { ReportStage } from './tasks/report-stage.js';
 export type { ReportStageInput } from './tasks/report-stage.js';
 export { RetryStage } from './tasks/retry-stage.js';
 export { SetTaskTargetRepo } from './tasks/set-task-target-repo.js';
+export { HoldTask, ResumeTask, SetTaskModel } from './tasks/hold-task.js';
+export { SendNow } from './conversation/send-now.js';
 export type { SetTaskTargetRepoInput } from './tasks/set-task-target-repo.js';
 export { SubmitSpec } from './tasks/submit-spec.js';
 

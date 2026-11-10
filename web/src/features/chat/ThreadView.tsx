@@ -8,6 +8,7 @@ import { StageBadge } from '../../components/StageBadge';
 import { ActiveRunRow } from './ActiveRunRow';
 import { Composer } from './Composer';
 import { MessageItem, OwnerBubble } from './messages/MessageItem';
+import { TaskControls } from './TaskControls';
 import { ThreadMenu } from './ThreadMenu';
 import styles from './ThreadView.module.css';
 
@@ -95,6 +96,7 @@ function LoadedThread({ thread }: { thread: ThreadDetailDto }) {
           </a>
         ) : null}
         {thread.stage ? <StageBadge stage={thread.stage} working={thread.working} /> : null}
+        <TaskControls thread={thread} />
         <ThreadMenu thread={thread} onStatus={showStatus} />
       </header>
       <div className={styles.feed} ref={feed} role="log" aria-label="Messages">
@@ -127,6 +129,7 @@ function failedMessage(threadId: string, entry: FailedSend) {
   return {
     id: `local-${entry.id}`,
     threadId,
+    taskId: null,
     createdAt: new Date().toISOString(),
     answer: null,
     answeredAt: null,

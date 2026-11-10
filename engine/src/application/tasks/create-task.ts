@@ -1,4 +1,4 @@
-import type { TaskKind } from '@jarvis/shared';
+import type { TaskKind, TaskModel } from '@jarvis/shared';
 import { createTask } from '../../domain/index.js';
 import { transact } from '../transaction.js';
 import { ForbiddenError, InvalidInputError, NotFoundError } from '../errors.js';
@@ -23,6 +23,8 @@ export interface CreateTaskInput {
   readonly kind?: TaskKind;
   /** ADR-0018: the pull request a `ui_check` task is about; required for it, refused otherwise. */
   readonly pr?: string;
+  /** The model the owner asked the task to run on; the configured `models.worker` otherwise. */
+  readonly model?: TaskModel;
 }
 
 export interface CreatedTask {
@@ -79,6 +81,7 @@ export class CreateTask {
         targetRepo,
         kind,
         pr,
+        model: input.model ?? null,
       });
       await this.deps.writer.update(tx, outbox, task, 'task_created', 'agent', {
         title: input.title,
@@ -86,6 +89,7 @@ export class CreateTask {
         branch: worktree.branch,
         kind,
         ...(pr === null ? {} : { pr: pr.number, prUrl: pr.url }),
+        ...(input.model === undefined ? {} : { model: input.model }),
       });
       outbox.requestWorkerRun(id, 'start');
       return { taskId: id, branch: worktree.branch };

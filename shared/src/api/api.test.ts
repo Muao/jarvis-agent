@@ -55,7 +55,14 @@ describe('request bodies', () => {
 
 describe('DTOs', () => {
   it('parses a status card message and an answered decision card', () => {
-    const head = { id: 'm1', threadId: 'th1', createdAt: at, answer: null, answeredAt: null };
+    const head = {
+      id: 'm1',
+      threadId: 'th1',
+      taskId: null,
+      createdAt: at,
+      answer: null,
+      answeredAt: null,
+    };
     const status = {
       ...head,
       kind: 'status',
@@ -109,6 +116,8 @@ describe('DTOs', () => {
       title: 'Add page',
       stage: 'PR Open',
       working: false,
+      held: false,
+      model: null,
       waitingFor: 'ci',
       branch: 'jarvis/T-12',
       prNumber: 34,
@@ -139,6 +148,7 @@ describe('owner message source', () => {
   const base = {
     id: 'm1',
     threadId: 't1',
+    taskId: null,
     createdAt: '2026-01-01T10:00:00.000Z',
     answer: null,
     answeredAt: null,

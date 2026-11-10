@@ -23,6 +23,8 @@ export function toTaskDto(
     title: task.title,
     stage: task.stage,
     working: facts.working.has(task.id),
+    held: task.held,
+    model: task.model,
     waitingFor: facts.waitingFor,
     branch: task.branch,
     prNumber: task.pr?.number ?? null,

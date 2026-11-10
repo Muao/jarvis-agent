@@ -88,3 +88,25 @@
   cursor: not-allowed;
   opacity: 0.6;
 }
+
+/* The task waits for the owner's resume: same look as other "waiting for you" marks. */
+.held {
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-warning);
+  white-space: nowrap;
+  background: var(--color-warning-bg);
+  border: 1px solid currentcolor;
+  border-radius: var(--radius-pill);
+}
+
+.model {
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}

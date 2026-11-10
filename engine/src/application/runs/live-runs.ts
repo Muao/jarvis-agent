@@ -54,6 +54,13 @@ export class LiveRuns {
     return [...this.runs.values()].find((r) => r.role === 'dispatcher' && r.threadId === threadId);
   }
 
+  /** The tasks whose worker holds a slot now. */
+  workerTaskIds(): string[] {
+    return [...this.runs.values()].flatMap((r) =>
+      r.role === 'worker' && r.taskId !== null ? [r.taskId] : [],
+    );
+  }
+
   /** Worker slots in use. */
   workerCount(): number {
     return [...this.runs.values()].filter((r) => r.role === 'worker').length;

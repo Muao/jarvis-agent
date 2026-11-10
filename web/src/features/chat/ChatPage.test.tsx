@@ -30,7 +30,14 @@ function detail(messages: MessageDto[], patch: Partial<ThreadDetailDto> = {}): T
   };
 }
 
-const base = { id: 'm1', threadId: 'th-1', createdAt: AT, answer: null, answeredAt: null };
+const base = {
+  id: 'm1',
+  threadId: 'th-1',
+  taskId: null,
+  createdAt: AT,
+  answer: null,
+  answeredAt: null,
+};
 const msg = (patch: Record<string, unknown>) => ({ ...base, ...patch }) as MessageDto;
 
 function renderChat(route: string, routes: FakeRoutes, { live = true }: { live?: boolean } = {}) {
@@ -230,6 +237,68 @@ describe('composer', () => {
 
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     expect(posts(spy, '/api/threads/th-1/messages')).toEqual([{ text: 'failed text' }]);
+  });
+
+  it('offers Send now on a message that waits for the task worker, and hands it to the dispatcher', async () => {
+    const user = userEvent.setup();
+    const spy = renderChat('/chat/th-1', {
+      'GET /api/threads/th-1': detail([
+        msg({
+          id: 'w',
+          taskId: 'T-12',
+          kind: 'owner',
+          body: { text: 'hold on', delivery: 'queued', source: 'owner' },
+        }),
+        msg({
+          id: 'd',
+          kind: 'owner',
+          body: { text: 'for the dispatcher', delivery: 'queued', source: 'owner' },
+        }),
+      ]),
+      'POST /api/messages/w/send-now': { status: 204, body: null },
+    }).spy;
+
+    await user.click(await screen.findByRole('button', { name: 'Send now' }));
+
+    expect(screen.getAllByRole('button', { name: 'Send now' })).toHaveLength(1);
+    expect(
+      spy.mock.calls.some(
+        ([url, init]) => String(url) === '/api/messages/w/send-now' && init?.method === 'POST',
+      ),
+    ).toBe(true);
+  });
+
+  it("switches the task's model from the header and marks a task on hold", async () => {
+    const user = userEvent.setup();
+    const spy = renderChat('/chat/th-1', {
+      'GET /api/threads/th-1': detail([], { held: true, model: null }),
+      'PUT /api/tasks/T-12/model': { status: 204, body: null },
+    }).spy;
+
+    expect(await screen.findByText('⏸ On hold')).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Model' }), 'fable');
+
+    const put = spy.mock.calls.find(
+      ([url, init]) => String(url) === '/api/tasks/T-12/model' && init?.method === 'PUT',
+    );
+    expect(JSON.parse(String(put?.[1]?.body))).toEqual({ model: 'fable' });
+  });
+
+  it('holds and resumes the task from the thread menu', async () => {
+    const user = userEvent.setup();
+    const spy = renderChat('/chat/th-1', {
+      'GET /api/threads/th-1': detail([]),
+      'POST /api/tasks/T-12/hold': { status: 204, body: null },
+    }).spy;
+
+    await user.click(await screen.findByRole('button', { name: 'Thread actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Hold task' }));
+
+    expect(
+      spy.mock.calls.some(
+        ([url, init]) => String(url) === '/api/tasks/T-12/hold' && init?.method === 'POST',
+      ),
+    ).toBe(true);
   });
 
   it('shows a send that never reached the engine as failed, with Retry', async () => {

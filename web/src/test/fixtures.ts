@@ -28,6 +28,8 @@ export const thread = (patch: Partial<ThreadDto> = {}): ThreadDto => ({
   taskId: null,
   stage: null,
   working: false,
+  held: false,
+  model: null,
   prNumber: null,
   prUrl: null,
   waitingForOwner: false,

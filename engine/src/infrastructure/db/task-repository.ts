@@ -1,5 +1,5 @@
 import { asc, eq, notInArray, and, sql } from 'drizzle-orm';
-import type { TaskKind, TaskStage } from '@jarvis/shared';
+import type { TaskKind, TaskModel, TaskStage } from '@jarvis/shared';
 import type { TaskRepository } from '../../application/ports/task-repository.js';
 import { TERMINAL, type Task } from '../../domain/index.js';
 import type { Executor } from './client.js';
@@ -30,6 +30,8 @@ const toDomain = (row: Row): Task => ({
     row.targetRepoOwner === null || row.targetRepoName === null
       ? null
       : { owner: row.targetRepoOwner, name: row.targetRepoName },
+  held: row.held,
+  model: row.model as TaskModel | null,
 });
 
 /** `ord` is assigned by the database on first insert and never rewritten. */
@@ -52,6 +54,8 @@ const toValues = (task: Task): Omit<typeof tasks.$inferInsert, 'ord'> => ({
   reason: task.reason,
   targetRepoOwner: task.targetRepo?.owner ?? null,
   targetRepoName: task.targetRepo?.name ?? null,
+  held: task.held,
+  model: task.model,
 });
 
 const active = notInArray(tasks.stage, [...TERMINAL]);

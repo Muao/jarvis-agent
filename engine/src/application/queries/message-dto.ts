@@ -11,6 +11,7 @@ export function toMessageDto(message: Message): MessageDto {
   return {
     id: message.id,
     threadId: message.threadId,
+    taskId: message.taskId,
     createdAt: message.at,
     answer: message.answer,
     answeredAt: message.answeredAt,

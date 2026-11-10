@@ -24,9 +24,11 @@ import {
   type OwnerSkillInput,
   type PostMessageBody,
   type SendSessionMessageBody,
+  type SetTaskModelBody,
+  type TaskModel,
   type UsageQuery,
 } from '@jarvis/shared';
-import { del, get, post, postVoid, put } from './client';
+import { del, get, post, postVoid, put, putVoid } from './client';
 import { keys } from './keys';
 
 /* Hooks are the only thing features import from `api/`. */
@@ -150,7 +152,7 @@ export function useAnswerPermission() {
   });
 }
 
-function useTaskCommand(command: 'cancel' | 'retry' | 'stop') {
+function useTaskCommand(command: 'cancel' | 'retry' | 'stop' | 'hold' | 'resume') {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (taskId: string) => postVoid(`/tasks/${encodeURIComponent(taskId)}/${command}`),
@@ -166,6 +168,32 @@ function useTaskCommand(command: 'cancel' | 'retry' | 'stop') {
 export const useCancelTask = () => useTaskCommand('cancel');
 export const useRetryTask = () => useTaskCommand('retry');
 export const useStopTask = () => useTaskCommand('stop');
+export const useHoldTask = () => useTaskCommand('hold');
+export const useResumeTask = () => useTaskCommand('resume');
+
+/** Switches the model a task's worker runs on, from its next run. */
+export function useSetTaskModel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, model }: { taskId: string; model: TaskModel }) =>
+      putVoid(`/tasks/${encodeURIComponent(taskId)}/model`, { model } satisfies SetTaskModelBody),
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.tasks.all }),
+        queryClient.invalidateQueries({ queryKey: keys.threads.all }),
+      ]),
+  });
+}
+
+/** "Send now": hands a message that waits for a task's worker to the thread's dispatcher. */
+export function useSendNow() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (messageId: string) =>
+      postVoid(`/messages/${encodeURIComponent(messageId)}/send-now`),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: keys.threads.all }),
+  });
+}
 
 /** Stops one running process by run id, so dispatcher sessions can be stopped too. */
 export function useStopRun() {

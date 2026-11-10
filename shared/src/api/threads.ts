@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { CounterSchema, IsoDateSchema, TaskIdSchema, TextBodySchema } from '../common.js';
-import { RoleSchema, TaskStageSchema } from '../enums.js';
+import { RoleSchema, TaskModelSchema, TaskStageSchema } from '../enums.js';
 import { ArtifactNameSchema } from './tasks.js';
 
 /* Answers to cards (one answer per card). */
@@ -100,6 +100,8 @@ export const MessageDtoSchema = z.intersection(
   z.object({
     id: z.string(),
     threadId: z.string(),
+    /** The task the message belongs to; an owner message with one waits for that task's worker. */
+    taskId: z.string().nullable(),
     createdAt: IsoDateSchema,
     /** Set once a card is answered; never changes afterwards. */
     answer: CardAnswerSchema.nullable(),
@@ -117,6 +119,10 @@ export const ThreadDtoSchema = z.object({
   stage: TaskStageSchema.nullable(),
   /** The task's worker is running right now. In `PR Open` the UI shows it as `Thinking`. */
   working: z.boolean(),
+  /** The thread's task is on hold (no worker run starts until it is resumed). */
+  held: z.boolean(),
+  /** The model of the thread's task; null means the configured default (or no task). */
+  model: TaskModelSchema.nullable(),
   prNumber: z.number().int().nullable(),
   prUrl: z.url().nullable(),
   waitingForOwner: z.boolean(),

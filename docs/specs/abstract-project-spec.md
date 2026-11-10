@@ -211,6 +211,22 @@ position arrives in the thread.
 permission longer than the config allows, a message appears in the thread with what it stopped
 on.
 
+**DSP-10. Every message gets an answer.** An owner message to a task whose worker is not running
+(queued for a slot, or on hold) is answered at once by the engine: why it waits (the queue position
+and which tasks hold the slots, or "on hold"). The owner can press `Send now` on such a message: it
+goes to the thread's dispatcher instead of the worker, which answers at once and acts on the task
+(hold, resume, switch model, cancel, or forward it to the worker with `send_to_task`).
+
+**DSP-11. Hold and resume.** On the owner's request ("wait", "don't start yet") a task is put on
+hold: it keeps its stage and its place in the queue, but no worker run of it starts until it is
+resumed. A run already in progress is not interrupted. Hold and resume come from the dispatcher
+(`hold_task`, `resume_task`) or the thread's `⋯` menu.
+
+**DSP-12. Model per task.** A task runs on `models.worker` unless the owner names a model for it
+(`fable`, `opus`, `sonnet`, `haiku`): in the request (`create_task`'s `model`), later in chat
+(`set_task_model`), or with the model selector in the thread header. The change applies from the
+task's next worker run.
+
 ## Requirements: Worker and the SDD flow
 
 **WRK-01. Context.** The worker gathers context from the `Design Source`, the `Connector`, and

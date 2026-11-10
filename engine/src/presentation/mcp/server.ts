@@ -7,7 +7,7 @@ import { ApiCallError, type JarvisApi } from './api-client.js';
 /** Model-facing descriptions: what the tool does, when to use it, what it returns. */
 export const toolDescriptions: Readonly<Record<ToolName, string>> = {
   create_task:
-    'Create a new task from the owner\'s request and start work on it. Use it when the owner asks for a change that needs a worker; write a short title and a self-contained description. Optionally give a `repo` ("owner/name") besides the default one; it must be allow-listed or owned by the configured GitHub account, or creation is rejected with the reason. For "check/test the UI of this pull request" pass `kind: "ui_check"` and `pr` (a PR URL, "owner/name#41", or a number together with `repo`): that task only looks at a pull request that already exists — it writes no code and opens no PR. Returns the created task (id, title, stage).',
+    'Create a new task from the owner\'s request and start work on it. Use it when the owner asks for a change that needs a worker; write a short title and a self-contained description. Optionally give a `repo` ("owner/name") besides the default one; it must be allow-listed or owned by the configured GitHub account, or creation is rejected with the reason. For "check/test the UI of this pull request" pass `kind: "ui_check"` and `pr` (a PR URL, "owner/name#41", or a number together with `repo`): that task only looks at a pull request that already exists — it writes no code and opens no PR. When the owner names a model ("use Opus", "on Fable") pass `model` (fable, opus, sonnet or haiku); otherwise leave it out. Returns the created task (id, title, stage).',
   list_tasks:
     'List all tasks with their current stage. Use it to see what is already running before creating, cancelling or messaging a task. Returns an array of tasks.',
   cancel_task:
@@ -16,6 +16,12 @@ export const toolDescriptions: Readonly<Record<ToolName, string>> = {
     'Send a message to a running task\'s worker, for example new instructions or an answer from the owner. Returns {"ok": true}.',
   set_task_target_repo:
     'Point a task at a repo besides the default one, given as "owner/name". The repo must be allow-listed or owned by the configured GitHub account, or this is rejected with the reason; tell the owner why if it is. Returns {"ok": true}.',
+  hold_task:
+    'Put a task on hold when the owner asks to wait ("hold on", "don\'t start yet", "почекай"): no worker run of it starts until `resume_task`. A run already in progress is not interrupted. Owner messages to the task keep waiting for it. Returns {"ok": true}.',
+  resume_task:
+    'Resume a task that is on hold, when the owner says to go on; queued work starts as soon as a worker slot is free. Returns {"ok": true}.',
+  set_task_model:
+    'Switch the model a task\'s worker runs on (fable, opus, sonnet or haiku) when the owner asks for it. It applies from the next worker run; a run in progress keeps its model. Returns {"ok": true}.',
   reply:
     'Send a message to the owner in the chat thread. This is how the dispatcher answers; plain assistant text is not shown to the owner. Returns the posted message.',
   remember:

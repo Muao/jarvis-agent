@@ -21,7 +21,9 @@ describe('RunScheduler worker slots (DSP-08, LIM-05)', () => {
 
     expect(a.runner.processes.map((p) => p.spec.taskId)).toEqual([first.taskId]);
     expect(await a.scheduler.isQueued(second.taskId)).toBe(true);
-    expect(systemTexts(a, second.thread.id)).toEqual(['Queued — position 1']);
+    expect(systemTexts(a, second.thread.id)).toEqual([
+      `Queued — position 1 in the queue, waiting for a free worker slot (in use: ${first.taskId}, Context)`,
+    ]);
     expect(a.task(second.taskId).stage).toBe('Intake');
 
     await a.runner.forTask(first.taskId)?.succeed();
@@ -37,7 +39,9 @@ describe('RunScheduler worker slots (DSP-08, LIM-05)', () => {
     const second = await createTaskInNewThread(a);
     const third = await createTaskInNewThread(a);
 
-    expect(systemTexts(a, third.thread.id)).toEqual(['Queued — position 2']);
+    expect(systemTexts(a, third.thread.id)).toEqual([
+      expect.stringMatching(/^Queued — position 2 in the queue/),
+    ]);
     await a.runner.forTask(first.taskId)?.succeed();
     expect(a.runner.live.map((p) => p.spec.taskId)).toEqual([second.taskId]);
   });
@@ -67,7 +71,64 @@ describe('RunScheduler worker slots (DSP-08, LIM-05)', () => {
     ]);
 
     expect(a.runner.processes).toHaveLength(1);
-    expect(systemTexts(a, second.thread.id)).toEqual(['Queued — position 1']);
+    expect(systemTexts(a, second.thread.id)).toEqual([
+      expect.stringMatching(/^Queued — position 1 in the queue/),
+    ]);
+  });
+
+  it('answers an owner message to a queued task at once, saying why it waits', async () => {
+    const a = app();
+    const first = await createTaskInNewThread(a);
+    const second = await createTaskInNewThread(a);
+
+    await a.postOwnerMessage.execute({ threadId: second.thread.id, text: 'wait for me' });
+
+    expect(systemTexts(a, second.thread.id).at(-1)).toBe(
+      `Your message waits for the worker of ${second.taskId}: position 1 in the queue, waiting for a free worker slot (in use: ${first.taskId}, Context). "Send now" hands it to the dispatcher instead.`,
+    );
+  });
+
+  it('skips a held task in the queue and starts it once resumed', async () => {
+    const a = app();
+    const first = await createTaskInNewThread(a);
+    const second = await createTaskInNewThread(a);
+    const third = await createTaskInNewThread(a);
+    await a.holdTask.execute({ taskId: second.taskId });
+
+    await a.runner.forTask(first.taskId)?.succeed();
+    expect(a.runner.live.map((p) => p.spec.taskId)).toEqual([third.taskId]);
+    expect(await a.scheduler.isQueued(second.taskId)).toBe(true);
+
+    await a.runner.forTask(third.taskId)?.succeed();
+    expect(a.runner.live).toEqual([]);
+
+    await a.resumeTask.execute({ taskId: second.taskId });
+    expect(a.runner.live.map((p) => p.spec.taskId)).toEqual([second.taskId]);
+  });
+
+  it('says a held task waits for the owner when a message reaches it', async () => {
+    const a = app();
+    await createTaskInNewThread(a);
+    const second = await createTaskInNewThread(a);
+    await a.holdTask.execute({ taskId: second.taskId });
+
+    await a.postOwnerMessage.execute({ threadId: second.thread.id, text: 'and also this' });
+
+    expect(systemTexts(a, second.thread.id).at(-1)).toBe(
+      `Your message waits for the worker of ${second.taskId}: on hold until you resume it. "Send now" hands it to the dispatcher instead.`,
+    );
+  });
+
+  it("runs a task's worker on the model the owner chose", async () => {
+    const a = app();
+    const first = await createTaskInNewThread(a);
+    const second = await createTaskInNewThread(a);
+    await a.setTaskModel.execute({ taskId: second.taskId, model: 'fable' });
+
+    await a.runner.forTask(first.taskId)?.succeed();
+
+    expect(a.runner.forTask(first.taskId)?.spec.model).not.toBe('fable');
+    expect(a.runner.forTask(second.taskId)?.spec.model).toBe('fable');
   });
 
   it('drops queued work of a cancelled task', async () => {

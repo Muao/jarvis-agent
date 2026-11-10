@@ -1,4 +1,4 @@
-import { ArtifactNameSchema } from '@jarvis/shared';
+import { ArtifactNameSchema, SetTaskModelBodySchema } from '@jarvis/shared';
 import type { FastifyPluginAsync } from 'fastify';
 import { DomainError, type Application } from '../../../application/index.js';
 import { parse } from '../parse.js';
@@ -23,6 +23,22 @@ export function taskRoutes(app: Application): FastifyPluginAsync {
 
     http.post<{ Params: TaskParams }>('/tasks/:id/cancel', async (request, reply) => {
       await app.cancelTask.execute({ taskId: request.params.id });
+      return reply.code(204).send();
+    });
+
+    http.post<{ Params: TaskParams }>('/tasks/:id/hold', async (request, reply) => {
+      await app.holdTask.execute({ taskId: request.params.id });
+      return reply.code(204).send();
+    });
+
+    http.post<{ Params: TaskParams }>('/tasks/:id/resume', async (request, reply) => {
+      await app.resumeTask.execute({ taskId: request.params.id });
+      return reply.code(204).send();
+    });
+
+    http.put<{ Params: TaskParams }>('/tasks/:id/model', async (request, reply) => {
+      const { model } = parse(SetTaskModelBodySchema, request.body);
+      await app.setTaskModel.execute({ taskId: request.params.id, model });
       return reply.code(204).send();
     });
 

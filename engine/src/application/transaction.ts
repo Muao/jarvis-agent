@@ -22,7 +22,8 @@ type Effect =
   | { readonly type: 'dispatcher_turn'; readonly threadId: string }
   | { readonly type: 'worker_run'; readonly taskId: string; readonly reason: WorkerRunReason }
   | { readonly type: 'deliver_to_worker'; readonly taskId: string }
-  | { readonly type: 'stop_task_runs'; readonly taskId: string };
+  | { readonly type: 'stop_task_runs'; readonly taskId: string }
+  | { readonly type: 'resume_queued' };
 
 /**
  * What a use case wants to happen once its transaction has committed. Collected inside the unit
@@ -75,6 +76,11 @@ export class Outbox {
     this.effects.push({ type: 'stop_task_runs', taskId });
   }
 
+  /** Start whatever queued work fits now (a held task was resumed). */
+  resumeQueued(): void {
+    this.effects.push({ type: 'resume_queued' });
+  }
+
   /**
    * Best-effort: the state is already committed, so a failing notification is logged and the rest
    * still run; it never fails the use case.
@@ -111,6 +117,8 @@ export class Outbox {
         return to.runs.deliverToWorker(effect.taskId);
       case 'stop_task_runs':
         return to.runs.stopTaskRuns(effect.taskId);
+      case 'resume_queued':
+        return to.runs.resumeQueued();
     }
   }
 

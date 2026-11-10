@@ -1,4 +1,5 @@
 import type { MessageDto } from '@jarvis/shared';
+import { useCanMutate, useSendNow } from '../../../api/queries';
 import { Markdown } from '../../../components/Markdown';
 import styles from './Card.module.css';
 import { DecisionCard } from './DecisionCard';
@@ -36,8 +37,31 @@ export function OwnerBubble({
             Retry
           </button>
         ) : null}
+        {delivery === 'queued' && message.taskId !== null ? (
+          <SendNowButton messageId={message.id} />
+        ) : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * The message waits for its task's worker, which is not running: hand it to the dispatcher now,
+ * the way Claude Code lets a queued message through.
+ */
+function SendNowButton({ messageId }: { messageId: string }) {
+  const canMutate = useCanMutate();
+  const sendNow = useSendNow();
+  return (
+    <button
+      type="button"
+      className={styles.button}
+      title="The task's worker is not running. Hand this message to the dispatcher, which answers now."
+      disabled={!canMutate || sendNow.isPending}
+      onClick={() => sendNow.mutate(messageId)}
+    >
+      Send now
+    </button>
   );
 }
 

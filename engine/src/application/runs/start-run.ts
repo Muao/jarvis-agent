@@ -408,7 +408,11 @@ export class StartRun {
       cwd: prepared.cwd,
       firstMessage: prepared.firstMessage,
       ...(session.claudeSessionId === null ? {} : { resumeSessionId: session.claudeSessionId }),
-      model: run.role === 'worker' ? current.models.worker : current.models.dispatcher,
+      // The owner may switch a task to another model; it applies from the run that starts next.
+      model:
+        run.role === 'worker'
+          ? (prepared.task?.model ?? current.models.worker)
+          : current.models.dispatcher,
       maxTurns: current.limits.maxTurnsPerRun,
       maxBudgetUsd: current.limits.maxBudgetUsdPerRun,
       runToken: live.token,

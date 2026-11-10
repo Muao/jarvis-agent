@@ -1,4 +1,4 @@
-import { canStartRun } from '../../domain/index.js';
+import { canStartRun, type Task } from '../../domain/index.js';
 import type { BodyOf } from '../conversation/message-bodies.js';
 import type { ThreadMessages } from '../conversation/thread-messages.js';
 import type { ConnectionChecks } from '../ports/connection-checks.js';
@@ -64,20 +64,45 @@ export class RunScheduler implements RunCoordinator {
     return this.exclusive(() => this.enqueueWorker(taskId, reason));
   }
 
-  /** The body of `requestWorkerRun`, for callers that already hold the lock. */
-  private async enqueueWorker(taskId: string, reason: WorkerRunReason): Promise<void> {
+  /**
+   * The body of `requestWorkerRun`, for callers that already hold the lock. `quiet`: the caller
+   * says why the task waits itself (an owner message, see `deliverToWorker`).
+   */
+  private async enqueueWorker(
+    taskId: string,
+    reason: WorkerRunReason,
+    quiet = false,
+  ): Promise<void> {
     if (this.positionOf(taskId) >= 0 || this.deps.liveRuns.workerOf(taskId)) return;
     this.workerQueue.push({ taskId, reason, since: this.deps.clock.now() });
     const result = await this.fill();
-    const position = this.positionOf(taskId);
-    if (position < 0) return;
-    const threadId = await this.threadOf(taskId);
-    if (threadId === null) return;
+    if (this.positionOf(taskId) < 0) return;
+    const task = await this.deps.uow.run((tx) => tx.tasks.get(taskId));
+    if (task === null) return;
     if (result !== 'idle') {
-      await this.noticeNotStarted(result, threadId, taskId);
-    } else {
-      await this.postSystem(threadId, taskId, `Queued — position ${position + 1}`);
+      await this.noticeNotStarted(result, task.threadId, taskId);
+    } else if (!quiet) {
+      await this.postSystem(task.threadId, taskId, `Queued — ${await this.waitState(task)}`);
     }
+  }
+
+  /**
+   * Why a queued task has not started, in the owner's words: on hold, or which worker holds the
+   * slot it waits for.
+   */
+  private async waitState(task: Task): Promise<string> {
+    if (task.held) return 'on hold until you resume it';
+    const position = this.positionOf(task.id) + 1;
+    const busy = await this.deps.uow.run(async (tx) => {
+      const lines: string[] = [];
+      for (const id of this.deps.liveRuns.workerTaskIds()) {
+        const running = await tx.tasks.get(id);
+        lines.push(running === null ? id : `${running.id}, ${running.stage}`);
+      }
+      return lines;
+    });
+    const slot = busy.length === 0 ? '' : ` (in use: ${busy.join('; ')})`;
+    return `position ${position} in the queue, waiting for a free worker slot${slot}`;
   }
 
   /** Start whatever fits now. Called after a run exits and by the timer that watches the budget. */
@@ -106,7 +131,17 @@ export class RunScheduler implements RunCoordinator {
       const live = this.deps.liveRuns.workerOf(taskId);
       if (live?.handle == null) {
         const waiting = await this.deps.uow.run((tx) => tx.messages.queuedWorkerInput(taskId));
-        if (waiting.length > 0) await this.enqueueWorker(taskId, 'resume');
+        if (waiting.length === 0) return;
+        await this.enqueueWorker(taskId, 'resume', true);
+        // Every owner message gets an answer at once: if no worker took it, say why and what helps.
+        if (this.positionOf(taskId) < 0) return;
+        const task = await this.deps.uow.run((tx) => tx.tasks.get(taskId));
+        if (task === null) return;
+        await this.postSystem(
+          task.threadId,
+          taskId,
+          `Your message waits for the worker of ${task.id}: ${await this.waitState(task)}. "Send now" hands it to the dispatcher instead.`,
+        );
         return;
       }
       const { handle } = live;
@@ -173,21 +208,34 @@ export class RunScheduler implements RunCoordinator {
         this.startRun.dispatcher(threadId, (run) => this.runEnded(run)),
       );
     }
-    while (
-      this.workerQueue.length > 0 &&
-      liveRuns.workerCount() < config.current().limits.maxConcurrentWorkers
-    ) {
+    while (liveRuns.workerCount() < config.current().limits.maxConcurrentWorkers) {
+      const next = await this.nextStartable();
+      if (next === null) break;
       if (this.loginExpired()) return 'login_expired';
       if (!(await this.budgetLeft())) return 'budget_reached';
-      const taskId = this.workerQueue.shift()?.taskId;
-      if (taskId === undefined) break;
-      const threadId = await this.threadOf(taskId);
-      if (threadId === null) continue;
-      await this.attempt(threadId, taskId, () =>
-        this.startRun.worker(taskId, (run) => this.runEnded(run)),
+      this.workerQueue.splice(this.positionOf(next.id), 1);
+      await this.attempt(next.threadId, next.id, () =>
+        this.startRun.worker(next.id, (run) => this.runEnded(run)),
       );
     }
     return 'idle';
+  }
+
+  /**
+   * The first queued task that may start. A held task keeps its place and is skipped, so nothing
+   * it was waiting for is lost and `resumeQueued` starts it after the owner resumes it. A task that
+   * no longer exists leaves the queue.
+   */
+  private async nextStartable(): Promise<Task | null> {
+    for (const entry of [...this.workerQueue]) {
+      const task = await this.deps.uow.run((tx) => tx.tasks.get(entry.taskId));
+      if (task === null) {
+        this.workerQueue.splice(this.positionOf(entry.taskId), 1);
+        continue;
+      }
+      if (!task.held) return task;
+    }
+    return null;
   }
 
   private async attempt(

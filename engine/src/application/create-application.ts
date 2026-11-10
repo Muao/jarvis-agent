@@ -83,6 +83,8 @@ import { OpenPr } from './tasks/open-pr.js';
 import { ReportStage } from './tasks/report-stage.js';
 import { RetryStage } from './tasks/retry-stage.js';
 import { SetTaskTargetRepo } from './tasks/set-task-target-repo.js';
+import { HoldTask, ResumeTask, SetTaskModel } from './tasks/hold-task.js';
+import { SendNow } from './conversation/send-now.js';
 import { StatusCard } from './tasks/status-card.js';
 import { SubmitSpec } from './tasks/submit-spec.js';
 import { TaskWriter } from './tasks/task-writer.js';
@@ -155,6 +157,10 @@ export interface Application {
   readonly cancelTask: CancelTask;
   readonly retryStage: RetryStage;
   readonly setTaskTargetRepo: SetTaskTargetRepo;
+  readonly holdTask: HoldTask;
+  readonly resumeTask: ResumeTask;
+  readonly setTaskModel: SetTaskModel;
+  readonly sendNow: SendNow;
   readonly remember: Remember;
   /** ADR-0021: the rest of the memory tools. */
   readonly forget: Forget;
@@ -307,6 +313,10 @@ export function createApplication(ports: ApplicationPorts): Application {
     cancelTask: new CancelTask(deps),
     retryStage: new RetryStage(deps),
     setTaskTargetRepo: new SetTaskTargetRepo({ ...deps, repos: ports.repos }),
+    holdTask: new HoldTask(deps),
+    resumeTask: new ResumeTask(deps),
+    setTaskModel: new SetTaskModel(deps),
+    sendNow: new SendNow(deps),
     remember: new Remember({ profile: ports.profile, clock }),
     forget: new Forget({ profile: ports.profile, logger: ports.logger }),
     mergeInsights: new MergeInsights({ profile: ports.profile, logger: ports.logger }),

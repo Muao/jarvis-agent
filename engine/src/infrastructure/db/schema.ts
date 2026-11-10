@@ -4,6 +4,7 @@ import {
   RunStatusSchema,
   StopReasonSchema,
   TASK_KINDS,
+  TASK_MODELS,
   TASK_STAGES,
   type ModelUsage,
 } from '@jarvis/shared';
@@ -11,6 +12,7 @@ import { sql, type SQL } from 'drizzle-orm';
 import {
   bigint,
   bigserial,
+  boolean,
   check,
   doublePrecision,
   index,
@@ -69,10 +71,15 @@ export const tasks = pgTable(
     /** ADR-0012: the repo this task's worktree is created in, besides the configured default. */
     targetRepoOwner: text('target_repo_owner'),
     targetRepoName: text('target_repo_name'),
+    /** The owner put the task on hold: no worker run starts until it is resumed. */
+    held: boolean('held').notNull().default(false),
+    /** A `claude --model` alias the owner chose; null means `models.worker`. */
+    model: text('model'),
   },
   (t) => [
     check('tasks_kind_check', oneOf('kind', TASK_KINDS)),
     check('tasks_stage_check', oneOf('stage', TASK_STAGES)),
+    check('tasks_model_check', sql`${t.model} is null or ${oneOf('model', TASK_MODELS)}`),
     check(
       'tasks_resume_stage_check',
       sql`${t.resumeStage} is null or ${oneOf('resume_stage', TASK_STAGES)}`,

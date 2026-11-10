@@ -115,7 +115,9 @@ DSP-01, DSP-04…DSP-07, WRK-04, WRK-05, SEC-01.
 After an answer, decision, question and permission cards become inactive and show what was chosen, by whom and when
 (`Approved · 14:32`). A card cannot be answered twice.
 
-**Thread actions (the `⋯` menu):** `Status` (DSP-05), `Cancel task` (DSP-06, with confirmation), `Open task`, `Open dispatcher session`.
+**Thread actions (the `⋯` menu):** `Status` (DSP-05), `Hold task` / `Resume task` (DSP-11), `Cancel task` (DSP-06, with confirmation), `Open task`, `Open dispatcher session`.
+
+**Thread header, task controls:** a `⏸ On hold` mark while the task is held (DSP-11) and a model selector (`Default model`, `Fable`, `Opus`, `Sonnet`, `Haiku`; DSP-12). An owner message that waits for the task's worker shows `queued` and a `Send now` button (DSP-10).
 
 **States:** empty thread list; thread loading; the dispatcher is "thinking" (an indicator under the last message);
 send failure (a message with `Retry`); thread without a task (a knowledge question, DSP-07); budget exhausted

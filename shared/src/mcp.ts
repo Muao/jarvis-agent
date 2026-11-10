@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { TaskIdSchema } from './common.js';
-import { TaskKindSchema, type Role } from './enums.js';
+import { TaskKindSchema, TaskModelSchema, type Role } from './enums.js';
 
 /**
  * Tool inputs (ADR-0004). The caller's identity (run, role, task, thread) comes from the
@@ -55,6 +55,8 @@ export const toolInputSchemas = {
      * opens no PR. It requires `pr`; `build` (the default) forbids it.
      */
     kind: TaskKindSchema.optional(),
+    /** The model the task's worker runs on, when the owner names one; else `models.worker`. */
+    model: TaskModelSchema.optional(),
     /**
      * ADR-0018: the pull request a `ui_check` task is about, as a full URL or `owner/name#number`.
      * A bare number means the task's repo (`repo`, else the configured default).
@@ -69,6 +71,11 @@ export const toolInputSchemas = {
     task: TaskIdSchema,
     repo: z.string().regex(/^[^/\s]+\/[^/\s]+$/, 'must look like "owner/name"'),
   }),
+  /** The owner asked to wait: no worker run of the task starts until `resume_task`. */
+  hold_task: z.strictObject({ task: TaskIdSchema, reason: z.string().min(1).optional() }),
+  resume_task: z.strictObject({ task: TaskIdSchema }),
+  /** The owner asked for another model; it applies from the task's next worker run. */
+  set_task_model: z.strictObject({ task: TaskIdSchema, model: TaskModelSchema }),
   reply: z.strictObject({ text: z.string().min(1) }),
   /**
    * ADR-0013 / ADR-0021: writes one owner entry under `## Learned` in USER.md so a fact survives
@@ -203,6 +210,9 @@ export const toolsByRole = {
     'cancel_task',
     'send_to_task',
     'set_task_target_repo',
+    'hold_task',
+    'resume_task',
+    'set_task_model',
     'reply',
     'remember',
     'forget',

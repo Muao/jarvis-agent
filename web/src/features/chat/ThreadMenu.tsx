@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import type { ThreadDetailDto } from '@jarvis/shared';
-import { useCancelTask, useCanMutate } from '../../api/queries';
+import { useCancelTask, useCanMutate, useHoldTask, useResumeTask } from '../../api/queries';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { isTerminalStage } from './threadFilters';
 import styles from './ThreadView.module.css';
@@ -16,6 +16,8 @@ interface ThreadMenuProps {
 export function ThreadMenu({ thread, onStatus }: ThreadMenuProps) {
   const canMutate = useCanMutate();
   const cancel = useCancelTask();
+  const hold = useHoldTask();
+  const resume = useResumeTask();
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const { taskId } = thread;
@@ -45,6 +47,18 @@ export function ThreadMenu({ thread, onStatus }: ThreadMenuProps) {
             }}
           >
             Status
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!canCancel}
+            onClick={() => {
+              setOpen(false);
+              if (taskId === null) return;
+              (thread.held ? resume : hold).mutate(taskId);
+            }}
+          >
+            {thread.held ? 'Resume task' : 'Hold task'}
           </button>
           <button
             type="button"

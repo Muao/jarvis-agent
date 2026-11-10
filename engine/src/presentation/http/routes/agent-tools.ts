@@ -52,6 +52,21 @@ export const toolCalls: Readonly<Partial<Record<ToolName, Call>>> = {
     await app.setTaskTargetRepo.execute(identity, { taskId: input.task, repo: input.repo });
     return OK;
   }),
+  hold_task: tool(schemas.hold_task, async (app, identity, input) => {
+    await app.holdTask.execute(
+      { taskId: input.task, ...(input.reason === undefined ? {} : { reason: input.reason }) },
+      identity,
+    );
+    return OK;
+  }),
+  resume_task: tool(schemas.resume_task, async (app, identity, input) => {
+    await app.resumeTask.execute({ taskId: input.task }, identity);
+    return OK;
+  }),
+  set_task_model: tool(schemas.set_task_model, async (app, identity, input) => {
+    await app.setTaskModel.execute({ taskId: input.task, model: input.model }, identity);
+    return OK;
+  }),
   reply: tool(schemas.reply, (app, identity, input) => app.reply.execute(identity, input)),
   remember: tool(schemas.remember, async (app, identity, input) => ({
     ...OK,

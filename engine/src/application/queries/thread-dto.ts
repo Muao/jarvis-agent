@@ -15,6 +15,8 @@ export function toThreadDto(
     taskId: task?.id ?? null,
     stage: task?.stage ?? null,
     working: task !== null && working.has(task.id),
+    held: task?.held ?? false,
+    model: task?.model ?? null,
     prNumber: task?.pr?.number ?? null,
     prUrl: task?.pr?.url ?? null,
     waitingForOwner: threadNeedsOwner(task, hasOpenCard),

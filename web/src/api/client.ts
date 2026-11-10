@@ -103,6 +103,11 @@ export async function put<T>(path: string, body: unknown, schema: ZodType<T>): P
   return parseWith(await send('PUT', buildPath(path), body), schema);
 }
 
+/** PUT whose response body is not used (204). */
+export async function putVoid(path: string, body: unknown): Promise<void> {
+  await send('PUT', buildPath(path), body);
+}
+
 /** DELETE with no response body (204); callers invalidate the affected queries. */
 export async function del(path: string): Promise<void> {
   await send('DELETE', buildPath(path));

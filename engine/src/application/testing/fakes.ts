@@ -324,7 +324,8 @@ export type CoordinatorCall =
   | { readonly type: 'dispatcher_turn'; readonly threadId: string }
   | { readonly type: 'worker_run'; readonly taskId: string; readonly reason: WorkerRunReason }
   | { readonly type: 'deliver_to_worker'; readonly taskId: string }
-  | { readonly type: 'stop_task_runs'; readonly taskId: string };
+  | { readonly type: 'stop_task_runs'; readonly taskId: string }
+  | { readonly type: 'resume_queued' };
 
 export class RecordingRunCoordinator implements RunCoordinator {
   readonly calls: CoordinatorCall[] = [];
@@ -347,6 +348,10 @@ export class RecordingRunCoordinator implements RunCoordinator {
 
   async stopTaskRuns(taskId: string): Promise<void> {
     this.calls.push({ type: 'stop_task_runs', taskId });
+  }
+
+  async resumeQueued(): Promise<void> {
+    this.calls.push({ type: 'resume_queued' });
   }
 
   async isQueued(taskId: string): Promise<boolean> {

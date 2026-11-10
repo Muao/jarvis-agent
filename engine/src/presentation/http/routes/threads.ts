@@ -30,5 +30,11 @@ export function threadRoutes(app: Application): FastifyPluginAsync {
       await app.postOwnerMessage.execute({ threadId: request.params.id, text });
       return reply.code(204).send();
     });
+
+    // "Send now": a message waiting for a task's worker goes to the thread's dispatcher instead.
+    http.post<{ Params: IdParams }>('/messages/:id/send-now', async (request, reply) => {
+      await app.sendNow.execute(request.params.id);
+      return reply.code(204).send();
+    });
   };
 }

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { CounterSchema, IsoDateSchema, TaskIdSchema } from '../common.js';
-import { TaskStageSchema, WaitingForSchema, type TaskStage } from '../enums.js';
+import { TaskModelSchema, TaskStageSchema, WaitingForSchema, type TaskStage } from '../enums.js';
 import { RunDtoSchema } from './sessions.js';
 
 export const ArtifactNameSchema = z.enum([
@@ -40,6 +40,10 @@ export const TaskDtoSchema = z.object({
   stage: TaskStageSchema,
   /** The task's worker is running right now. In `PR Open` the UI shows it as `Thinking`. */
   working: z.boolean(),
+  /** The owner put the task on hold: no worker run starts until it is resumed. */
+  held: z.boolean(),
+  /** The model the task's worker runs on; null means the configured `models.worker`. */
+  model: TaskModelSchema.nullable(),
   waitingFor: WaitingForSchema,
   branch: z.string(),
   prNumber: z.number().int().nullable(),
@@ -120,3 +124,7 @@ export const ArtifactDtoSchema = z.object({
   updatedAt: IsoDateSchema.nullable(),
 });
 export type ArtifactDto = z.infer<typeof ArtifactDtoSchema>;
+
+/** `PUT /api/tasks/:id/model`: the model the task's worker runs on from its next run. */
+export const SetTaskModelBodySchema = z.strictObject({ model: TaskModelSchema });
+export type SetTaskModelBody = z.infer<typeof SetTaskModelBodySchema>;
