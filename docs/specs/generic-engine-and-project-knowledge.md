@@ -1,6 +1,6 @@
 # Generic engine and project knowledge — design
 
-**Status:** draft for the owner's review · **Date:** 2026-11-10 · **Owner rulings:** 2026-11-10 (chat)
+**Status:** approved by the owner 2026-11-10 · **Date:** 2026-11-10 · **Owner rulings:** 2026-11-10 (chat)
 
 ## Why
 
@@ -24,6 +24,10 @@ The owner's rulings (2026-11-10):
 4. **The mechanism is formalised** (a skill and whatever engine support it needs), and the ADRs are
    changed so the old per-repo-config approach is not proposed again.
 5. **Credentials of a target project are never stored**, anywhere.
+6. **As few questions to the owner as possible.** Whatever can be decided by a rule, the engine
+   decides; whatever needs judgement inside the guardrails, the agent decides; the owner is asked
+   only where a guardrail itself is at stake. Every such decision is journalled and visible
+   afterwards, never silent.
 
 ## Goals
 
@@ -37,9 +41,8 @@ The owner's rulings (2026-11-10):
 
 ## Non-goals
 
-- Changing who may target which repository (the allow-list, ADR-0012) — see Open question 1.
-- Changing the general owner memory in `USER.md` beyond moving the repo-scoped part out (Open
-  question 2).
+- Changing who may target which repository (the allow-list, ADR-0012) — see Decision 1.
+- Changing the general owner memory in `USER.md` beyond moving the repo-scoped part out (Decision 2).
 - Caching dependencies between checks (a later optimisation, ADR-0019 already names the fix).
 
 ## Anti-goals (a failure even if it works)
@@ -198,10 +201,62 @@ to point at it.
 - **ADRs**: a new ADR-0026 "The engine knows no target project; the agent discovers how to run it and
   keeps a project record" supersedes ADR-0019 and amends ADR-0014 (the "no model picks the command"
   rule becomes "a model-picked command runs only inside the disposable container") and ADR-0021 (the
-  repo-scoped part of memory moves to project records, if Open question 2 says so). ADR-0019 is
+  repo-scoped part of memory moves to project records, Decision 2) and ADR-0022 (base-branch
+  comparison, pre-run on base, refresh from base). ADR-0019 is
   marked superseded with a one-paragraph note why, so the per-repo-config idea is not raised again.
 - **`AGENTS.md` of this repository**: engine test command becomes `test:unit`; integration tests are
   CI-only (ADR-0012). Unrelated to quick-blog but found in the same incident.
+
+### 6. Checks that can actually pass
+
+**The incident (T-3, 2026-11-10).** The frozen check list (ADR-0022) held
+`pnpm --filter @jarvis/engine test`, which includes integration tests that need a Postgres the check
+environment deliberately does not get. The command was red whatever the agent did; the engine burned
+retries on it, the agent misdiagnosed it as a broken database password, and since a frozen list can
+only change by re-approving the spec — impossible after `Context` — the task had no way out but a
+hand-written journal row. Nothing about this is specific to one repository.
+
+**The rule: a check is judged against the base branch.** When a frozen command fails on the task's
+head, the engine runs the same command once on the base commit (`main` at the task's merge base, in a
+scratch worktree, same stripped environment, same timeout):
+
+- **Red on the head, green on base** → the task broke it. Behaviour as today: a retry is counted and
+  the worker gets the log.
+- **Red on both** → a pre-existing or environmental failure, not the task's. The engine decides on its
+  own, without asking: the command does not block `open_pr`, no retry is counted, the worker is told
+  plainly that the failure is not its to fix, and the PR body gets a section "Fails on `main` too"
+  with the command and the log tail. The journal records `check_preexisting {command, baseSha}`.
+- The base result is cached per (command, base sha), so a repository with a red `main` pays for the
+  base run once, not once per attempt.
+
+**Before approval: the list is pre-run on base.** While the task is in `Context`, the engine runs the
+candidate commands once on the base commit. A command red on base is dropped from the proposed list
+automatically and recorded in the project record (`## Checks`, with why). The spec card shows the
+final list and, below it, the dropped ones with the reason — information, not a question.
+
+**No dead ends: the engine refreshes a frozen list by itself.** When the base branch's `AGENTS.md`
+check commands change after a task's approval (as `ca67aa5` did), the engine re-resolves the list from
+the **base** branch — never the task's branch, so the worker still cannot edit its own checks — and
+journals a new `checks_fixed {source: 'base_refresh'}`. The owner is told in the thread, not asked.
+
+**The agent may skip a check that will not pass (owner ruling, 2026-11-10).** CI runs the full suite
+on the pull request, so a local check that cannot be made green must not hold the PR back. The worker
+may call `open_pr` with `skip: [{ command, reason }]` for frozen commands that ran red on the current
+head at least once (the engine verifies this from the journal; a command never run cannot be
+skipped). The engine then opens the PR as usual — still a draft — with a section "Checks skipped
+locally — CI decides" naming each command, the reason and the log tail, and journals
+`check_skipped {command, reason, headSha}`. No owner question. Skipping is the agent's call and is
+expected for failures it judges environmental or outside the diff; the prompt tells it not to skip a
+failure its own diff caused when it can fix it within the retry budget.
+
+**The agent stops asking about environments.** The worker prompt and the project-knowledge skill say:
+a check failing for reasons outside the diff (missing service, credentials, ports, flakiness the base
+shares) is the engine's to classify, not a question for the owner; the worker reports it and moves on.
+`ask_owner` stays for product decisions and guardrails.
+
+**Where the owner is still asked** — only these, deliberately: the spec approval itself (existing),
+running an untrusted pull request's code (ADR-0018), and anything that would widen a guardrail (a new
+secret, the allow-list, a permission).
 
 ## Rollout (*my call*)
 
@@ -225,18 +280,26 @@ bind mounts of the worktree work there the same way.
 - Test strategy: unit tests for the plan schema, secret refusal and record writes; an integration
   test for the Docker adapter (CI-only, like the other int tests).
 
-## Open questions for the owner
+## Decisions taken without the owner (owner ruling 6)
 
-0. **How the engine gets to run containers.** The engine runs as `jarvis`, and
-   `docs/architecture/deployment.md` forbids adding `jarvis` to the `docker` group, because the root
-   Docker socket is root on the box. The container design needs one of:
-   - **rootless Docker for `jarvis`** (recommended): its own daemon, running as `jarvis`. A container
-     can never get more than `jarvis` already has, and only what is mounted is visible. Same `docker`
-     CLI as the laptop. Needs a one-time server setup (`dockerd-rootless-setuptool.sh`, subuid ranges).
-   - **a narrow root helper**: `sudo /usr/local/bin/jarvis-sandbox <plan.json>` that validates the plan
-     and runs Docker with fixed flags. More code that is security-critical, and a sudo rule.
-1. **The repository allow-list** (`repos.allow`, `repos.allowSelf`, and the default `repo.path`)
-   names target repositories in config. It is a permission (which repos Jarvis may touch), not
-   knowledge (how to run them). Keep it in config, or should it move too?
-2. **Repo-scoped memory in `USER.md`** (`### owner/name` under `## Learned`, ADR-0021): move it into
-   the project records, so `USER.md` holds only what applies everywhere?
+These were open questions; the owner asked for them to be decided rather than asked.
+
+0. **How the engine runs containers: rootless Docker for `jarvis`.** `jarvis` stays out of the
+   `docker` group (`docs/architecture/deployment.md`). A rootless daemon running as `jarvis` gives a
+   container no more than `jarvis` already has, and the CLI is the same as on the laptop. One-time
+   server setup (`dockerd-rootless-setuptool.sh`, subuid/subgid ranges) goes into
+   `docs/architecture/deployment.md`. The narrow sudo helper is rejected: more security-critical code
+   and a sudo rule for no gain.
+1. **The repository allow-list stays in config.** `repos.allow`, `repos.allowSelf` and `repo.path` say
+   which repositories Jarvis may touch — a permission, not knowledge about how to run them — and
+   permissions are the owner's (ADR-0012). Nothing else about a target lives in config.
+2. **Repo-scoped memory moves to project records.** The `### owner/name` subsections under
+   `## Learned` in `USER.md` move into that repository's `PROJECT.md` (`## Conventions` /
+   `## Gotchas`), keeping ids, counters and dates; `USER.md` keeps only what applies everywhere. The
+   ADR-0021 tools (`note_insight`, `confirm_insight`, …) write repo-scoped entries to the project record
+   from then on. A one-time migration does the move and is idempotent.
+
+## Side finding
+
+`jarvis` is a member of the `sudo` group on the server while the deployment skill says it has no sudo
+rule. To be checked against `docs/architecture/deployment.md` separately; not part of this work.
