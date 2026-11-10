@@ -179,7 +179,8 @@ the thread: what was taken on, the branch, and what will count as done.
 from the message, the `Profile`, and the artifacts folder.
 
 **DSP-03. No code.** The dispatcher does not change code or repository files. It only has tools
-for managing tasks and replying to the thread (ADR-0004).
+for managing tasks and replying to the thread (ADR-0004), plus reading: files and the web
+(`WebFetch`, `WebSearch`), which it uses without asking the owner.
 
 **DSP-04. Reply routing.** An `Owner` reply in a task's thread reaches that task's worker: into
 the current run if one is in progress, otherwise the reply starts the next run and arrives in its

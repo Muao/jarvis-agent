@@ -94,6 +94,13 @@ describe('buildRunArgs', () => {
     );
   });
 
+  it('dispatcher: reads files and the web without asking', () => {
+    const allowed = valueOf(buildRunArgs(specOf({ role: 'dispatcher' }), ctx), '--allowedTools');
+    expect(allowed?.split(',')).toEqual(
+      expect.arrayContaining(['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch']),
+    );
+  });
+
   it('build worker: no tool restrictions, no resume by default', () => {
     const args = buildRunArgs(specOf(), ctx);
     expect(args).not.toContain('--resume');

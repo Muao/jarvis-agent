@@ -3,8 +3,11 @@ import { toolsByRole } from '@jarvis/shared';
 import type { RunSpec } from '../../application/index.js';
 import type { RunContext } from './run-context.js';
 
-/** Tools the dispatcher may use without asking: its own MCP tools and read-only file tools (DSP-03). */
-const DISPATCHER_READ_TOOLS = ['Read', 'Glob', 'Grep'];
+/**
+ * Tools the dispatcher may use without asking: its own MCP tools, read-only file tools (DSP-03) and
+ * the web, which it reads as data.
+ */
+const DISPATCHER_READ_TOOLS = ['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch'];
 const DISPATCHER_DENIED_TOOLS = ['Edit', 'Write', 'Bash', 'NotebookEdit'];
 
 /**

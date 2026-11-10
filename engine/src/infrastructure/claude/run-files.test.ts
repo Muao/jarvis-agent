@@ -348,13 +348,15 @@ describe('writeRunFiles', () => {
     });
   });
 
-  it('dispatcher settings allow only reading and deny every edit (DSP-03)', async () => {
+  it('dispatcher settings allow only reading (files and the web) and deny every edit (DSP-03)', async () => {
     await writeRunFiles(runDir, specOf({ role: 'dispatcher' }), ctxOf());
     const { allow, deny } = permissions();
     expect(allow).toEqual([
       'Read',
       'Glob',
       'Grep',
+      'WebFetch',
+      'WebSearch',
       ...toolsByRole.dispatcher.filter((t) => t !== 'approve').map((t) => `mcp__jarvis__${t}`),
     ]);
     expect(allow).not.toContain('mcp__jarvis__approve');

@@ -6,10 +6,10 @@ import type { RunContext } from './run-context.js';
 
 type Json = Record<string, unknown>;
 
-/** Dispatcher runs plan and talk, they never change files (DSP-03). */
+/** Dispatcher runs plan and talk, they never change files (DSP-03). The web is read without asking. */
 const DISPATCHER_SETTINGS = {
   permissions: {
-    allow: ['Read', 'Glob', 'Grep', ...ownToolRules('dispatcher')],
+    allow: ['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch', ...ownToolRules('dispatcher')],
     deny: ['Edit', 'Write', 'Bash', 'NotebookEdit'],
   },
 };
