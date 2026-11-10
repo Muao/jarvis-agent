@@ -169,6 +169,28 @@ describe('OpenPr — the green path', () => {
     expect(app.messagesOf(thread.id).filter((m) => m.kind === 'result')).toHaveLength(0);
   });
 
+  it('a call from PR Open (the owner asked for a change) moves to Fixing first, without a fix round', async () => {
+    const { app, task, worker } = await setup('PR Open');
+    await app.uow.run((tx) =>
+      tx.tasks.save({
+        ...app.task(task.id),
+        pr: { number: 7, url: 'https://github.com/o/r/pull/7' },
+      }),
+    );
+    const counters = app.task(task.id).counters;
+
+    const result = await app.openPr.execute(worker, {});
+
+    expect(result).toMatchObject({ ok: true, number: 7, created: false });
+    const moves = app.db.tables.journal.filter((e) => e.type === 'stage_changed').slice(-2);
+    expect(moves.map((e) => [e.actor, e.data])).toMatchObject([
+      ['owner', { from: 'PR Open', to: 'Fixing', cause: 'owner_request' }],
+      ['system', { from: 'Fixing', to: 'PR Open', cause: 'pr_opened' }],
+    ]);
+    expect(app.task(task.id).counters).toEqual(counters);
+    expect(app.branchPublisher.pushes).toHaveLength(1);
+  });
+
   it('keeps the watcher state while the PR stays the same', async () => {
     const { app, task, worker } = await setup('Fixing');
     const state = { headSha: 'abc', checks: [], reviews: [], seenCommentIds: ['issue:3'] };
@@ -534,19 +556,16 @@ describe('OpenPr — a failure after a green gate does not repeat the gate', () 
 });
 
 describe('OpenPr — refusals that need no gate', () => {
-  it.each<TaskStage>(['Context', 'Spec Review', 'PR Open'])(
-    'is not allowed from %s',
-    async (stage) => {
-      const { app, worker } = await setup(stage);
+  it.each<TaskStage>(['Context', 'Spec Review'])('is not allowed from %s', async (stage) => {
+    const { app, worker } = await setup(stage);
 
-      expect(await app.openPr.execute(worker, TEXT)).toMatchObject({
-        ok: false,
-        reason: 'wrong_stage',
-      });
-      expect(app.checkRunner.calls).toEqual([]);
-      expectNothingPublished(app);
-    },
-  );
+    expect(await app.openPr.execute(worker, TEXT)).toMatchObject({
+      ok: false,
+      reason: 'wrong_stage',
+    });
+    expect(app.checkRunner.calls).toEqual([]);
+    expectNothingPublished(app);
+  });
 
   it('is not for a ui_check task', async () => {
     const app = buildTestApp();

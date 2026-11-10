@@ -206,8 +206,9 @@ export class OpenPr {
     signal: AbortSignal,
   ): Promise<OpenPrResult> {
     const { deps } = this;
-    const { task, journal } = await transact(deps, async (tx) => {
-      const found = await loadWorkerTask(tx, identity);
+    const { task, journal } = await transact(deps, async (tx, outbox) => {
+      // DSP-04: a push from `PR Open` is the owner's request; the task moves to `Fixing` first.
+      const found = await deps.writer.reopenForPush(tx, outbox, await loadWorkerTask(tx, identity));
       return { task: found, journal: await tx.journal.list(found.id) };
     });
 
@@ -215,7 +216,7 @@ export class OpenPr {
       return {
         ok: false,
         reason: 'wrong_stage',
-        detail: `open_pr works in Implementing, Reviewing or Fixing of a build task; this task is ${task.kind} in ${task.stage}.`,
+        detail: `open_pr works in Implementing, Reviewing, Fixing or PR Open of a build task; this task is ${task.kind} in ${task.stage}.`,
       };
     }
     if (task.pr === null && (input.title === undefined || input.body === undefined)) {

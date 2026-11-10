@@ -100,16 +100,15 @@ describe('AnswerQuestion', () => {
     });
   });
 
-  it('answers a question asked from PR Open in Fixing, where the worker can push', async () => {
+  it('answers a question asked from PR Open back in PR Open; a push from there moves it on', async () => {
     const { app, task, cardId } = await blocked('PR Open');
 
     await app.answerQuestion.execute(cardId, 'Push it');
 
-    expect(app.task(task.id)).toMatchObject({ stage: 'Fixing', resumeStage: null });
-    const moves = app.db.tables.journal.filter((e) => e.type === 'stage_changed').slice(-2);
+    expect(app.task(task.id)).toMatchObject({ stage: 'PR Open', resumeStage: null });
+    const moves = app.db.tables.journal.filter((e) => e.type === 'stage_changed').slice(-1);
     expect(moves.map((e) => e.data)).toMatchObject([
       { from: 'Blocked', to: 'PR Open', cause: 'owner_answered' },
-      { from: 'PR Open', to: 'Fixing', cause: 'owner_request' },
     ]);
     expect(app.runs.calls).toEqual([{ type: 'worker_run', taskId: task.id, reason: 'resume' }]);
   });

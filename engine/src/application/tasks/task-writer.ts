@@ -50,22 +50,17 @@ export class TaskWriter {
   }
 
   /**
-   * DSP-04: the owner wrote to a worker whose task waits in `PR Open`. Only `Fixing` lets the worker
-   * push through `open_pr` (and run the UI check), so the task moves there first, like a review
-   * comment would move it. Owner-driven, so it does not use a CI-fix or review round and no limit
-   * stops it; `Blocked` and the terminal stages are not `PR Open` and stay as they are, as does
-   * every other stage and every `ui_check` task (which has no `PR Open`).
+   * DSP-04: a worker in `PR Open` calls `open_pr` to push new commits. Only an owner message (or an
+   * answer to its question) starts a run there — CI and review move the task to `Fixing` themselves —
+   * so the push is the owner's request and the task moves to `Fixing` now, like a review comment
+   * would move it. A message that asks for no change (a question, a retro) never reaches this and
+   * the task stays in `PR Open`, watched. Owner-driven, so it uses no CI-fix or review round.
    */
-  async reopenForOwnerInput(
-    tx: Repositories,
-    outbox: Outbox,
-    task: Task,
-    message: { readonly id: string },
-  ): Promise<Task> {
+  async reopenForPush(tx: Repositories, outbox: Outbox, task: Task): Promise<Task> {
     if (task.kind !== 'build' || task.stage !== 'PR Open') return task;
     return this.move(tx, outbox, task, 'Fixing', {
       cause: 'owner_request',
-      reason: `owner message ${message.id}`,
+      reason: 'open_pr from PR Open',
     });
   }
 

@@ -41,12 +41,8 @@ export class AnswerQuestion {
     if (task.stage !== 'Blocked' || task.resumeStage === null) {
       throw new DomainError('illegal_transition', `Task ${task.id} is not waiting for an answer`);
     }
-    const resumed = await this.deps.writer.move(tx, outbox, task, task.resumeStage, {
-      cause: 'owner_answered',
-    });
+    await this.deps.writer.move(tx, outbox, task, task.resumeStage, { cause: 'owner_answered' });
     await this.deps.writer.note(tx, task.id, 'owner_input', 'owner', { messageId: input.id });
-    // A worker that asked from `PR Open` (it cannot push there) gets its answer in `Fixing`.
-    await this.deps.writer.reopenForOwnerInput(tx, outbox, resumed, input);
     outbox.requestWorkerRun(task.id, 'resume');
   }
 }
