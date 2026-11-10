@@ -320,7 +320,7 @@ the owner reading the diff.
   worker can move a task to `PR Open` except through `OpenPr`.
   CHECK: `shared/src/mcp.ts` `toolsByRole`; unit test that no use case other than `OpenPr` moves a task to
   `PR Open`; `report-stage` test that `Verifying` and `PR Open` are refused.
-- RULE: `open_pr` pushes nothing and creates nothing while any frozen check command exits non-zero.
+- RULE: `open_pr` pushes nothing and creates nothing while any frozen check command exits non-zero, unless it is red on the merge base too or the worker skipped it after it ran red on that commit.
   CHECK: use-case test on fakes — a red run leaves the publisher's and the host's call lists empty and the
   task in `Implementing` (or `Fixing`).
 - RULE: the gate runs `HEAD` and pushes exactly the sha it ran; a dirty tree is refused.
@@ -354,6 +354,33 @@ the owner reading the diff.
 - RULE: a fake-`claude` flow reaches `PR Open` through `open_pr` against a local bare remote, and a flow
   whose command exits 1 does not.
   CHECK: `engine/test/flow/` scenarios.
+
+## Amendment 2026-11-10: judged against main
+
+Three rules change how a red check is judged; the gate itself (the engine runs the frozen commands on
+`HEAD` and pushes the sha it ran) does not change.
+
+1. **The frozen list follows the base.** Before a run the engine reads `AGENTS.md` from the remote base
+   branch and refreshes the task's frozen check list from it, unless the list's source is `worker`. A
+   refresh is journalled as `checks_fixed {source: 'base_refresh'}`.
+2. **Red on both is not the task's.** A red command is re-run on the merge base. If it is red there too it
+   is "pre-existing": it does not block `open_pr`, counts no retry, is listed in `checks_failed` results as
+   `preexisting: string[]`, and the PR body carries a `## Fails on main too` section.
+3. **The worker may skip what the environment breaks.** `open_pr({ skip: [{ command, reason }] })` skips a
+   frozen command that ran red on the current head; anything else is refused with `skip_not_allowed`. The PR
+   body carries a `## Checks skipped locally — CI decides` section.
+
+Confirmation:
+
+- RULE: a task's frozen check list is refreshed from the remote base branch's `AGENTS.md` unless its source
+  is `worker`, and the refresh is journalled as `checks_fixed {source: 'base_refresh'}`.
+  CHECK: use-case test on fakes — a changed base `AGENTS.md` replaces the list; a `worker` source keeps it.
+- RULE: a command red on the merge base as well as on `HEAD` does not block `open_pr`, counts no retry and
+  appears under `preexisting` and in the PR body's `## Fails on main too`.
+  CHECK: use-case test on fakes — red on both opens the PR with the section; red only on `HEAD` blocks.
+- RULE: a skip is accepted only for a frozen command that ran red on the current head, else `skip_not_allowed`;
+  skipped commands appear in the PR body's `## Checks skipped locally — CI decides`.
+  CHECK: use-case test on fakes — a green or unknown command in `skip` is refused.
 
 ## More Information
 

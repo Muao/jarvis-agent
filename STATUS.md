@@ -20,6 +20,13 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
 
 ## Done
 
+- **Checks judged against main** (on branch feat/checks-judged-against-main, not yet deployed): the engine
+  refreshes a task's frozen check list from the remote base's `AGENTS.md` unless its source is `worker`
+  (`checks_fixed {source: 'base_refresh'}`); a red command is re-run on the merge base and, red on both, is
+  "pre-existing" — it does not block `open_pr`, counts no retry and goes under `## Fails on main too`; the
+  worker may pass `open_pr({ skip: [{command, reason}] })` for a command that ran red on the head
+  (`skip_not_allowed` otherwise; `## Checks skipped locally — CI decides`). ADR-0022 amended, worker prompt
+  updated.
 - **Iteration 1 in full except Phase 5** (the live vertical slice): the task state machine, run scheduler
   with slots and budget, permissions, recovery after restart, Postgres with an append-only journal, the
   Claude CLI runner and its MCP tool server, the GitHub code host and PR watcher, the HTTP API with SSE, and
