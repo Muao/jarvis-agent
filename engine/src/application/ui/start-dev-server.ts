@@ -1,4 +1,8 @@
-import { planCredentialViolations, type EnvironmentPlan } from '@jarvis/shared';
+import {
+  planCredentialViolations,
+  redactPlanForJournal,
+  type EnvironmentPlan,
+} from '@jarvis/shared';
 import { ForbiddenError } from '../errors.js';
 import type { ConfigProvider } from '../ports/config-provider.js';
 import type { DevServerManager, DevServerRefused, DevServerResult } from '../ports/dev-server.js';
@@ -82,11 +86,11 @@ export class StartDevServer {
     if (!result.ok) return refused(result);
 
     await transact(this.deps, async (tx) => {
-      // The plan is safe to keep verbatim: it holds markers and references, never a secret.
+      // The credential check is a heuristic, so env values never reach the journal: names only.
       await this.deps.writer.note(tx, task.id, 'dev_server_started', 'system', {
         baseUrl: result.lease.baseUrl,
         expiresAt: result.lease.expiresAt,
-        plan,
+        plan: redactPlanForJournal(plan),
       });
     });
     return result;

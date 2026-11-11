@@ -7,6 +7,7 @@ import type { RequestPermission } from '../permissions/request-permission.js';
 import type { RunIdentity } from '../run-identity.js';
 import type { TaskDeps } from '../tasks/deps.js';
 import { transact } from '../transaction.js';
+import { approvalFingerprint, planForApproval } from './plan-approval.js';
 
 export const HEAD_APPROVED = 'ui_head_approved';
 export const HEAD_REFUSED = 'ui_head_refused';
@@ -67,9 +68,14 @@ export class TrustPullRequestHead {
       };
     }
 
-    // An approval already given for this task covers its retry: the head is the same head.
-    if (await this.alreadyApproved(task.id)) {
-      return { trusted: true, detail: 'the owner approved this head earlier in this task' };
+    // An approval covers exactly the plan and head it was given for: a retry of the same plan on
+    // the same head. A revised plan, or a new commit, is new code to run and asks again.
+    const fingerprint = approvalFingerprint(plan, pr.headSha);
+    if (await this.alreadyApproved(task.id, fingerprint)) {
+      return {
+        trusted: true,
+        detail: 'the owner approved this plan on this head earlier in this task',
+      };
     }
 
     const why = pr.fromFork
@@ -82,7 +88,8 @@ export class TrustPullRequestHead {
         author: pr.author,
         head: `${pr.headRepo.owner}/${pr.headRepo.name}:${pr.headRef}`,
         fromFork: pr.fromFork,
-        willRun: [...plan.prepare, plan.app.command],
+        headSha: pr.headSha,
+        plan: planForApproval(plan, this.deps.config.current().ui.defaultImage),
         where: "in a disposable container, without the engine's environment or files",
         warning: `Running this pull request's code in a container on this machine. ${why}.`,
       },
@@ -96,6 +103,8 @@ export class TrustPullRequestHead {
         author: pr.author,
         fromFork: pr.fromFork,
         why,
+        headSha: pr.headSha,
+        fingerprint,
       });
     });
 
@@ -107,10 +116,16 @@ export class TrustPullRequestHead {
         };
   }
 
-  private async alreadyApproved(taskId: string): Promise<boolean> {
+  private async alreadyApproved(taskId: string, fingerprint: string): Promise<boolean> {
     return transact(this.deps, async (tx) => {
       const journal = await tx.journal.list(taskId);
-      return journal.some((e) => e.type === HEAD_APPROVED);
+      return journal.some(
+        (e) =>
+          e.type === HEAD_APPROVED &&
+          typeof e.data === 'object' &&
+          e.data !== null &&
+          (e.data as Record<string, unknown>)['fingerprint'] === fingerprint,
+      );
     });
   }
 }
