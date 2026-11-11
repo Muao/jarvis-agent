@@ -36,7 +36,7 @@ async function waitFor<T>(
 async function startThread(text: string): Promise<string> {
   const res = await fetch(`${url}/api/threads`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-jarvis-owner': '1' },
     body: JSON.stringify({ text }),
   });
   return ThreadDetailDtoSchema.parse(await res.json()).id;

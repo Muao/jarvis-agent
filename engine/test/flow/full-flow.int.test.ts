@@ -155,8 +155,11 @@ function client(flow: Flow) {
       api(path, {
         method: 'POST',
         ...(body === undefined
-          ? {}
-          : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
+          ? { headers: { 'x-jarvis-owner': '1' } }
+          : {
+              headers: { 'content-type': 'application/json', 'x-jarvis-owner': '1' },
+              body: JSON.stringify(body),
+            }),
       }),
     thread: (id: string) => json(`/api/threads/${id}`, (v) => ThreadDetailDtoSchema.parse(v)),
     task: (id: string) => json(`/api/tasks/${id}`, (v) => TaskDetailDtoSchema.parse(v)),
