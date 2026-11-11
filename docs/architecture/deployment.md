@@ -212,6 +212,11 @@ is always an explicit re-run of that installer by the owner; a deploy never repl
 
 ### H2: egress filter and container DNS
 
+First check how the host resolves names: `resolvectl status` and `cat /etc/resolv.conf`. Normally it points at
+systemd-resolved (`127.0.0.53`, loopback, unaffected). If it points straight at MagicDNS (`100.100.100.100`),
+the filter still allows port 53 to MagicDNS (and `fd7a:115c:a1e0::53`) so the engine keeps resolving; everything
+else on the tailnet stays dropped.
+
 ```sh
 deploy/hardening/egress.sh              # nftables table + jarvis-egress.service + rootless docker daemon.json
 export JARVIS_TAILNET_NAME=<this host's tailnet name, see `tailscale status`>
@@ -233,13 +238,15 @@ need no rule (public ranges are allowed). It also writes `~jarvis/.config/docker
 
 Assumption: the engine and its children need nothing in the blocked ranges. Postgres, the web preview and
 Alloy's OTLP are on loopback; GitHub, npm, Docker Hub, Infisical, healthchecks.io and the Anthropic API are
-public. A target repo whose checks need a private host: add that single address via `EGRESS_EXTRA_ALLOW="ip ip" deploy/hardening/egress.sh`
-(it is not persisted in the unit; edit the unit's `Environment=` or re-run).
+public. A target repo whose checks need a private host: put that single address in `EGRESS_EXTRA_ALLOW="ip ip"` in the
+root-owned `/etc/default/jarvis-egress` (the installer creates it empty only if absent and never overwrites it),
+then `systemctl restart jarvis-egress`; the boot-time `load` reads it every time.
 
 Verification (`verify-egress.sh`, the same checks by hand as `jarvis` with `DOCKER_HOST` set): from a throwaway
 container, `curl https://<tailnet name>/api/health`, `curl http://100.100.100.100/` and
 `curl http://169.254.169.254/` must fail; `curl https://registry.npmjs.org/` and `docker pull node:22-bookworm`
-must work; `curl http://127.0.0.1:4310/api/health` on the host must still return 200.
+must work; as `jarvis` on the host `getent hosts github.com`, `getent hosts registry.npmjs.org` and
+`curl https://api.github.com` must work too; `curl http://127.0.0.1:4310/api/health` on the host must still return 200.
 
 Rollback: `deploy/hardening/egress.sh remove` (or just `nft delete table inet jarvis_egress`; it returns on the
 next boot unless the unit is disabled). It leaves `daemon.json` alone; remove the two keys to revert DNS.

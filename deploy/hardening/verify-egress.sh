@@ -56,6 +56,20 @@ if [ "$code" = 200 ]; then echo "ok    engine health 200"; else
   fail=1
 fi
 
+# The engine's own needs, as uid jarvis on the host: DNS and public HTTPS must keep working.
+for h in github.com registry.npmjs.org; do
+  if as_jarvis getent hosts "$h" >/dev/null 2>&1; then echo "ok    jarvis resolves $h"; else
+    echo "FAIL  jarvis cannot resolve $h (check /etc/resolv.conf, resolvectl status)"
+    fail=1
+  fi
+done
+if as_jarvis curl -sS -o /dev/null --max-time 15 https://api.github.com >/dev/null 2>&1; then
+  echo "ok    jarvis reaches api.github.com"
+else
+  echo "FAIL  jarvis cannot reach api.github.com"
+  fail=1
+fi
+
 # The filter matches the uid, not the host: jarvis itself (the engine, worker Bash) is blocked too.
 if as_jarvis curl -s -o /dev/null --max-time 6 "https://$NAME/api/health" >/dev/null 2>&1; then
   echo "FAIL  uid $RUN_AS on the host reaches the tailnet name"

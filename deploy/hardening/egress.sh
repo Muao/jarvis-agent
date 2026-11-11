@@ -26,6 +26,10 @@ UNIT=/etc/systemd/system/jarvis-egress.service
 # Public resolvers handed to containers (kept in one place; also written into daemon.json).
 DNS_SERVERS=(1.1.1.1 9.9.9.9)
 # Optional: space-separated IPs/CIDRs exempt from the drop list (e.g. a private registry mirror).
+# Persisted in the root-owned /etc/default/jarvis-egress (EGRESS_EXTRA_ALLOW="ip ip"), read at every load.
+DEFAULTS=/etc/default/jarvis-egress
+# shellcheck disable=SC1090
+[ ! -r "$DEFAULTS" ] || . "$DEFAULTS"
 EXTRA_ALLOW="${EGRESS_EXTRA_ALLOW:-}"
 
 BLOCK4="100.64.0.0/10, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16"
@@ -68,7 +72,14 @@ table $TABLE {
     ip daddr 127.0.0.0/8 accept
     ip6 daddr ::1 accept
     ct state established,related accept
-${allow_rules}    ip daddr { $BLOCK4${own4:+, $own4} } counter drop
+${allow_rules}    # MagicDNS: if /etc/resolv.conf points straight at it (not at systemd-resolved on 127.0.0.53), the
+    # engine's own lookups (github.com, Infisical) would die. It only answers names; every other tailnet
+    # address stays dropped below. Containers use 1.1.1.1 via daemon.json and never need it.
+    ip daddr 100.100.100.100 udp dport 53 accept
+    ip daddr 100.100.100.100 tcp dport 53 accept
+    ip6 daddr fd7a:115c:a1e0::53 udp dport 53 accept
+    ip6 daddr fd7a:115c:a1e0::53 tcp dport 53 accept
+    ip daddr { $BLOCK4${own4:+, $own4} } counter drop
     ip6 daddr { $BLOCK6${own6:+, $own6} } counter drop
   }
 }
@@ -131,6 +142,11 @@ cmd_install() {
   }
   id "$RUN_AS" >/dev/null
   install -o root -g root -m 0755 "$(readlink -f "$0")" "$HELPER"
+  if [ ! -e "$DEFAULTS" ]; then
+    printf '# Extra IPs/CIDRs the jarvis uid may reach despite the egress filter (space-separated).\nEGRESS_EXTRA_ALLOW=""\n' >"$DEFAULTS"
+    chmod 0644 "$DEFAULTS"
+  fi
+  echo "egress: resolver check: $(grep -E '^nameserver' /etc/resolv.conf | tr '\n' ' ')"
   cat >"$UNIT" <<UNITEOF
 [Unit]
 Description=Jarvis egress filter for uid $RUN_AS (nftables)
