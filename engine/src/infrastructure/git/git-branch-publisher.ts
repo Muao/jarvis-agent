@@ -208,16 +208,35 @@ export class GitBranchPublisher implements BranchPublisher {
     return (await this.read(taskId, ['merge-base', 'HEAD', base])).trim();
   }
 
-  async onBase<T>(taskId: string, sha: string, run: () => Promise<T>): Promise<T> {
+  async withBaseCheckout<T>(
+    taskId: string,
+    sha: string,
+    run: (dir: string) => Promise<T>,
+  ): Promise<T> {
     if (!SHA.test(sha)) throw new Error(`Invalid commit id: ${JSON.stringify(sha)}`);
-    const dirty = await this.read(taskId, ['status', '--porcelain=v1', '--untracked-files=no']);
-    if (dirty.trim() !== '') throw new Error('The worktree has uncommitted changes');
-    await this.read(taskId, ['checkout', '--detach', '--quiet', sha]);
+    const objects = (
+      await this.read(taskId, ['rev-parse', '--path-format=absolute', '--git-path', 'objects'])
+    ).trim();
+    const scratch = await mkdtemp(join(tmpdir(), 'jarvis-basecheck-'));
     try {
-      return await run();
+      // Same shape as the push: a throwaway bare repository with an empty template, linked to the
+      // clone by its object store alone, so the clone's config, hooks and attributes drivers are
+      // never read. The checkout is a plain `worktree add` of that repository.
+      const gitDir = join(scratch, 'git');
+      const dir = join(scratch, 'tree');
+      await this.git(['init', '--bare', '--quiet', '--template=', gitDir], {
+        cwd: scratch,
+        env: this.baseEnv(),
+      });
+      await mkdir(join(gitDir, 'objects', 'info'), { recursive: true });
+      await writeFile(join(gitDir, 'objects', 'info', 'alternates'), `${objects}\n`);
+      await this.git([...READ_ONLY, 'worktree', 'add', '--detach', '--quiet', dir, sha], {
+        cwd: gitDir,
+        env: this.baseEnv(),
+      });
+      return await run(dir);
     } finally {
-      // The tree was clean before the switch: whatever is changed now, the base run changed.
-      await this.read(taskId, ['checkout', '--force', '--quiet', `jarvis/${taskId}`]);
+      await rm(scratch, { recursive: true, force: true });
     }
   }
 

@@ -257,6 +257,28 @@ export class GitHubCodeHost implements CodeHost, ConnectionChecker {
     }
   }
 
+  async hasCiWorkflow(branch: string, target?: RepoTarget): Promise<boolean> {
+    return this.guard(async () => {
+      const { owner, repo } = this.where(target);
+      try {
+        // `{+path}`: the directory's slash must stay a slash.
+        const { data } = await this.octokit.request('GET /repos/{owner}/{repo}/contents/{+path}', {
+          owner,
+          repo,
+          path: '.github/workflows',
+          ref: branch,
+        });
+        return (
+          Array.isArray(data) &&
+          data.some((file) => file.type === 'file' && /\.ya?ml$/i.test(file.name))
+        );
+      } catch (error) {
+        if ((error as { status?: number }).status === 404) return false;
+        throw error;
+      }
+    });
+  }
+
   /**
    * ADR-0022. The failed checks of `headSha`, with the end of their logs when they are Actions
    * jobs (their check-run id is the job id). The text is whatever a test or a dependency printed,

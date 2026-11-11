@@ -42,8 +42,9 @@ export interface BranchPublisher {
   /** `git merge-base HEAD <base>` in the worktree: read-only, no network. */
   mergeBase(taskId: string): Promise<string>;
   /**
-   * Detaches the worktree at `sha`, runs `run`, and checks `jarvis/<taskId>` out again, even when
-   * `run` throws. Throws if the tree is dirty before the switch.
+   * Checks `sha` out into a fresh directory the engine creates (never the task's worktree, so no
+   * file the worker left there can reach it), calls `run` with that directory, and removes it again,
+   * even when `run` throws. Hooks and the clone's config are not read.
    */
-  onBase<T>(taskId: string, sha: string, run: () => Promise<T>): Promise<T>;
+  withBaseCheckout<T>(taskId: string, sha: string, run: (dir: string) => Promise<T>): Promise<T>;
 }

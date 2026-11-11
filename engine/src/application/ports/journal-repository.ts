@@ -14,6 +14,12 @@ export interface JournalRepository {
   entries(taskId: string): Promise<readonly JournalEntry[]>;
   /** Events of the given types written at or after `since`, across all tasks, oldest first. */
   ofTypesSince(types: readonly string[], since: IsoTime): Promise<readonly TaskEvent[]>;
+  /**
+   * Holds a lock named `key` until the surrounding transaction ends, so a check-then-write on rows
+   * of every task (a daily allowance) cannot interleave with another one. Postgres: a
+   * transaction-scoped advisory lock; the in-memory unit of work already runs one transaction at a time.
+   */
+  lock(key: string): Promise<void>;
   /** The newest rows across all tasks, newest first. */
   recent(limit: number): Promise<readonly JournalEntry[]>;
 }

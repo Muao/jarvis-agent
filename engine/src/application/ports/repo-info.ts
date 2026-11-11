@@ -12,4 +12,10 @@ export interface RepoInfo {
   commands(repoPath: string): Promise<RepoCommands>;
   /** The check commands an `AGENTS.md` text lists, in order (empty when it names none). */
   parseCommands(markdown: string): string[];
+  /**
+   * The dependency-install command for a clean checkout in `dir`, chosen by the lockfile it holds
+   * (`pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`, `bun.lock`); `null` when there is none.
+   * Convention, not per-repository configuration.
+   */
+  installCommand(dir: string): Promise<string | null>;
 }

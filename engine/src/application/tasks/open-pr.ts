@@ -26,8 +26,10 @@ import type { LiveRuns } from '../runs/live-runs.js';
 import type { RunEventLog } from '../runs/run-event-log.js';
 import type { RunIdentity } from '../run-identity.js';
 import { transact } from '../transaction.js';
+import type { IdGenerator } from '../ports/id-generator.js';
+import { alreadyProposed, isNarrowing, proposeChecks } from './checks-refresh.js';
 import type { TaskDeps } from './deps.js';
-import { reportDailyLimit, writesToday } from './daily-limit.js';
+import { releaseDaily, reportDailyLimit, reserveDaily } from './daily-limit.js';
 import { loadWorkerTask } from './guards.js';
 import { worktreeFor } from './worktree-for.js';
 
@@ -99,6 +101,7 @@ export type OpenPrResult =
     };
 
 export interface OpenPrDeps extends TaskDeps {
+  readonly ids: IdGenerator;
   readonly config: ConfigProvider;
   readonly repoInfo: RepoInfo;
   readonly worktrees: WorktreeManager;
@@ -119,7 +122,12 @@ export interface OpenPrDeps extends TaskDeps {
 /** The stages `open_pr` may be called from (ADR-0022). `Verifying` is what the engine itself sets. */
 const ALLOWED_STAGES: readonly TaskStage[] = ['Implementing', 'Verifying', 'Reviewing', 'Fixing'];
 
-const TREE_NOT_RESTORED = 'worktree not restored';
+/**
+ * How many commands the worker may skip over a task's whole life (rows of `check_skipped`). Beyond
+ * it `open_pr` answers `skip_not_allowed`. A constant here, not config: `shared/src/config.ts` is
+ * owned elsewhere; promote it to a limit when it needs tuning.
+ */
+export const MAX_SKIPPED_CHECKS_PER_TASK = 3;
 
 const sha7 = (sha: string): string => sha.slice(0, 7);
 
@@ -219,6 +227,26 @@ function lastRedOn(
   }
   return null;
 }
+
+/** Whether `command` ran and passed on exactly this head, per the gate rows of the journal. */
+function greenOn(journal: readonly TaskEvent[], headSha: string, command: string): boolean {
+  return journal.some((event) => {
+    if (event.type !== 'checks_failed' && event.type !== 'checks_passed') return false;
+    if (event.data['headSha'] !== headSha) return false;
+    const results = event.data['results'];
+    return (
+      Array.isArray(results) &&
+      (results as CheckResult[]).some((r) => r.command === command && !isRed(r))
+    );
+  });
+}
+
+/** A skip row for this command on this head is already journalled (a retry after `host_error`). */
+const skipRecorded = (journal: readonly TaskEvent[], headSha: string, command: string): boolean =>
+  journal.some(
+    (e) =>
+      e.type === 'check_skipped' && e.data['headSha'] === headSha && e.data['command'] === command,
+  );
 
 /** The first skip the worker may not make, or the accepted ones. */
 function validatedSkips(
@@ -408,7 +436,7 @@ export class OpenPr {
     if (missing !== null) return missing;
     const headSha = await deps.branchPublisher.headSha(task.id);
 
-    const commands = await this.commandsFor(task, journal, worktree.path, repo);
+    const commands = await this.commandsFor(identity, task, journal, worktree.path, repo);
     if (commands === null) {
       return {
         ok: false,
@@ -425,6 +453,17 @@ export class OpenPr {
     const asked = validatedSkips(input.skip ?? [], commands, current, headSha);
     if ('detail' in asked) return { ok: false, reason: 'skip_not_allowed', detail: asked.detail };
     const { skipped } = asked;
+    if (skipped.length > 0) {
+      const refused = await this.skipRefusal({
+        task,
+        repo,
+        journal: current,
+        headSha,
+        commands,
+        skipped,
+      });
+      if (refused !== null) return { ok: false, reason: 'skip_not_allowed', detail: refused };
+    }
     const left = commands.filter((c) => !skipped.some((s) => s.command === c));
 
     const cached = cachedGreen(current, headSha);
@@ -450,10 +489,27 @@ export class OpenPr {
     const after = await this.settled(task.id, headSha);
     if (after.refusal !== null) return after.refusal;
 
+    let used = current.filter((e) => e.type === 'check_skipped').length;
     for (const { command, reason } of skipped) {
-      await transact(deps, (tx) =>
-        deps.writer.note(tx, task.id, 'check_skipped', 'system', { command, reason, headSha }),
-      );
+      if (skipRecorded(current, headSha, command)) continue;
+      used += 1;
+      // The owner sees it at once, not only in the PR body (and it counts against the task's cap).
+      await transact(deps, async (tx, outbox) => {
+        await deps.writer.note(tx, task.id, 'check_skipped', 'system', {
+          command,
+          reason,
+          headSha,
+        });
+        const note: BodyOf<'system'> = {
+          text: `Skipped locally: ${command} — ${reason} (skip ${used} of ${MAX_SKIPPED_CHECKS_PER_TASK} allowed for this task; CI decides)`,
+        };
+        await deps.messages.post(tx, outbox, {
+          threadId: task.threadId,
+          taskId: task.id,
+          kind: 'system',
+          body: note,
+        });
+      });
     }
 
     return this.publish({
@@ -468,15 +524,56 @@ export class OpenPr {
     });
   }
 
+  /**
+   * ADR-0022 (amendment 2026-11-11): a skip hands the decision to CI, so it is only accepted when
+   * (1) at most `MAX_SKIPPED_CHECKS_PER_TASK` commands are skipped over the task's life, (2) at least
+   * one command that stays ran green on this head — never a PR with no real check — and (3) the
+   * repository has a GitHub Actions workflow on its base branch, so "CI decides" is true.
+   */
+  private async skipRefusal(input: {
+    readonly task: Task;
+    readonly repo: RepoTarget;
+    readonly journal: readonly TaskEvent[];
+    readonly headSha: string;
+    readonly commands: readonly string[];
+    readonly skipped: readonly Skipped[];
+  }): Promise<string | null> {
+    const { task, repo, journal, headSha, commands, skipped } = input;
+    const fresh = skipped.filter((s) => !skipRecorded(journal, headSha, s.command));
+    const used = journal.filter((e) => e.type === 'check_skipped').length;
+    if (used + fresh.length > MAX_SKIPPED_CHECKS_PER_TASK) {
+      return `Skipping is capped at ${MAX_SKIPPED_CHECKS_PER_TASK} commands per task and ${used} were already skipped. Fix the failing check, or ask the owner.`;
+    }
+    const left = commands.filter((c) => !skipped.some((s) => s.command === c));
+    if (!left.some((command) => greenOn(journal, headSha, command))) {
+      return `Nothing can be skipped here: at least one check must have passed on ${sha7(headSha)} and none that stays has. Make a check green first.`;
+    }
+    let ci = false;
+    try {
+      ci = await this.deps.codeHost.hasCiWorkflow(
+        this.deps.config.current().repo.baseBranch,
+        task.targetRepo ?? undefined,
+      );
+    } catch {
+      // No evidence is no CI.
+    }
+    if (!ci) {
+      void repo;
+      return `A skip leaves the decision to CI, and ${this.deps.config.current().repo.baseBranch} has no GitHub Actions workflow (or it could not be read). Fix the check instead, or ask the owner.`;
+    }
+    return null;
+  }
+
   /** The frozen list, or the one `AGENTS.md` gives a task approved before ADR-0022 (journalled). */
   private async commandsFor(
+    identity: RunIdentity,
     task: Task,
     journal: readonly TaskEvent[],
     worktreePath: string,
     repo: RepoTarget,
   ): Promise<string[] | null> {
     const frozen = frozenCommands(journal);
-    if (frozen !== null) return this.refreshed(task, journal, frozen, repo);
+    if (frozen !== null) return this.refreshed(identity, task, journal, frozen, repo);
     const found = await this.deps.repoInfo.commands(worktreePath);
     const resolved = resolveCheckCommands({ agentsMd: found.checkCommands, proposed: undefined });
     if (!resolved.ok) return null;
@@ -492,11 +589,15 @@ export class OpenPr {
   }
 
   /**
-   * A list the engine found (not the worker) follows main: when main's `AGENTS.md` names other
-   * commands, the new list is journalled, announced and used. The file is read from the remote base
-   * tip, never from the task's worktree or branch.
+   * A list the engine found (not the worker) follows main, but only downwards (ADR-0022, amendment
+   * 2026-11-11): when main's `AGENTS.md` names a subset of the approved commands (exact strings) the
+   * smaller list is journalled, announced and used. A list that adds or changes any command is only
+   * proposed: the owner gets a permission card with the old and the new list, nothing new runs, and
+   * this call keeps running the approved list — `open_pr` never waits on the owner. The file is read
+   * from the remote base tip, never from the task's worktree or branch.
    */
   private async refreshed(
+    identity: RunIdentity,
     task: Task,
     journal: readonly TaskEvent[],
     frozen: string[],
@@ -517,6 +618,12 @@ export class OpenPr {
     ) {
       return frozen;
     }
+    if (!isNarrowing(fresh, frozen)) {
+      if (!alreadyProposed(journal, lastIndexOfType(journal, 'checks_fixed'), fresh)) {
+        await proposeChecks(deps, { task, runId: identity.runId, previous: frozen, fresh });
+      }
+      return frozen;
+    }
     await transact(deps, async (tx, outbox) => {
       await deps.writer.note(tx, task.id, 'checks_fixed', 'system', {
         commands: fresh,
@@ -525,7 +632,7 @@ export class OpenPr {
         previous: frozen,
       });
       const body: BodyOf<'system'> = {
-        text: `Checks updated from main's AGENTS.md: ${frozen.join(', ')} → ${fresh.join(', ')}.`,
+        text: `Checks narrowed from main's AGENTS.md: ${frozen.join(', ')} → ${fresh.join(', ')}.`,
       };
       await deps.messages.post(tx, outbox, {
         threadId: task.threadId,
@@ -607,32 +714,17 @@ export class OpenPr {
         ? await redOnBase(deps, {
             taskId: task.id,
             reds,
-            worktreePath: input.worktreePath,
             timeoutMs: limits.checkTimeoutMinutes * 60_000,
             signal,
             relativeLog: join('checks', `${attempt}-${sha7(headSha)}-base.log`),
           })
         : null;
     if (signal.aborted) return { refusal: runEnded() };
-    if (base !== null) {
-      const broken = await this.baseRunLeftTheTree(task.id, headSha, base.error);
-      if (broken !== null) {
-        await transact(deps, (tx) =>
-          deps.writer.note(tx, task.id, 'base_comparison_failed', 'system', {
-            headSha,
-            detail: broken,
-          }),
-        );
-        if (broken.startsWith(TREE_NOT_RESTORED)) {
-          return {
-            refusal: {
-              ok: false,
-              reason: 'checks_unavailable',
-              detail: `The engine could not restore your worktree after running the failed checks on main (${broken}). This does not count against your retries; check \`git status\` and call open_pr again.`,
-            },
-          };
-        }
-      }
+    if (base?.error !== null && base?.error !== undefined) {
+      const detail = base.error;
+      await transact(deps, (tx) =>
+        deps.writer.note(tx, task.id, 'base_comparison_failed', 'system', { headSha, detail }),
+      );
     }
 
     // Phase 3: write what happened.
@@ -745,33 +837,6 @@ export class OpenPr {
     });
   }
 
-  /**
-   * After the base run the worktree must be on the task's commit, clean. Returns what to journal:
-   * the comparison's own error, or a `TREE_NOT_RESTORED` description (which also refuses the call).
-   */
-  private async baseRunLeftTheTree(
-    taskId: string,
-    headSha: string,
-    error: string | null,
-  ): Promise<string | null> {
-    const { branchPublisher } = this.deps;
-    try {
-      const [now, status] = await Promise.all([
-        branchPublisher.headSha(taskId),
-        branchPublisher.status(taskId),
-      ]);
-      if (now !== headSha) {
-        return `${TREE_NOT_RESTORED}: HEAD is ${sha7(now)}, expected ${sha7(headSha)}`;
-      }
-      if (status.dirtyFiles.length > 0) {
-        return `${TREE_NOT_RESTORED}: ${status.dirtyFiles.length} changed file(s)`;
-      }
-    } catch (checkError) {
-      return `${TREE_NOT_RESTORED}: ${checkError instanceof Error ? checkError.message : String(checkError)}`;
-    }
-    return error;
-  }
-
   /** After a green gate: the commit and the tree must be exactly what was checked. */
   private async settled(
     taskId: string,
@@ -821,17 +886,6 @@ export class OpenPr {
     const { deps } = this;
     const { task, repo, headSha } = input;
 
-    // The brake on an agent that pushes without asking: commits per local day, across all tasks.
-    const limit = deps.config.current().limits.maxCommitsPerDay;
-    const pushes = await writesToday(deps, ['branch_pushed']);
-    if (pushes.reduce((sum, push) => sum + commitsOf(push), 0) >= limit) {
-      const told = await reportDailyLimit(deps, task, 'commits', limit);
-      return {
-        ok: false,
-        reason: 'daily_commit_limit',
-        detail: `${told} Your commits stay on the branch; stop here.`,
-      };
-    }
     const alreadyPushed = await transact(deps, async (tx) =>
       (await tx.journal.list(task.id)).reduce(
         (max, event) =>
@@ -844,8 +898,29 @@ export class OpenPr {
     const { commitsAhead } = input.status;
     const commits = Math.max(1, commitsAhead - alreadyPushed);
 
+    // The brake on an agent that pushes without asking: commits per local day, across all tasks.
+    // The commits of *this* push count, and the allowance is reserved under a lock before the
+    // push, so concurrent tasks cannot all pass the check and then all push.
+    const limit = deps.config.current().limits.maxCommitsPerDay;
+    const reserved = await reserveDaily(deps, {
+      taskId: task.id,
+      kind: 'commits',
+      amount: commits,
+      limit,
+      legacy: { type: 'branch_pushed', weight: commitsOf },
+    });
+    if (!reserved) {
+      const told = await reportDailyLimit(deps, task, 'commits', limit);
+      return {
+        ok: false,
+        reason: 'daily_commit_limit',
+        detail: `${told} Your commits stay on the branch; stop here.`,
+      };
+    }
+
     const pushed = await deps.branchPublisher.push({ taskId: task.id, repo, sha: headSha });
     if (!pushed.ok) {
+      await releaseDaily(deps, { taskId: task.id, kind: 'commits', amount: commits });
       await transact(deps, (tx) =>
         deps.writer.note(tx, task.id, 'push_failed', 'system', {
           headSha,
@@ -867,6 +942,7 @@ export class OpenPr {
         branch: task.branch,
         commits,
         commitsAhead,
+        reserved: true,
       }),
     );
 
@@ -941,18 +1017,6 @@ export class OpenPr {
           kind: 'system',
           body: note,
         });
-      }
-
-      if (!firstPr) {
-        for (const { command, reason } of input.skipped) {
-          const note: BodyOf<'system'> = { text: `Skipped locally: ${command} — ${reason}` };
-          await deps.messages.post(tx, outbox, {
-            threadId: task.threadId,
-            taskId: task.id,
-            kind: 'system',
-            body: note,
-          });
-        }
       }
 
       if (firstPr) {

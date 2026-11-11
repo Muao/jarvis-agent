@@ -387,6 +387,48 @@ Confirmation:
   skipped commands appear in the PR body's `## Checks skipped locally — CI decides`.
   CHECK: use-case test on fakes — a green or unknown command in `skip` is refused.
 
+## Amendment 2026-11-11: the gate cannot be bypassed from a merge to main or from the worktree
+
+The 2026-11-10 amendment let the frozen list follow main and let the worker skip red commands. Both
+moved trust to places the owner never approved, so they are narrowed:
+
+1. **The list follows main only downwards.** A list from main's `AGENTS.md` that is a subset of the approved
+   one (exact strings) replaces it as before (`checks_fixed {source: 'base_refresh'}`). A list that adds or
+   changes any command is only *proposed*: `checks_refresh_proposed` is journalled and the owner gets a
+   permission card (tool `jarvis:update_checks`) with the old and the new list. Nothing new runs. `open_pr`
+   does not wait: it keeps running the approved list. Allow → `checks_fixed {source: 'base_refresh_approved',
+   permissionId}` (only if it still replaces the list it was proposed against, else `checks_refresh_stale`);
+   deny → `checks_refresh_denied`, the old list stays and the same list is not proposed again. A request that
+   times out (or whose run ended) may be raised again by the next `open_pr`. Anyone who can merge to main can
+   no longer make the host run a command the owner has not read.
+2. **A skip needs a real check and real CI.** It is refused (`skip_not_allowed`) unless: at least one
+   command that stays in the run passed on this head; the base branch has a GitHub Actions workflow
+   (`CodeHost.hasCiWorkflow`; an unreadable answer counts as none); and no more than
+   `MAX_SKIPPED_CHECKS_PER_TASK` (3, a constant in `open-pr.ts`) `check_skipped` rows exist for the task.
+   Every accepted skip is a system message in the thread at once, with its running count.
+3. **The base comparison runs in a clean checkout the engine makes.** `BranchPublisher.withBaseCheckout`
+   creates a detached worktree of the merge base inside a throwaway bare repository (empty template, only
+   the object store shared with the clone), so the worker's ignored and untracked files — `node_modules`,
+   caches, `.env` — cannot make a check fail on base. The directory is removed afterwards and the task's
+   worktree is never touched, so the "restore the worktree" step is gone. Trade-off: the checkout has no
+   dependencies, so the engine first runs the install the lockfile implies (`pnpm install --frozen-lockfile`,
+   `npm ci`, `yarn install --frozen-lockfile`, `bun install --frozen-lockfile`; `RepoInfo.installCommand`,
+   convention not per-repository config) and the install runs main's own code with its lifecycle scripts, like
+   the checks do. A failed install voids the comparison: the red stays the task's. A repository with no such
+   lockfile is compared without an install, and a check that needs untracked local files (a `.env`) is then
+   red on base too and so classed pre-existing; that is the cost of not letting the worker shape the
+   comparison.
+
+Confirmation:
+
+- RULE: a changed or added command from main is never run before the owner approves it.
+  CHECK: use-case tests on fakes — subset auto-applies; an added or changed command raises a card and is not
+  executed; approve freezes it with an approval source; deny keeps the old list.
+- RULE: a skip is refused with no green check left, with no CI workflow on the base, or beyond the cap.
+  CHECK: use-case tests on fakes; adapter test for `hasCiWorkflow`.
+- RULE: the base comparison never runs in the task's worktree.
+  CHECK: use-case test (cwd is the engine's checkout); int test of `withBaseCheckout`.
+
 ## More Information
 
 - Plan: `docs/plans/engine-side-checks-and-pr.md`.

@@ -303,6 +303,7 @@ export function createApplication(ports: ApplicationPorts): Application {
     openPr: new OpenPr({
       ...deps,
       config,
+      ids,
       repoInfo: ports.repoInfo,
       worktrees,
       checkRunner: ports.checkRunner,

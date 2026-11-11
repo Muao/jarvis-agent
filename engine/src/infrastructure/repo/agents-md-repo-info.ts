@@ -1,10 +1,31 @@
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { RepoCommands, RepoInfo } from '../../application/ports/repo-info.js';
 import { parseAgentsMd } from './parse-agents-md.js';
 
 /** Reads `<repo>/AGENTS.md` fresh on every call, so an edit shows up on the next look (CON-04). */
+/** Lockfile → the install that reproduces it exactly. First match wins. */
+const INSTALLS: readonly (readonly [string, string])[] = [
+  ['pnpm-lock.yaml', 'pnpm install --frozen-lockfile'],
+  ['package-lock.json', 'npm ci'],
+  ['yarn.lock', 'yarn install --frozen-lockfile'],
+  ['bun.lock', 'bun install --frozen-lockfile'],
+  ['bun.lockb', 'bun install --frozen-lockfile'],
+];
+
 export class AgentsMdRepoInfo implements RepoInfo {
+  async installCommand(dir: string): Promise<string | null> {
+    for (const [lockfile, command] of INSTALLS) {
+      try {
+        await access(join(dir, lockfile));
+        return command;
+      } catch {
+        // not this one
+      }
+    }
+    return null;
+  }
+
   parseCommands(markdown: string): string[] {
     return [...parseAgentsMd(markdown).checkCommands];
   }

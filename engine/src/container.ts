@@ -148,6 +148,7 @@ const unconfiguredCodeHost: CodeHost = {
   postComment: () => Promise.resolve({ ok: false, reason: notConfigured().message }),
   editComment: () => Promise.resolve({ ok: false, reason: notConfigured().message }),
   createPullRequest: () => Promise.resolve({ ok: false, reason: notConfigured().message }),
+  hasCiWorkflow: () => Promise.reject(notConfigured()),
   failedCheckLogs: () => Promise.reject(notConfigured()),
 };
 
@@ -157,7 +158,7 @@ const unconfiguredBranchPublisher: BranchPublisher = {
   status: () => Promise.reject(notConfigured()),
   baseFile: () => Promise.resolve(null),
   mergeBase: () => Promise.reject(notConfigured()),
-  onBase: () => Promise.reject(notConfigured()),
+  withBaseCheckout: () => Promise.reject(notConfigured()),
   push: () =>
     Promise.resolve({ ok: false, reason: 'unreachable', detail: notConfigured().message }),
 };

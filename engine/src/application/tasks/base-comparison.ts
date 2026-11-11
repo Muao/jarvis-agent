@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import type { TaskEvent } from '../../domain/index.js';
 import type { BranchPublisher } from '../ports/branch-publisher.js';
 import type { ArtifactStore } from '../ports/artifact-store.js';
+import type { RepoInfo } from '../ports/repo-info.js';
 import type { CheckResult, CheckRunner } from '../ports/check-runner.js';
 import type { TaskDeps } from './deps.js';
 import { transact } from '../transaction.js';
@@ -25,11 +26,14 @@ export interface BaseComparisonDeps extends TaskDeps {
   readonly checkRunner: CheckRunner;
   readonly branchPublisher: BranchPublisher;
   readonly artifacts: ArtifactStore;
+  readonly repoInfo: RepoInfo;
 }
 
 /**
  * Which of the red commands are red on the merge base too, so not the task's to fix. Only the red
- * commands run, only the uncached ones, once per base sha. Anything that goes wrong (the checkout,
+ * commands run, only the uncached ones, once per base sha, in a clean checkout the engine makes of
+ * the merge base — never in the task's worktree, whose ignored and untracked files (node_modules,
+ * caches, `.env`) the worker controls and could use to make a check fail on base as well. Anything that goes wrong (the checkout,
  * the run, a command that cannot start or is killed) answers "not red on base": the red stays the
  * task's, and nothing is cached for it.
  */
@@ -38,7 +42,6 @@ export async function redOnBase(
   input: {
     readonly taskId: string;
     readonly reds: readonly string[];
-    readonly worktreePath: string;
     readonly timeoutMs: number;
     readonly signal: AbortSignal;
     readonly relativeLog: string;
@@ -56,16 +59,34 @@ export async function redOnBase(
     const known = cachedBase(journal, baseSha);
     const todo = reds.filter((c) => !known.has(c));
     if (todo.length > 0) {
-      const outcome = await deps.branchPublisher.onBase(taskId, baseSha, () =>
-        deps.checkRunner.run({
-          cwd: input.worktreePath,
+      const logPath = join(deps.artifacts.dirFor(taskId), input.relativeLog);
+      const outcome = await deps.branchPublisher.withBaseCheckout(taskId, baseSha, async (dir) => {
+        // A clean checkout has no node_modules: install from its lockfile first. If that cannot be
+        // done the comparison is void (thrown below) and the red stays the task's.
+        const install = await deps.repoInfo.installCommand(dir);
+        if (install !== null) {
+          const installed = await deps.checkRunner.run({
+            cwd: dir,
+            commands: [install],
+            timeoutMs: input.timeoutMs,
+            signal: input.signal,
+            onProgress: () => undefined,
+            logPath,
+          });
+          const [result] = installed.results;
+          if (installed.unavailable !== null || result === undefined || isRedResult(result)) {
+            throw new Error(`\`${install}\` did not succeed on the merge base`);
+          }
+        }
+        return deps.checkRunner.run({
+          cwd: dir,
           commands: todo,
           timeoutMs: input.timeoutMs,
           signal: input.signal,
           onProgress: () => undefined,
-          logPath: join(deps.artifacts.dirFor(taskId), input.relativeLog),
-        }),
-      );
+          logPath,
+        });
+      });
       const real = outcome.results.filter(isReal);
       if (!input.signal.aborted && real.length > 0) {
         await transact(deps, async (tx) => {

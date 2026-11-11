@@ -49,4 +49,13 @@ describe('AgentsMdRepoInfo', () => {
     await mkdir(join(repo, 'AGENTS.md'));
     expect((await new AgentsMdRepoInfo().commands(repo)).warning).toContain('cannot be read');
   });
+
+  it('picks the install command from the lockfile a checkout holds, or none', async () => {
+    const info = new AgentsMdRepoInfo();
+    expect(await info.installCommand(repo)).toBeNull();
+    await writeFile(join(repo, 'package-lock.json'), '{}');
+    expect(await info.installCommand(repo)).toBe('npm ci');
+    await writeFile(join(repo, 'pnpm-lock.yaml'), '');
+    expect(await info.installCommand(repo)).toBe('pnpm install --frozen-lockfile');
+  });
 });
