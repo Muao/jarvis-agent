@@ -343,6 +343,57 @@ describe('comment_on_pr (ADR-0018)', () => {
     ).toContainEqual(expect.objectContaining({ asked: false }));
   });
 
+  describe('with autoApproveComments on, only a trusted head is posted unseen (SEC)', () => {
+    const auto = (app: TestApp) =>
+      app.config.set(
+        JarvisConfigSchema.parse({
+          repo: { path: '/jarvis/repo' },
+          ui: { enabled: true, autoApproveComments: true },
+          allowlist: { githubReviewers: ['burnjohn'] },
+        }),
+      );
+
+    it.each([
+      ['a fork', { fromFork: true }],
+      ['an author nobody vouched for', { author: 'stranger' }],
+      ['a pull request that cannot be read', new Error('Not Found')],
+    ])('raises the card for %s', async (_name, description) => {
+      const app = buildTestApp();
+      auto(app);
+      const { task, thread } = await checking(app, description instanceof Error ? {} : description);
+      if (description instanceof Error) app.codeHost.describe(PR.number, description, REPO);
+
+      const pending = app.commentOnPr.execute(app.identity.worker(task), { body });
+
+      const card = await firstCard(app, thread.id);
+      expect(app.codeHost.comments).toHaveLength(0);
+      await app.answerPermission.execute(permissionIdOf(card), 'allow');
+      await expect(pending).resolves.toMatchObject({ ok: true });
+      expect(app.codeHost.comments).toHaveLength(1);
+    });
+
+    it('posts without a card for the owner’s own branch by an allow-listed author', async () => {
+      const app = buildTestApp();
+      auto(app);
+      const { task, thread } = await checking(app);
+
+      await expect(
+        app.commentOnPr.execute(app.identity.worker(task), { body }),
+      ).resolves.toMatchObject({ ok: true });
+      expect(cards(app, thread.id)).toHaveLength(0);
+    });
+
+    it('redacts the body before posting', async () => {
+      const app = buildTestApp({ redact: (text) => text.replaceAll('ghp_secret', '[redacted]') });
+      auto(app);
+      const { task } = await checking(app);
+
+      await app.commentOnPr.execute(app.identity.worker(task), { body: 'token ghp_secret leaked' });
+
+      expect(app.codeHost.comments.map((c) => c.body)).toEqual(['token [redacted] leaked']);
+    });
+  });
+
   it('stops at limits.maxPrCommentsPerDay, tells the thread once and posts nothing more', async () => {
     const app = buildTestApp();
     app.config.set(

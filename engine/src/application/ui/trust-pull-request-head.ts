@@ -26,6 +26,14 @@ export interface TrustHeadDeps extends TaskDeps {
   };
 }
 
+/** The head is the owner's own repo and its author is an allow-listed reviewer (ADR-0018). */
+export function isTrustedHead(
+  pr: Pick<PullRequestDescription, 'fromFork' | 'author'>,
+  reviewers: readonly string[],
+): boolean {
+  return !pr.fromFork && reviewerListed(pr.author, reviewers);
+}
+
 function reviewerListed(author: string, reviewers: readonly string[]): boolean {
   const login = author.toLowerCase();
   return reviewers.some((r) => r.toLowerCase() === login);
@@ -60,7 +68,7 @@ export class TrustPullRequestHead {
     }
 
     const reviewers = this.deps.config.current().allowlist.githubReviewers;
-    if (!pr.fromFork && reviewerListed(pr.author, reviewers)) {
+    if (isTrustedHead(pr, reviewers)) {
       return {
         trusted: true,
         detail: `head ${pr.headRef} is in ${pr.headRepo.owner}/${pr.headRepo.name} and ${pr.author} is an allow-listed reviewer`,

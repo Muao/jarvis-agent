@@ -345,6 +345,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
   });
 
   const app = createApplication({
+    redact,
     uow: new PgUnitOfWork(createDatabase(pool)),
     ids: new CryptoIdGenerator(),
     clock,

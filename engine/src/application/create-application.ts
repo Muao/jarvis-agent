@@ -138,6 +138,8 @@ export interface ApplicationPorts extends Omit<Notifiers, 'runs'> {
    * that only check what was asked pass a recording one so no process is involved.
    */
   readonly coordinator?: RunCoordinator;
+  /** Masks secrets in text that leaves the machine, such as a pull-request comment (SEC-04). */
+  readonly redact?: (text: string) => string;
 }
 
 export interface Application {
@@ -348,6 +350,7 @@ export function createApplication(ports: ApplicationPorts): Application {
       config,
       codeHost: ports.codeHost,
       permissions: { request: requestPermission, await: awaitPermission },
+      ...(ports.redact === undefined ? {} : { redact: ports.redact }),
     }),
     scheduler,
     resetDailyUsage: new ResetDailyUsage({ uow, clock, config, events: ports.events, scheduler }),
