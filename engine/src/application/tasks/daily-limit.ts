@@ -79,7 +79,10 @@ export function reserveDaily(
     readonly kind: DailyLimitKind;
     readonly amount: number;
     readonly limit: number;
-    readonly legacy?: { readonly type: string; readonly weight: (event: TaskEvent) => number };
+    readonly legacy?: {
+      readonly types: readonly string[];
+      readonly weight: (event: TaskEvent) => number;
+    };
   },
 ): Promise<boolean> {
   const { taskId, kind, amount, limit, legacy } = input;
@@ -87,7 +90,7 @@ export function reserveDaily(
     await tx.journal.lock(`daily:${kind}`);
     const since = startOfLocalDay(deps.clock.now());
     const rows = await tx.journal.ofTypesSince(
-      [RESERVED, RELEASED, ...(legacy === undefined ? [] : [legacy.type])],
+      [RESERVED, RELEASED, ...(legacy === undefined ? [] : legacy.types)],
       since,
     );
     let used = 0;
@@ -96,7 +99,7 @@ export function reserveDaily(
       else if (event.type === RELEASED && event.data['kind'] === kind) used -= amountOf(event);
       else if (
         legacy !== undefined &&
-        event.type === legacy.type &&
+        legacy.types.includes(event.type) &&
         event.data['reserved'] !== true
       ) {
         used += legacy.weight(event);

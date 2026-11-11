@@ -502,6 +502,28 @@ describe('comment_on_pr (ADR-0018)', () => {
     expect(cards(app, thread.id)).toHaveLength(0);
   });
 
+  it('lets only one of two concurrent comments through at a limit of one', async () => {
+    const app = buildTestApp();
+    app.config.set(
+      JarvisConfigSchema.parse({
+        repo: { path: '/jarvis/repo' },
+        ui: { enabled: true },
+        limits: { maxPrCommentsPerDay: 1 },
+        allowlist: { githubReviewers: ['burnjohn'] },
+      }),
+    );
+    const { task } = await checking(app);
+    const worker = app.identity.worker(task);
+
+    const results = await Promise.all([
+      app.commentOnPr.execute(worker, { body }),
+      app.commentOnPr.execute(worker, { body }),
+    ]);
+
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(app.codeHost.comments).toHaveLength(1);
+  });
+
   it('refuses a task with no pull request, without asking the owner (AC-51)', async () => {
     const app = buildTestApp();
     enable(app);

@@ -5,7 +5,7 @@ import type { AwaitPermission } from '../permissions/await-permission.js';
 import type { RequestPermission } from '../permissions/request-permission.js';
 import type { RunIdentity } from '../run-identity.js';
 import type { TaskDeps } from '../tasks/deps.js';
-import { reportDailyLimit, writesToday } from '../tasks/daily-limit.js';
+import { releaseDaily, reportDailyLimit, reserveDaily, writesToday } from '../tasks/daily-limit.js';
 import { loadWorkerTask } from '../tasks/guards.js';
 import { transact } from '../transaction.js';
 import { isTrustedHead } from './trust-pull-request-head.js';
@@ -130,11 +130,27 @@ export class CommentOnPr {
       }
     }
 
+    // The check above only spares the owner a card at the limit; this reservation is the real gate:
+    // taken under a lock right before the write, so two tasks cannot both slip under the limit.
+    const reserved = await reserveDaily(this.deps, {
+      taskId: task.id,
+      kind: 'pr_comments',
+      amount: 1,
+      limit,
+      legacy: { types: [POSTED, EDITED], weight: () => 1 },
+    });
+    if (!reserved) {
+      const told = await reportDailyLimit(this.deps, task, 'pr_comments', limit);
+      return { ok: false, reason: `${told} Keep the report in the thread and do not retry today.` };
+    }
+
     const repo = task.targetRepo ?? undefined;
     const result =
       commentId === undefined
         ? await this.deps.codeHost.postComment(task.pr.number, body, repo)
         : await this.deps.codeHost.editComment(commentId, body, repo);
+    if (!result.ok)
+      await releaseDaily(this.deps, { taskId: task.id, kind: 'pr_comments', amount: 1 });
     const kind = commentId === undefined ? POSTED : EDITED;
     await this.note(
       task.id,
@@ -145,6 +161,7 @@ export class CommentOnPr {
             pr: task.pr.number,
             url: result.url,
             commentId: result.id,
+            reserved: true,
             ...(auto ? { asked: false } : {}),
           }
         : { pr: task.pr.number, reason: result.reason },

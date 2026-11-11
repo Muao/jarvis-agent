@@ -907,7 +907,7 @@ export class OpenPr {
       kind: 'commits',
       amount: commits,
       limit,
-      legacy: { type: 'branch_pushed', weight: commitsOf },
+      legacy: { types: ['branch_pushed'], weight: commitsOf },
     });
     if (!reserved) {
       const told = await reportDailyLimit(deps, task, 'commits', limit);

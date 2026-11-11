@@ -149,6 +149,35 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
   history. AGENTS.md now requires specs and all documentation in English; the Ukrainian specs are being
   translated.
 
+## Security hardening 2026-11-11 — on branch `fix/security-hardening`, not deployed
+
+From a security review of the 2026-11-10/11 changes (three High, five Medium, three Low; no Critical):
+
+- **Owner API guard (H1, ADR-0028)**: mutating owner requests need `X-Jarvis-Owner: 1` and a same-host
+  (or `JARVIS_ALLOWED_ORIGINS`) `Origin`; `/api/agent/*` keeps its run token. The UI-check browser now
+  also blocks the web UI and Postgres ports, so neither a prompt-injected worker nor the app under test
+  can approve cards or reset the budget through the UI's `/api` proxy.
+- **Container egress (H2, ADR-0016 §4)**: `deploy/hardening/egress.sh` (root, owner-run) drops traffic of
+  uid `jarvis` to the tailnet, private ranges, link-local/metadata and the host's own addresses, keeps
+  MagicDNS port 53; rootless Docker gets public DNS and no search domain. Verify with
+  `deploy/hardening/verify-egress.sh`.
+- **Root deploy (H3, ADR-0016 §5)**: `pnpm run redeploy` calls a root-owned `/usr/local/sbin/jarvis-deploy
+<sha>` (installed once by `deploy/root/install-root-deploy.sh`); root no longer runs files from the
+  jarvis-writable checkout; the host comes from `JARVIS_HOST`, `deploy:remote` is gone.
+- **Medium/Low**: full plan + hash on the head-trust card, re-asked when plan or head changes (M1);
+  UI-check containers with `--cap-drop ALL`, `no-new-privileges`, pids/memory/cpu limits, app as uid
+  1000 unless the plan says `runAsRoot` (M2); new check commands from main's `AGENTS.md` need an owner
+  card (M3); `skip` needs CI on the base, keeps at least one green check, max 3 per task, tells the
+  thread, and the base comparison runs in a clean engine-made checkout (M4); PR comments skip the card
+  only for trusted heads and are redacted (M5); stricter plan credential checks and journal redaction
+  (L1); atomic daily limits for commits and comments (L2); plan images only from public registries,
+  digests allowed (L3).
+- Verified: typecheck, lint, unit tests (shared, engine, web), a node + Postgres plan on real Docker
+  with the new flags. **Not verified on the server**: the nftables rules, the root deploy entrypoint.
+- **Owner steps on the server**, in order: see `docs/architecture/deployment.md` §7.
+- `main`'s history was rewritten on 2026-11-11 (a sensitive path removed); clones must
+  `git fetch && git reset --hard origin/main`, and only `main` remains on GitHub.
+
 ## Deployed 2026-11-11 — repository-agnostic UI check (ADR-0026)
 
 - **The engine knows no target project**: the worker composes an environment plan from the target
@@ -257,7 +286,7 @@ Decided, not forgotten.
   worktree. Per-repo `allowlist.autoAllowedCommands` is still global and owner-maintained (not deferred
   further by this ADR).
 - **No scheduling.** Four interval timers (PR watcher, supervision, probe refresh, heartbeat) and a slot
-  queue, but nothing time-triggered. Stop-gap: cron calling `POST /api/threads`. Real fix: a `schedules`
+  queue, but nothing time-triggered. Stop-gap: cron calling `POST /api/threads` with the header `X-Jarvis-Owner: 1` (ADR-0028). Real fix: a `schedules`
   table plus one more `IntervalJob`.
 - **No per-subagent cost.** Subagents run inside the worker's process, so their tokens land in the parent
   run's totals and the CLI offers no breakdown. Visible: what a subagent did. Invisible: what it cost.
