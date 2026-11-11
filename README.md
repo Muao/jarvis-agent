@@ -1,98 +1,91 @@
 # Jarvis
 
-Personal AI development agent that runs on your laptop through your Claude Code subscription.
-You give it a task in its web chat (Slack threads in iteration 2); it gathers context (Claude Design, Notion, Google Docs, the repo),
-writes a spec and plan, implements the change, runs checks, reviews it, opens a draft PR and
-watches CI and review until the PR is ready for a human merge.
+**A personal AI development agent: a task in chat becomes a spec, a plan, code, checks, a review and a draft
+pull request.** It runs on your own machine (a laptop or a small VPS) through your Claude Code subscription:
+no API key, no hosted service.
 
-Status: proof of concept, specification stage.
+You describe a task in the web chat. Jarvis gathers context (the repository, Notion, Google Docs), writes a
+spec and waits for your approval, implements the change in an isolated git worktree, runs the checks, has the
+result reviewed and opens a **draft PR**. It then watches CI and review comments and fixes what they report.
+Jarvis never merges; that stays with a human.
 
-- What it does: [`docs/specs/abstract-project-spec.md`](docs/specs/abstract-project-spec.md)
-- How it is built: [`docs/architecture/README.md`](docs/architecture/README.md), decisions in [`docs/decisions/architecture/`](docs/decisions/architecture/README.md)
-- Webinar concept: [`docs/webinar/webinar-concept.md`](docs/webinar/webinar-concept.md)
-- UI brief for design: [`docs/specs/web-ui-design.md`](docs/specs/web-ui-design.md)
+[Slides](https://burnjohn.github.io/jarvis-agent/) (Ukrainian) · [Architecture](docs/architecture/README.md) ·
+[Decisions](docs/decisions/architecture/README.md) · [Status](STATUS.md)
 
-## Run it
+![Jarvis chat: the agent asks the owner to approve a spec before it writes code](docs/images/chat-approval.png)
 
-Prerequisites: Node 22, pnpm 10, Docker (for Postgres), and Claude Code (`claude`) logged in with your
-Claude subscription (run `claude`, then `/login`; `claude auth status` shows the result). Do not set `ANTHROPIC_API_KEY`: the engine refuses to start with an
-API key, or with a `claude` login that is not a subscription.
+The chat after the agent has written a spec and a plan: it asks for approval and lists the checks the engine
+will run before opening the PR (demo data). More on how it is built:
+[`docs/architecture/README.md`](docs/architecture/README.md).
+
+## How it works
+
+The **engine** is a plain Node process that owns all state. Claude only thinks: it is started as `claude -p`
+for each owner message (the _dispatcher_) and for each task stage (the _worker_), and it changes state only
+through the tools of the engine's MCP server.
+
+```mermaid
+flowchart LR
+    owner([Owner])
+    gh[(GitHub: PRs, CI, reviews)]
+    src[(Notion, Google Docs)]
+    subgraph host[Your laptop or VPS]
+        web[Web app: chat + admin]
+        subgraph engine[Engine: Node + Fastify, no model inside]
+            api[HTTP API + SSE]
+            core[Stage machine, scheduler, limits]
+            mcp[Jarvis MCP server]
+            watcher[Watcher: polls GitHub]
+        end
+        pg[(Postgres)]
+        disp["claude -p dispatcher<br/>one session per thread"]
+        work["claude -p worker<br/>one task, own git worktree"]
+    end
+    owner --> web <--> api
+    api --> core --> pg
+    core -- spawns --> disp & work
+    disp & work -- tools --> mcp --> api
+    work -- read-only --> src
+    core -- checks, push, draft PR --> gh
+    watcher -- poll --> gh
+    watcher --> core
+```
+
+The model has no GitHub token and cannot write to the database. The engine runs the checks itself and refuses
+to open a PR while they are red, so a red result cannot reach a pull request however the model words its
+report.
+
+## Highlights
+
+- **Spec first.** Every task goes through a written spec and plan that you approve before any code is written.
+- **Isolated and reviewable.** One git worktree per task, a folder of artifacts per stage, a full run console.
+- **Safe by construction.** Subscription only (the engine refuses to start with `ANTHROPIC_API_KEY`), limits on
+  turns, cost and tokens, untrusted external content wrapped and reported, loopback-only servers.
+- **Self-curating memory.** What the agent learns about you goes into one file that you review.
+- **Runs anywhere.** Secrets in Infisical, Tailscale instead of open ports, deployable to a small VPS.
+
+## Quick start
+
+Prerequisites: Node 22, pnpm 10, Docker, and Claude Code (`claude`) logged in with a Claude subscription.
 
 ```sh
 mkdir -p ~/.jarvis
-cp .env.example ~/.jarvis/.env                              # set POSTGRES_PASSWORD (openssl rand -base64 24) and the DATABASE_URLs; add GITHUB_TOKEN of the bot account when you want PRs followed
-cp jarvis.config.example.json ~/.jarvis/jarvis.config.json  # set repo.path to your working repository, repo.remote to a remote name such as origin
-export COMPOSE_ENV_FILES=~/.jarvis/.env                     # compose has no default Postgres password (ADR-0015)
-docker compose up -d                                        # Postgres 18 on 127.0.0.1:5433
+cp .env.example ~/.jarvis/.env                              # set POSTGRES_PASSWORD (and GITHUB_TOKEN to follow PRs)
+cp jarvis.config.example.json ~/.jarvis/jarvis.config.json  # set repo.path to your working repository
+export COMPOSE_ENV_FILES=~/.jarvis/.env
+docker compose up -d                                        # Postgres on 127.0.0.1:5433
 pnpm install
-pnpm dev                                                    # engine on http://127.0.0.1:4310, web on http://127.0.0.1:5180
+pnpm dev                                                    # engine :4310, web http://127.0.0.1:5180
 ```
 
-Open http://127.0.0.1:5180 and send a message. Both servers listen on loopback only; there is no login.
-`JARVIS_HOME` moves the home folder from `~/.jarvis`. `pnpm test` runs all tests (the integration tests need the
-Postgres container and never start the real `claude`).
+Open http://127.0.0.1:5180 and send a message. Details, the remote-UI setup and the server rehearsal are in
+[`docs/running.md`](docs/running.md).
 
-After the first `pnpm dev`, `curl -s http://127.0.0.1:4310/api/connections` should report `claude: ok` with your
-plan; the engine refuses to start while that check fails.
+## Documentation
 
-### Local UI against the server's engine
-
-To work on the UI while the agent itself runs on the server (`docs/architecture/deployment.md`), skip the local
-engine and point the dev proxy at the server's tailnet address:
-
-```sh
-cp web/.env.remote.example web/.env.remote   # set JARVIS_API_URL (`tailscale serve status` on the server)
-pnpm dev:remote                              # UI with hot reload on http://127.0.0.1:5180, /api -> the server
-```
-
-It checks the server's `/api/health` first and needs port 5180 free, so stop the rehearsal containers if they run.
-Tasks, threads and runs are the server's; nothing runs on the laptop but Vite.
-
-### If the engine cannot run `claude`
-
-The engine runs the binary named by `engine.claudeBinary` (default `claude`) and gives the connection probe eight
-seconds. Two things break that on a managed laptop:
-
-- **A login in a non-default config directory.** Start the engine with `CLAUDE_CONFIG_DIR=$HOME/.claude-personal
-pnpm dev`; the variable is passed through to every child `claude` (ADR-0015).
-- **A `claude` on `PATH` that is a corporate wrapper.** Some managed machines shadow the real CLI with a wrapper
-  that needs tens of seconds per call, so the probe times out and the engine exits. Point `engine.claudeBinary` at
-  the binary the official installer wrote, or at a one-line shim that picks its newest version:
-
-  ```sh
-  mkdir -p ~/.jarvis/bin && cat > ~/.jarvis/bin/claude <<'SH'
-  #!/bin/sh
-  dir="$HOME/.local/share/claude/versions"
-  ver=$(ls -t "$dir" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-  exec "$dir/$ver" "$@"
-  SH
-  chmod 755 ~/.jarvis/bin/claude   # then set engine.claudeBinary to this path
-  ```
-
-## Rehearse the server setup
-
-The server will run Jarvis as a non-root Linux user with a headless `claude` login (ADR-0016). To try that
-on the laptop first, the `server` profile of `compose.yaml` builds a Linux image (`docker/runtime`: Ubuntu 24.04,
-Node 22, pnpm, git, gh, Claude Code, user `jarvis` uid 1000) and runs the engine and web in it (ADR-0016).
-Postgres is the same `postgres` service. The profile is off unless you pass `--profile server`.
-
-```sh
-export TARGET_REPO=/absolute/path/to/your/working/repository   # mounted at /work/repo
-export COMPOSE_ENV_FILES=~/.jarvis/.env                        # POSTGRES_PASSWORD, as above (ADR-0015)
-docker compose --profile server build
-docker compose --profile server run --rm engine sh -c \
-  'sed "s#/absolute/path/to/your/working/repository#/work/repo#" jarvis.config.example.json > ~/.jarvis/jarvis.config.json'
-docker compose --profile server run --rm engine claude        # /login, paste code; credentials land in claude-home
-docker compose --profile server run --rm engine claude -p "ping"
-docker compose --profile server up -d
-curl -s http://127.0.0.1:4310/api/health
-```
-
-The Linux `node_modules` lives in Docker volumes and is not the host's, so the first `build` plus `up` installs dependencies once (every start re-runs a fast `pnpm install --frozen-lockfile`).
-Check the login layout with `docker compose --profile server run --rm engine ls -la /home/jarvis/.claude/.credentials.json`
-(mode `600`). Secrets go in the `jarvis-home` volume (`/home/jarvis/.jarvis/.env`), never into the image. Only
-`127.0.0.1` ports are published; inside the container the processes bind all interfaces
-(`JARVIS_LISTEN_HOST=0.0.0.0`). The `web` container shares the engine's network namespace, so recreating the engine container means recreating `web` too.
-
-**Not rehearsed:** systemd units and restart policy, journald, Tailscale, the firewall, the Hetzner kernel.
-A green rehearsal is not a green server. Docker Desktop runs containers only while you are signed in.
+- [`docs/specs/abstract-project-spec.md`](docs/specs/abstract-project-spec.md): what it does
+- [`docs/architecture/README.md`](docs/architecture/README.md): how it is built, with the decisions in
+  [`docs/decisions/architecture/`](docs/decisions/architecture/README.md)
+- [`docs/running.md`](docs/running.md): run it locally, against a server, or rehearse the server
+- [`STATUS.md`](STATUS.md): where the project stands
+- [`AGENTS.md`](AGENTS.md): instructions for AI coding agents in this repo

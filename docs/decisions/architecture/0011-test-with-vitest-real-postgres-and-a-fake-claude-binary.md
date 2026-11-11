@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-26
-decision-makers: []  # drafted by Claude 2026-10-26 when the iteration-1 plan started; awaiting Ivan Lapa
+decision-makers: []  # drafted by Claude 2026-10-26 when the iteration-1 plan started; awaiting the owner
 scope: ["**/*.test.ts", "**/*.test.tsx", "**/vitest.config.ts", "web/e2e/**", "web/playwright.config.ts", "engine/test/**"]
 supersedes: []
 superseded-by: []

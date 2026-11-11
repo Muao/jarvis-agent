@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-11-10
-decision-makers: ['Ivan Lapa'] # owner: a Capabilities page; owner-written skills and subagents as a second plugin, for every role; MCP read-only; backups; owner-only writes (2026-11-10); drafted by Claude
+decision-makers: ['owner'] # owner: a Capabilities page; owner-written skills and subagents as a second plugin, for every role; MCP read-only; backups; owner-only writes (2026-11-10); drafted by Claude
 scope:
   [
     'shared/src/api/capabilities.ts',

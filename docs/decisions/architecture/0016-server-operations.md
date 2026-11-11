@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-11-08
-decision-makers: ["Ivan Lapa"]  # consolidation of the former 0015/0017/0018 (pre-renumbering) (owner-accepted individually 2026-11-02…08); merged 2026-11-08 on the owner's "consolidate the ADRs"
+decision-makers: ["owner"]  # consolidation of the former 0015/0017/0018 (pre-renumbering) (owner-accepted individually 2026-11-02…08); merged 2026-11-08 on the owner's "consolidate the ADRs"
 scope: ["compose.yaml", "docker/runtime/**", "deploy/**", "web/vite.config.ts", "engine/src/infrastructure/claude/**", "engine/src/infrastructure/logging/**", "engine/src/presentation/timers/**", "shared/src/config.ts", "docs/architecture/deployment.md", "scripts/redeploy.sh", "deploy/hardening/**", "deploy/root/**"]
 supersedes: []  # consolidates the former 0015, 0017 and 0018 (pre-renumbering; see git history)
 superseded-by: []

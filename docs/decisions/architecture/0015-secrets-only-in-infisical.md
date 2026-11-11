@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-11-08
-decision-makers: ["Ivan Lapa"]  # owner: "secrets only in Infisical; env only as the local fallback; a real Postgres password, stored in Infisical" (2026-11-08); drafted by Claude
+decision-makers: ["owner"]  # owner: "secrets only in Infisical; env only as the local fallback; a real Postgres password, stored in Infisical" (2026-11-08); drafted by Claude
 scope: [".env.example", "compose.yaml", "scripts/with-secrets.sh", "deploy/systemd/**", "engine/src/infrastructure/config/**", "docs/architecture/deployment.md"]
 supersedes: []  # consolidates the former 0007 and 0016 (pre-renumbering; see git history)
 superseded-by: []

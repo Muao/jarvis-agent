@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-11-08
-decision-makers: ["Ivan Lapa"]  # owner: learned facts in USER.md, not a new file; config editable from chat, limits included (2026-11-08); drafted by Claude
+decision-makers: ["owner"]  # owner: learned facts in USER.md, not a new file; config editable from chat, limits included (2026-11-08); drafted by Claude
 scope: ["agent/USER.example.md", "agent/README.md", "shared/src/config.ts", "shared/src/mcp.ts", "engine/src/application/profile/**", "engine/src/application/config/**", "engine/src/application/ports/profile-store.ts", "engine/src/infrastructure/profile/**", "engine/src/presentation/mcp/server.ts"]
 supersedes: []
 superseded-by: []

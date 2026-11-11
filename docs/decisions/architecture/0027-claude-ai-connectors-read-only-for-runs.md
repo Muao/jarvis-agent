@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-11-11
-decision-makers: ['Ivan Lapa'] # owner: use my claude.ai login for Notion, Slack, Google Docs and Drive instead of a token per service; read-only; dispatcher and worker (2026-11-11); drafted by Claude
+decision-makers: ['owner'] # owner: use my claude.ai login for Notion, Slack, Google Docs and Drive instead of a token per service; read-only; dispatcher and worker (2026-11-11); drafted by Claude
 scope:
   [
     'shared/src/config.ts',

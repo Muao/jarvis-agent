@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-11-11
-decision-makers: ['Ivan Lapa'] # security review finding H1; drafted by Claude
+decision-makers: ['owner'] # security review finding H1; drafted by Claude
 scope:
   [
     'engine/src/presentation/http/{owner-guard,server}.ts',

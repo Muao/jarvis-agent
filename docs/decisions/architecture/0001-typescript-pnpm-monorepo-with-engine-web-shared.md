@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-26
-decision-makers: []  # drafted by Claude 2026-10-26 from the owner's brief; awaiting Ivan Lapa
+decision-makers: []  # drafted by Claude 2026-10-26 from the owner's brief; awaiting the owner
 scope: ["**"]
 supersedes: []
 superseded-by: []

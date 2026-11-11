@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-10-26
-decision-makers: []  # drafted by Claude 2026-10-26; awaiting Ivan Lapa
+decision-makers: []  # drafted by Claude 2026-10-26; awaiting the owner
 scope: ["agent/**", "engine/src/infrastructure/claude/**", "engine/src/infrastructure/config/**"]
 supersedes: []
 superseded-by: []

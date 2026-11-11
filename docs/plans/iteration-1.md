@@ -11,7 +11,7 @@ Decisions: ADR-0001…0011 (all `proposed`; this plan treats them as binding —
 - After every phase the orchestrator (main session) runs a **gate**: install, typecheck, lint, tests, the ADR
   Confirmation greps for the touched scope, a read of the diff for design quality, and the phase's live smoke.
   A red gate goes back to an implementer as a fix task; the next phase starts only on green.
-- Agents write files with absolute paths under `/Users/ilapa/projects/jarvis`; throwaway probes go to the
+- Agents write files with absolute paths under `<repo root>`; throwaway probes go to the
   session scratchpad, never under `src/`. Manifests (`package.json`) change only in the task that owns them.
 - No automated test runs the real `claude` (ADR-0011). Live checks in gates use `--model haiku` and minimal turns.
 

@@ -1,13 +1,13 @@
 ---
 status: draft
 date: 2026-10-26
-owner: Ivan Lapa
+owner: owner
 plan: TBD — after UI design and engine spec
 ---
 
 # Abstract Project Spec — Jarvis: a personal agent from task to PR
 
-Oct 26, 2026 · @Ivan · Updated 2026-11-08: CON-03/04/10 and "Out of scope" aligned with the
+Oct 26, 2026 · the owner · Updated 2026-11-08: CON-03/04/10 and "Out of scope" aligned with the
 accepted ADR-0012/0013/0015/0016 (server, multiple repositories, learned facts, Infisical).
 
 ## Goal and boundaries

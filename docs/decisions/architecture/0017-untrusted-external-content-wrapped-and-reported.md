@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-11-08
-decision-makers: ["Ivan Lapa"]  # owner: wrap everything externally sourced as untrusted; the agent must report an injection attempt and ask before continuing (2026-11-08); drafted by Claude
+decision-makers: ["owner"]  # owner: wrap everything externally sourced as untrusted; the agent must report an injection attempt and ask before continuing (2026-11-08); drafted by Claude
 scope: ["engine/src/application/conversation/untrusted.ts", "engine/src/application/code-host/**", "agent/prompts/worker.md", "agent/SOUL.md"]
 supersedes: []
 superseded-by: []

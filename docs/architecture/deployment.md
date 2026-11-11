@@ -25,7 +25,7 @@ flowchart LR
 ```
 
 To try the Linux user, Node/pnpm and the headless `claude` login before the server exists, use the laptop
-rehearsal in the README ("Rehearse the server setup", ADR-0016). It does not cover systemd, journald, Tailscale or
+rehearsal in [`docs/running.md`](../running.md) ("Rehearse the server setup", ADR-0016). It does not cover systemd, journald, Tailscale or
 the firewall.
 
 ## 1. Server

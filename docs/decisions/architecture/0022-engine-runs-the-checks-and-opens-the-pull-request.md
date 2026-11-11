@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-11-10
-decision-makers: ['Ivan Lapa'] # owner: the engine runs the checks, refuses on red, pushes the branch and opens the draft PR; the worker gets no GH_TOKEN (2026-11-10); drafted by Claude
+decision-makers: ['owner'] # owner: the engine runs the checks, refuses on red, pushes the branch and opens the draft PR; the worker gets no GH_TOKEN (2026-11-10); drafted by Claude
 scope:
   [
     'agent/prompts/worker.md',

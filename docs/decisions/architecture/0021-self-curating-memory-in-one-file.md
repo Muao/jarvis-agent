@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-11-09
-decision-makers: ['Ivan Lapa'] # owner: one file, not several; the agent writes by itself and the owner reviews afterwards; every insight carries a timestamp and a confirmation counter; nothing is removed automatically (2026-11-09); drafted by Claude
+decision-makers: ['owner'] # owner: one file, not several; the agent writes by itself and the owner reviews afterwards; every insight carries a timestamp and a confirmation counter; nothing is removed automatically (2026-11-09); drafted by Claude
 scope:
   [
     'agent/USER.example.md',
@@ -78,7 +78,7 @@ with no subheading apply everywhere; entries under `### owner/name` apply to tha
 
 ### burnjohn/quick-blog
 
-- m1 [owner · 2026-11-08 19:05] The repository slug is burnjohn/quick-blog, not ilapa/quick-blog.
+- m1 [owner · 2026-11-08 19:05] The repository slug is burnjohn/quick-blog, not example-user/quick-blog.
 - m7 [agent · T-14 · 2026-11-14 16:05 · ✓4 ✗0 · last T-31 2026-11-20 09:12] Dates go through `formatDate()` from `lib/date`, never `toLocaleString`. (src: lib/date.ts:12, PR #41 review)
 - m9 [agent · T-33 · 2026-11-21 11:30 · ✓1 ✗1 · last T-35 2026-11-22 14:48] The e2e suite needs `pnpm db:seed` before the first run. (src: package.json:14)
 ```

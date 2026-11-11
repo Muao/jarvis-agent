@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-11-08
-decision-makers: ["Ivan Lapa"] # owner: a ui-tester subagent on sonnet, scenarios from spec.md, works on laptop and server; screenshots inline in the PR body, not a Jarvis gallery (2026-11-08); drafted by Claude
+decision-makers: ["owner"] # owner: a ui-tester subagent on sonnet, scenarios from spec.md, works on laptop and server; screenshots inline in the PR body, not a Jarvis gallery (2026-11-08); drafted by Claude
 scope:
   [
     'agent/agents/ui-tester.md',
