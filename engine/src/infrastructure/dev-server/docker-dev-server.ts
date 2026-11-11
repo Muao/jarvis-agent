@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   resolvePlanEnv,
+  UI_CONTAINER_LIMITS,
   revealedPlanEnv,
   type EnvironmentPlan,
   type JarvisConfig,
@@ -27,6 +28,41 @@ const OUTPUT_TAIL_CHARS = 3000;
 const QUICK_MS = 15_000;
 const SOURCE = '/src';
 const WORKSPACE = '/workspace';
+
+/** The unprivileged user the project's commands run as unless the plan says `runAsRoot`. */
+const UNPRIVILEGED_USER = '1000:1000';
+/** Home of that user: an arbitrary uid has no passwd entry, so tools would otherwise use `/`. */
+const HOME = '/tmp/jarvis-home';
+
+/**
+ * Capabilities the app container keeps. The copy step runs as root and must chown the copy to the
+ * unprivileged user (CHOWN) and read sources whatever their mode (DAC_READ_SEARCH); processes of
+ * the unprivileged user have no effective capabilities whatever the bounding set holds.
+ */
+const APP_CAPS = ['CHOWN', 'DAC_READ_SEARCH'] as const;
+/** `runAsRoot`: what an install as root plausibly needs (apt-get drops to `_apt` with SETUID). */
+const ROOT_APP_CAPS = [
+  'CHOWN',
+  'DAC_OVERRIDE',
+  'DAC_READ_SEARCH',
+  'FOWNER',
+  'SETUID',
+  'SETGID',
+] as const;
+/**
+ * Image services (postgres, mongo, redis, mysql, nginx…) start as root and drop to their own user
+ * with gosu/su-exec, after a chown of their data directory: the minimal set for that. Everything
+ * else (NET_RAW, MKNOD, SYS_CHROOT, AUDIT_WRITE, SETFCAP, SETPCAP, KILL) is dropped.
+ */
+const SERVICE_CAPS = [
+  'CHOWN',
+  'DAC_OVERRIDE',
+  'FOWNER',
+  'SETUID',
+  'SETGID',
+  'NET_BIND_SERVICE',
+] as const;
+const PIDS_LIMIT = '1024';
 
 /** The only variables the `docker` CLI itself gets from the engine: where the daemon is, nothing else. */
 const DOCKER_CLI_ENV = [
@@ -312,10 +348,34 @@ export class DockerDevServer implements DevServerManager {
       name,
       '--security-opt',
       'no-new-privileges',
+      '--cap-drop',
+      'ALL',
       '--pids-limit',
-      '4096',
+      PIDS_LIMIT,
+      '--cpus',
+      String(ui.cpus ?? UI_CONTAINER_LIMITS.cpus),
       '--env-file',
       envFile,
+    ];
+    const asRoot = plan.runAsRoot === true;
+    const appMemory = ui.appMemory ?? UI_CONTAINER_LIMITS.appMemory;
+    const serviceMemory = ui.serviceMemory ?? UI_CONTAINER_LIMITS.serviceMemory;
+    const appArgs = [
+      ...(asRoot ? [] : ['--user', UNPRIVILEGED_USER]),
+      ...(asRoot ? ROOT_APP_CAPS : APP_CAPS).flatMap((cap) => ['--cap-add', cap]),
+      '--memory',
+      appMemory,
+      '--memory-swap',
+      appMemory,
+      '--env',
+      `HOME=${HOME}`,
+    ];
+    const serviceArgs = [
+      ...SERVICE_CAPS.flatMap((cap) => ['--cap-add', cap]),
+      '--memory',
+      serviceMemory,
+      '--memory-swap',
+      serviceMemory,
     ];
 
     try {
@@ -324,6 +384,7 @@ export class DockerDevServer implements DevServerManager {
         [
           'run',
           ...common,
+          ...appArgs,
           '--name',
           app,
           '--network-alias',
@@ -349,6 +410,7 @@ export class DockerDevServer implements DevServerManager {
           [
             'run',
             ...common,
+            ...serviceArgs,
             '--name',
             `${name}-svc-${service.name}`,
             '--network-alias',
@@ -364,14 +426,20 @@ export class DockerDevServer implements DevServerManager {
     }
 
     // A copy, not the mount: installs and builds must not touch the worktree (other architecture,
-    // other Node), and a stranger's script must not be able to plant a file in it.
+    // other Node), and a stranger's script must not be able to plant a file in it. The copy is made
+    // as root (the workspace directory is root's) and handed to the unprivileged user.
+    const handOver = asRoot ? '' : ` && chown -R ${UNPRIVILEGED_USER} ${WORKSPACE}`;
     await this.step(
       'copy sources',
-      this.execIn(
+      [
+        'exec',
+        '--user',
+        '0',
         app,
-        undefined,
-        `tar -C ${SOURCE} --exclude=node_modules --exclude=.git -cf - . | tar -C ${WORKSPACE} -xf -`,
-      ),
+        'sh',
+        '-c',
+        `mkdir -p ${WORKSPACE} ${HOME} && tar -C ${SOURCE} --exclude=node_modules --exclude=.git -cf - . | tar -C ${WORKSPACE} --no-same-owner -xf -${handOver}${asRoot ? '' : ` ${HOME}`}`,
+      ],
       stepMs,
     );
 
