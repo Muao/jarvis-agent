@@ -32,10 +32,17 @@ tailscale serve --bg 5180
 `/etc/jarvis/infisical.env` (`INFISICAL_CLIENT_ID`, `INFISICAL_CLIENT_SECRET`, `INFISICAL_PROJECT_ID`) must exist
 first (deployment.md §3), owned `root:root`, mode `0600` (systemd reads it as root; `jarvis` and a child `claude` must not). `JARVIS_ENV` selects the Infisical environment (default `prod`).
 
+## Hardening
+
+`hardening/egress.sh` (nftables egress filter + rootless-Docker DNS for uid `jarvis`) and
+`hardening/verify-egress.sh`; runbook in [`docs/architecture/deployment.md`](../docs/architecture/deployment.md) §7.
+
 ## Deploy script
 
-`pnpm run deploy:remote` (from the laptop: `ssh root@jarvis-01 …/scripts/deploy.sh`), or `pnpm run deploy` as
-`jarvis` on the server once it has a sudo rule, runs [`../scripts/deploy.sh`](../scripts/deploy.sh): fast-forward
+On the server, root deploys through the root-owned `/usr/local/sbin/jarvis-deploy <sha>` (source:
+[`root/jarvis-deploy`](root/jarvis-deploy), installed once by `root/install-root-deploy.sh`; reached from the
+laptop with `pnpm run redeploy`), never by executing anything in the jarvis-writable checkout. `pnpm run deploy`
+as `jarvis` (once it has a sudo rule) or on a rehearsal box runs [`../scripts/deploy.sh`](../scripts/deploy.sh): fast-forward
 `git pull`, `pnpm install --frozen-lockfile`, build web, run migrations through `with-secrets.sh`, then restart
 `jarvis-engine` and (once that unit exists) `jarvis-web`. A `flock` stops two deploys overlapping. Run as root, the script does every git and pnpm step as `jarvis`. See
 [`.claude/skills/deployment/SKILL.md`](../.claude/skills/deployment/SKILL.md) for the practices behind that order
