@@ -479,6 +479,13 @@ export class FakeRepoInfo implements RepoInfo {
   parseCommands(): string[] {
     return this.parsed ?? [...this.found.checkCommands];
   }
+
+  /** What `installCommand` answers; `null` (no lockfile) by default. */
+  install: string | null = null;
+
+  async installCommand(): Promise<string | null> {
+    return this.install;
+  }
 }
 
 /** SOUL.md and USER.md in memory. */
@@ -569,7 +576,7 @@ export class FakeCheckRunner implements CheckRunner {
   private readonly scripted = new Map<string, ScriptedCheck>();
   /** Per command, answered while `onBase` is true; a command with none is green on the base. */
   private readonly scriptedOnBase = new Map<string, ScriptedCheck>();
-  /** True while the branch publisher's `onBase` callback runs: the worktree is on the merge base. */
+  /** True while the branch publisher's `withBaseCheckout` callback runs: the checkout is the merge base. */
   onBase = false;
   /** The next `run` reports this command as unable to start, and stops there. */
   unavailable: { command: string; detail: string } | null = null;
@@ -640,15 +647,15 @@ export class FakeBranchPublisher implements BranchPublisher {
   readonly statusCalls: string[] = [];
   /** Path → content of what the remote base branch holds; a missing path answers `null`. */
   readonly baseFiles = new Map<string, string>();
-  /** The shas `onBase` was asked to switch to. */
+  /** The shas `withBaseCheckout` was asked to check out. */
   readonly onBaseCalls: string[] = [];
   mergeBaseSha = 'b4s3b4s3e5f60718293a4b5c6d7e8f9012345678';
-  /** When set, `onBase` rejects with it instead of running: the base checkout failed. */
+  /** When set, `withBaseCheckout` rejects with it instead of running: the base checkout failed. */
   onBaseError: Error | null = null;
-  /** Runs when `onBase` has switched to the base, before the callback: a test's seam into that moment. */
+  /** Runs once the base is checked out, before the callback: a test's seam into that moment. */
   onBaseHook: (() => void) | null = null;
-  /** When set, HEAD is this sha once `onBase` returns: a restore that went wrong. */
-  headAfterBase: string | null = null;
+  /** The directory the callback is given: not the task's worktree. */
+  static readonly BASE_DIR = '/jarvis/base-checkouts/checkout';
 
   constructor(private readonly checkRunner?: FakeCheckRunner) {}
 
@@ -664,15 +671,18 @@ export class FakeBranchPublisher implements BranchPublisher {
     return this.mergeBaseSha;
   }
 
-  async onBase<T>(_taskId: string, sha: string, run: () => Promise<T>): Promise<T> {
+  async withBaseCheckout<T>(
+    _taskId: string,
+    sha: string,
+    run: (dir: string) => Promise<T>,
+  ): Promise<T> {
     this.onBaseCalls.push(sha);
     if (this.onBaseError !== null) throw this.onBaseError;
     if (this.checkRunner) this.checkRunner.onBase = true;
     try {
       this.onBaseHook?.();
-      return await run();
+      return await run(FakeBranchPublisher.BASE_DIR);
     } finally {
-      if (this.headAfterBase !== null) this.sha = this.headAfterBase;
       if (this.checkRunner) this.checkRunner.onBase = false;
     }
   }

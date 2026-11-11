@@ -293,62 +293,58 @@ describe('GitBranchPublisher base reads', () => {
     ).toBe('real content');
   });
 
-  it('onBase runs on the merge base and restores the task branch, even when run throws', async () => {
+  it('withBaseCheckout gives a clean directory at the merge base and removes it, even when run throws', async () => {
     const p = publisher(fileRemote);
     const taskHead = fx.commit('b.txt');
     const base = await p.mergeBase('T-1');
     expect(base).toBe(sha(fx.repo, 'main'));
+    writeFileSync(join(fx.worktree, 'ignored-by-the-worker.txt'), 'planted');
 
-    const seen = await p.onBase('T-1', base, async () => git(fx.worktree, 'rev-parse', 'HEAD'));
+    let seenDir = '';
+    const seen = await p.withBaseCheckout('T-1', base, async (dir) => {
+      seenDir = dir;
+      expect(dir).not.toBe(fx.worktree);
+      expect(existsSync(join(dir, 'b.txt'))).toBe(false);
+      expect(existsSync(join(dir, 'ignored-by-the-worker.txt'))).toBe(false);
+      return git(dir, 'rev-parse', 'HEAD');
+    });
     expect(seen).toBe(base);
-    expect(git(fx.worktree, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('jarvis/T-1');
+    expect(existsSync(seenDir)).toBe(false);
 
+    let thrownDir = '';
     await expect(
-      p.onBase('T-1', base, async () => {
+      p.withBaseCheckout('T-1', base, async (dir) => {
+        thrownDir = dir;
         throw new Error('boom');
       }),
     ).rejects.toThrow('boom');
+    expect(existsSync(thrownDir)).toBe(false);
+    // The task's worktree was never touched.
     expect(git(fx.worktree, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('jarvis/T-1');
     expect(sha(fx.worktree, 'HEAD')).toBe(taskHead);
+    expect(readFileSync(join(fx.worktree, 'ignored-by-the-worker.txt'), 'utf8')).toBe('planted');
   });
 
-  it('onBase restores the task branch even when run modified a tracked file', async () => {
+  it('withBaseCheckout refuses a malformed sha', async () => {
     const p = publisher(fileRemote);
-    const taskHead = fx.commit('a.txt', 'head content');
-    const base = await p.mergeBase('T-1');
-
-    await p.onBase('T-1', base, async () => {
-      writeFileSync(join(fx.worktree, 'a.txt'), 'changed by the base run');
-    });
-
-    expect(git(fx.worktree, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('jarvis/T-1');
-    expect(sha(fx.worktree, 'HEAD')).toBe(taskHead);
-    expect(readFileSync(join(fx.worktree, 'a.txt'), 'utf8')).toBe('head content');
+    await expect(p.withBaseCheckout('T-1', 'not-a-sha', async () => 1)).rejects.toThrow(
+      /Invalid commit id/,
+    );
   });
 
-  it('onBase refuses a dirty tree and a malformed sha', async () => {
-    const p = publisher(fileRemote);
-    const base = await p.mergeBase('T-1');
-    writeFileSync(join(fx.worktree, 'a.txt'), 'dirty');
-
-    await expect(p.onBase('T-1', base, async () => 1)).rejects.toThrow();
-    await expect(p.onBase('T-1', 'not-a-sha', async () => 1)).rejects.toThrow(/Invalid commit id/);
-  });
-
-  it('onBase does not run a post-checkout hook', async () => {
+  it("withBaseCheckout does not run the clone's hooks or read its config", async () => {
     const p = publisher(fileRemote);
     fx.commit('b.txt');
     const base = await p.mergeBase('T-1');
-    const hooks = join(
-      git(fx.worktree, 'rev-parse', '--path-format=absolute', '--git-common-dir'),
-      'hooks',
-    );
+    const common = git(fx.worktree, 'rev-parse', '--path-format=absolute', '--git-common-dir');
+    const hooks = join(common, 'hooks');
     mkdirSync(hooks, { recursive: true });
     const marker = join(fx.root, 'hook.ran');
     writeFileSync(join(hooks, 'post-checkout'), `#!/bin/sh\necho ran > "${marker}"\n`);
     chmodSync(join(hooks, 'post-checkout'), 0o755);
+    git(fx.repo, 'config', 'core.hooksPath', hooks);
 
-    await p.onBase('T-1', base, async () => undefined);
+    await p.withBaseCheckout('T-1', base, async () => undefined);
 
     expect(existsSync(marker)).toBe(false);
   });

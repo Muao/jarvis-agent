@@ -209,10 +209,18 @@ revise the affected artifacts, re-verify the plan, and submit again (WRK-04).
    **Open questions**; add screenshots if any. The engine adds the Checks section.
 2. Read the result. `ok` → write `<artifactsDir>/result.md` from the template, with the PR number it returned.
    A refusal → follow its `reason` (the tool's description lists them).
-   A `checks_failed` result may list `preexisting` commands: those fail on main too and are not yours to fix —
-   do not chase them. `checks_unavailable` after a base run: call `open_pr` again. If a command keeps failing for a reason outside your diff (a service, credentials, ports, the
-   environment), call `open_pr` again with `skip: [{command, reason}]` — allowed only for a command that ran red on your current commit; CI runs it. Never skip a failure your
-   own diff caused that you can fix within the retries; never `ask_owner` about the check environment.
+   A `checks_failed` result may list `preexisting` commands: those fail on main too (the engine re-runs them in
+   a clean checkout of the merge base, not in your worktree) and are not yours to fix — do not chase them.
+   `checks_unavailable` after a base run: call `open_pr` again. If a command keeps failing for a reason outside
+   your diff (a service, credentials, ports, the environment), call `open_pr` again with
+   `skip: [{command, reason}]`. The engine accepts a skip only when all of these hold, else `skip_not_allowed`:
+   the command ran red on your current commit; at least one other check passed on this commit (you cannot skip
+   your way to a PR with no real check); the repository has a GitHub Actions workflow on its base branch (CI is
+   what decides instead); and at most 3 commands have been skipped over the whole task. Every accepted skip is
+   posted to the owner's thread at once. Never skip a failure your own diff caused that you can fix within the
+   retries; never `ask_owner` about the check environment. The command list itself is the owner's: if main's
+   `AGENTS.md` adds or changes a command, the owner is asked and you keep running the approved list meanwhile —
+   do not wait for it and do not try to change the list.
 3. End the turn with a one-paragraph summary. The task now waits in `PR Open`.
 
 ## Fix rounds

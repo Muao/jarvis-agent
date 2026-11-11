@@ -70,6 +70,8 @@ export class FakeCodeHost implements CodeHost {
   };
   /** What `failedCheckLogs` answers (ADR-0022); an `Error` makes it reject. */
   failedLogs: readonly FailedCheckLog[] | Error = [];
+  /** What `hasCiWorkflow` answers; an `Error` makes it reject. CI exists by default. */
+  ciWorkflow: boolean | Error = true;
   readonly failedLogCalls: { prNumber: number; headSha: string; repo: string | null }[] = [];
   private readonly snapshots = new Map<string, PullRequestSnapshot | Error>();
   private readonly descriptions = new Map<string, PullRequestDescription | Error>();
@@ -177,6 +179,11 @@ export class FakeCodeHost implements CodeHost {
   ): Promise<CreatePullRequestResult> {
     this.pullRequests.push({ input, repo: slug(repo) });
     return this.createPullRequestResult;
+  }
+
+  async hasCiWorkflow(): Promise<boolean> {
+    if (this.ciWorkflow instanceof Error) throw this.ciWorkflow;
+    return this.ciWorkflow;
   }
 
   async failedCheckLogs(

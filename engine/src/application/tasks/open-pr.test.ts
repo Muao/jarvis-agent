@@ -819,18 +819,42 @@ describe('OpenPr — red on main too', () => {
     expect(ofType(app, 'base_comparison_failed')[0]?.data['detail']).toBe('worktree is dirty');
   });
 
-  it('refuses, without a retry, when the worktree is not back on the task head after the base run', async () => {
+  it("runs the base comparison in the engine's own checkout, not in the task worktree", async () => {
     const { app, task, worker } = await setup();
     app.checkRunner.script('pnpm test', { exitCode: 1 });
-    app.branchPublisher.headAfterBase = BASE;
 
-    const result = await app.openPr.execute(worker, TEXT);
+    await app.openPr.execute(worker, TEXT);
 
-    expect(result).toMatchObject({ ok: false, reason: 'checks_unavailable' });
-    expect((result as { detail: string }).detail).toContain('could not restore your worktree');
-    expect(ofType(app, 'base_comparison_failed')).toHaveLength(1);
-    expect(app.task(task.id).counters.checkRetries).toBe(0);
-    expectNothingPublished(app);
+    const baseCall = app.checkRunner.calls.at(-1);
+    expect(baseCall?.cwd).toBe('/jarvis/base-checkouts/checkout');
+    expect(baseCall?.cwd).not.toContain(task.id);
+    expect(app.checkRunner.calls[0]?.cwd).toBe(`/jarvis/worktrees/${task.id}`);
+  });
+
+  it('installs from the lockfile in the base checkout first; a failed install voids the comparison', async () => {
+    const { app, worker } = await setup();
+    app.repoInfo.install = 'pnpm install --frozen-lockfile';
+    redBoth(app, 'pnpm test');
+
+    const ok = await app.openPr.execute(worker, TEXT);
+
+    expect(ok).toMatchObject({ ok: true });
+    const baseCalls = app.checkRunner.calls.filter((c) => c.cwd.includes('base-checkouts'));
+    expect(baseCalls.map((c) => c.commands)).toEqual([
+      ['pnpm install --frozen-lockfile'],
+      ['pnpm test'],
+    ]);
+
+    const other = await setup();
+    other.app.repoInfo.install = 'pnpm install --frozen-lockfile';
+    redBoth(other.app, 'pnpm test');
+    other.app.checkRunner.scriptOnBase('pnpm install --frozen-lockfile', { exitCode: 1 });
+    const result = await other.app.openPr.execute(other.worker, TEXT);
+
+    expect(result).toMatchObject({ ok: false, reason: 'checks_failed', preexisting: [] });
+    expect(
+      other.app.db.tables.journal.find((e) => e.type === 'base_comparison_failed')?.data['detail'],
+    ).toContain('did not succeed on the merge base');
   });
 
   it('a command that could not be started on base is green on base', async () => {
@@ -905,24 +929,87 @@ describe('OpenPr — skipping a check', () => {
     expect(app.task(task.id).counters.checkRetries).toBe(0);
   });
 
-  it('with every command skipped, no gate runs and the PR opens', async () => {
-    const { app, worker } = await setup();
+  it('refuses a skip that would leave no command that ran green on this head', async () => {
+    const { app, task, worker } = await setup();
     app.checkRunner.script('pnpm test', { exitCode: 1, tail: 'no database' });
     app.checkRunner.script('pnpm typecheck', { exitCode: 2, tail: 'bad types' });
     await app.openPr.execute(worker, TEXT);
     app.checkRunner.calls.length = 0;
+    const journalBefore = app.db.tables.journal.length;
 
     const result = await app.openPr.execute(worker, {
       ...TEXT,
       skip: [...SKIP, { command: 'pnpm typecheck', reason: 'cannot be made green here' }],
     });
 
-    expect(result).toMatchObject({ ok: true });
+    expect(result).toMatchObject({ ok: false, reason: 'skip_not_allowed' });
+    expect((result as { detail: string }).detail).toContain('at least one check must have passed');
     expect(app.checkRunner.calls).toHaveLength(0);
-    expect(ofType(app, 'check_skipped')).toHaveLength(2);
-    const body = app.codeHost.pullRequests[0]?.input.body ?? '';
-    expect(body).toContain('## Checks skipped locally');
-    expect(body).not.toContain('## Checks (run by Jarvis)');
+    expectNothingPublished(app);
+    expect(ofType(app, 'check_skipped')).toHaveLength(0);
+    expect(app.db.tables.journal.length).toBe(journalBefore);
+    expect(app.task(task.id).stage).not.toBe('PR Open');
+  });
+
+  it('refuses a skip when the base branch has no GitHub Actions workflow', async () => {
+    const { app, worker } = await redOnce();
+    app.codeHost.ciWorkflow = false;
+
+    const result = await app.openPr.execute(worker, { ...TEXT, skip: SKIP });
+
+    expect(result).toMatchObject({ ok: false, reason: 'skip_not_allowed' });
+    expect((result as { detail: string }).detail).toContain('no GitHub Actions workflow');
+    expectNothingPublished(app);
+    expect(ofType(app, 'check_skipped')).toHaveLength(0);
+  });
+
+  it('treats a host that cannot answer as no CI evidence', async () => {
+    const { app, worker } = await redOnce();
+    app.codeHost.ciWorkflow = new Error('GitHub is down');
+
+    const result = await app.openPr.execute(worker, { ...TEXT, skip: SKIP });
+
+    expect(result).toMatchObject({ ok: false, reason: 'skip_not_allowed' });
+    expectNothingPublished(app);
+  });
+
+  it('tells the thread about an accepted skip at once, on the first PR too, with the running count', async () => {
+    const { app, thread, worker } = await redOnce();
+
+    await app.openPr.execute(worker, { ...TEXT, skip: SKIP });
+
+    const texts = app
+      .messagesOf(thread.id)
+      .filter((m) => m.kind === 'system')
+      .map((m) => (m.body as { text: string }).text)
+      .filter((t) => t.startsWith('Skipped locally'));
+    expect(texts).toEqual([
+      `Skipped locally: pnpm test — ${REASON} (skip 1 of 3 allowed for this task; CI decides)`,
+    ]);
+  });
+
+  it('caps the commands skipped over the life of a task', async () => {
+    const { app, task, worker } = await setup();
+    await freeze(app, task.id, ['c1', 'c2', 'c3', 'c4', 'c5']);
+    for (const c of ['c1', 'c2', 'c3', 'c4']) app.checkRunner.script(c, { exitCode: 1 });
+    await app.openPr.execute(worker, TEXT);
+    app.checkRunner.calls.length = 0;
+
+    const refused = await app.openPr.execute(worker, {
+      ...TEXT,
+      skip: ['c1', 'c2', 'c3', 'c4'].map((command) => ({ command, reason: 'environment only' })),
+    });
+    expect(refused).toMatchObject({ ok: false, reason: 'skip_not_allowed' });
+    expect((refused as { detail: string }).detail).toContain('capped at 3');
+    expect(ofType(app, 'check_skipped')).toHaveLength(0);
+
+    app.checkRunner.script('c4', { exitCode: 0 });
+    const accepted = await app.openPr.execute(worker, {
+      ...TEXT,
+      skip: ['c1', 'c2', 'c3'].map((command) => ({ command, reason: 'environment only' })),
+    });
+    expect(accepted).toMatchObject({ ok: true });
+    expect(ofType(app, 'check_skipped')).toHaveLength(3);
   });
 
   it('refuses to skip a command that never ran red on this head', async () => {
@@ -979,7 +1066,9 @@ describe('OpenPr — skipping a check', () => {
       .filter((m) => m.kind === 'system')
       .map((m) => (m.body as { text: string }).text)
       .filter((t) => t.startsWith('Skipped locally'));
-    expect(texts).toEqual([`Skipped locally: pnpm test — ${REASON}`]);
+    expect(texts).toEqual([
+      `Skipped locally: pnpm test — ${REASON} (skip 1 of 3 allowed for this task; CI decides)`,
+    ]);
   });
 });
 

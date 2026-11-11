@@ -118,4 +118,10 @@ export interface CodeHost {
     headSha: string,
     repo?: RepoTarget,
   ): Promise<readonly FailedCheckLog[]>;
+  /**
+   * ADR-0022 (amendment 2026-11-11): whether `branch` of the repo holds at least one GitHub Actions
+   * workflow file — the evidence that "CI decides" means something. Rejects when the host cannot
+   * answer; the caller then counts it as no evidence.
+   */
+  hasCiWorkflow(branch: string, repo?: RepoTarget): Promise<boolean>;
 }

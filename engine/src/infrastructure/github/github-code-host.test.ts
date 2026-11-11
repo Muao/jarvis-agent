@@ -659,3 +659,34 @@ describe('GitHubCodeHost.failedCheckLogs (ADR-0022)', () => {
     expect((error as Error).message).not.toContain(TOKEN);
   });
 });
+
+describe('GitHubCodeHost.hasCiWorkflow (ADR-0022)', () => {
+  const PATH = 'GET /repos/o/r/contents/.github/workflows';
+  const host = (routes: Record<string, Handler>) =>
+    new GitHubCodeHost({ token: TOKEN, owner: 'o', repo: 'r', fetch: fakeGitHub(routes).fetch });
+
+  it('is true when the base branch has a workflow file', async () => {
+    const h = host({
+      [PATH]: { body: [{ type: 'file', name: 'ci.yml', path: '.github/workflows/ci.yml' }] },
+    });
+    expect(await h.hasCiWorkflow('main')).toBe(true);
+  });
+
+  it('is false for an empty directory, a directory without workflow files, and a 404', async () => {
+    expect(await host({ [PATH]: { body: [] } }).hasCiWorkflow('main')).toBe(false);
+    expect(
+      await host({
+        [PATH]: { body: [{ type: 'file', name: 'README.md', path: 'x' }] },
+      }).hasCiWorkflow('main'),
+    ).toBe(false);
+    expect(
+      await host({ [PATH]: { status: 404, body: { message: 'Not Found' } } }).hasCiWorkflow('main'),
+    ).toBe(false);
+  });
+
+  it('rejects when GitHub cannot answer, so the caller sees no evidence', async () => {
+    await expect(
+      host({ [PATH]: { status: 500, body: { message: 'boom' } } }).hasCiWorkflow('main'),
+    ).rejects.toThrow();
+  });
+});
