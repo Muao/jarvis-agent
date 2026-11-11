@@ -2,7 +2,7 @@
 status: accepted
 date: 2026-11-08
 decision-makers: ["Ivan Lapa"]  # consolidation of the former 0015/0017/0018 (pre-renumbering) (owner-accepted individually 2026-11-02…08); merged 2026-11-08 on the owner's "consolidate the ADRs"
-scope: ["compose.yaml", "docker/runtime/**", "deploy/**", "web/vite.config.ts", "engine/src/infrastructure/claude/**", "engine/src/infrastructure/logging/**", "engine/src/presentation/timers/**", "shared/src/config.ts", "docs/architecture/deployment.md"]
+scope: ["compose.yaml", "docker/runtime/**", "deploy/**", "web/vite.config.ts", "engine/src/infrastructure/claude/**", "engine/src/infrastructure/logging/**", "engine/src/presentation/timers/**", "shared/src/config.ts", "docs/architecture/deployment.md", "scripts/redeploy.sh", "deploy/hardening/**", "deploy/root/**"]
 supersedes: []  # consolidates the former 0015, 0017 and 0018 (pre-renumbering; see git history)
 superseded-by: []
 ---
@@ -32,8 +32,8 @@ box.
   The ADR-0003 start-up guard is unchanged.
 - Nothing listens publicly: the firewall allows only SSH; `tailscale serve --bg 5180` publishes the web
   app to the owner's tailnet only (`preview.allowedHosts` carries the ts.net name).
-- Deploy: `scripts/deploy.sh` over SSH (git ff-only pull, install, build, migrate, restart); CI deploy
-  can follow once stable.
+- Deploy: `pnpm run redeploy` calls the root-owned `/usr/local/sbin/jarvis-deploy <sha>` over SSH (§4);
+  CI deploy can follow once stable.
 
 ### 2. Rehearsal: a Linux runtime image on the laptop; production stays bare systemd (formerly 0017)
 
@@ -62,6 +62,23 @@ box.
   dead process cannot fake.
 - Session economics (cost, tokens, turns, stop reason) stay in Postgres (ADR-0008); budgets (LIM-04)
   and the Usage page read Postgres, never Grafana.
+
+### 4. Hardening amendment: egress filter for uid `jarvis` and a root-owned deploy (2026-11-11)
+
+- Untrusted project code (`prepare`, check commands) runs as uid `jarvis`, directly or in rootless Docker, whose
+  traffic leaves from the host namespace as that uid. An nftables table `inet jarvis_egress`
+  (`deploy/hardening/egress.sh`, loaded by `jarvis-egress.service`) drops `meta skuid jarvis` traffic to the
+  tailnet (v4/v6), RFC1918, ULA, link-local and cloud-metadata ranges and the host's own public addresses;
+  loopback stays open. Containers get public DNS and no search domain via the user's `daemon.json`. Root and
+  `tailscaled` are untouched.
+- The owner API has no auth and is reachable on the tailnet, so a `jarvis`-uid process must not reach it
+  through the tailnet name; loopback access by the engine itself is intended.
+- Root never executes files from the `jarvis`-writable checkout. Deploys run `/usr/local/sbin/jarvis-deploy`
+  (`root:root 0755`, source `deploy/root/jarvis-deploy`, installed only by the owner): it takes a 40-hex SHA,
+  requires it to equal GitHub's `main`, does git/pnpm/build/migrate as `jarvis` and only restarts and the health
+  wait as root. `deploy:remote` is removed; the host name comes from `JARVIS_HOST`, not from the repository.
+- Residual risk: rootless Docker shares uid `jarvis` with the engine. Next step: a dedicated Docker uid.
+  Runbook: `docs/architecture/deployment.md` §7.
 
 ## Consequences
 

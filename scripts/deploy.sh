@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# NOT FOR ROOT ON THE SERVER: this file lives in the jarvis-writable checkout, so root must never execute it.
+# The server deploy is /usr/local/sbin/jarvis-deploy (deploy/root/jarvis-deploy, ADR-0016 §5), called by
+# `pnpm run redeploy`. This script remains for rehearsals and a `jarvis`-run deploy with a sudo rule.
+#
 # Deploy Jarvis on the Hetzner VPS (ADR-0016), following the sequence documented in
 # docs/architecture/deployment.md §5 "Update". Run it either way:
 #   ssh root@<host> /home/jarvis/jarvis/scripts/deploy.sh   # from the laptop, over Tailscale SSH
