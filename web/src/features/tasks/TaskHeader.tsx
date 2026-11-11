@@ -13,7 +13,7 @@ import { ErrorBlock } from '../../components/ErrorBlock';
 import { RelativeTime } from '../../components/RelativeTime';
 import { StageBadge } from '../../components/StageBadge';
 import { usageLevel } from '../../components/UsageMeter';
-import { elapsedMs, formatDuration, formatUsd } from './format';
+import { elapsedMs, formatDuration, formatTokenCount, formatUsd } from './format';
 import styles from './TaskHeader.module.css';
 
 type Pending = 'stop' | 'cancel' | null;
@@ -111,7 +111,9 @@ export function TaskHeader({ task, now }: TaskHeaderProps) {
         </div>
         <div>
           <dt>Total</dt>
-          <dd>notional {formatUsd(task.costUsd)}</dd>
+          <dd>
+            {formatTokenCount(task.tokens)} tokens · notional {formatUsd(task.costUsd)}
+          </dd>
         </div>
         <div>
           <dt>Updated</dt>

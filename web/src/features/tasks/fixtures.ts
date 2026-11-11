@@ -19,6 +19,7 @@ export const task = (patch: Partial<TaskDto> = {}): TaskDto => ({
   ci: null,
   runCount: 2,
   costUsd: 1.5,
+  tokens: 1_250_000,
   updatedAt: AT,
   ...patch,
 });

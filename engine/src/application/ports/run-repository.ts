@@ -6,6 +6,8 @@ import type { RunEventBody } from './agent-runner.js';
 export interface RunTotals {
   readonly runCount: number;
   readonly costUsd: number;
+  /** Input, output, cache writes and cache reads of every run of the task, together. */
+  readonly tokens: number;
 }
 
 /** Estimated cost since a point in time, split for the Config screen. Every role is present. */

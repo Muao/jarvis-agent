@@ -477,8 +477,8 @@ function contract(name: string, make: () => Repositories): void {
 
         expect(new Map(totals)).toEqual(
           new Map([
-            ['T-1', { runCount: 2, costUsd: 0.75 }],
-            ['T-2', { runCount: 1, costUsd: 2 }],
+            ['T-1', { runCount: 2, costUsd: 0.75, tokens: expect.any(Number) }],
+            ['T-2', { runCount: 1, costUsd: 2, tokens: expect.any(Number) }],
           ]),
         );
       });

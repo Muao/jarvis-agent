@@ -269,13 +269,14 @@ export class PgRunRepository implements RunRepository {
         taskId: runs.taskId,
         runCount: sql<number>`count(*)::int`,
         costUsd: sql<number>`coalesce(sum(${runs.costUsd}), 0)::float8`,
+        tokens: sql<number>`coalesce(sum(${runs.tokensInput} + ${runs.tokensOutput} + ${runs.tokensCacheWrite} + ${runs.tokensCacheRead}), 0)::float8`,
       })
       .from(runs)
       .where(isNotNull(runs.taskId))
       .groupBy(runs.taskId);
     const totals = new Map<string, RunTotals>();
-    for (const { taskId, runCount, costUsd } of rows) {
-      if (taskId !== null) totals.set(taskId, { runCount, costUsd });
+    for (const { taskId, runCount, costUsd, tokens } of rows) {
+      if (taskId !== null) totals.set(taskId, { runCount, costUsd, tokens });
     }
     return totals;
   }

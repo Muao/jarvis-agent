@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router';
 import type { RunDto, RunStatus } from '@jarvis/shared';
 import { RelativeTime } from '../../components/RelativeTime';
-import { elapsedMs, formatDuration, formatTokens, formatUsd } from './format';
+import { describeTokens, elapsedMs, formatDuration, formatTokens, formatUsd } from './format';
 import table from './Table.module.css';
 
 const STATUS_LABEL: Record<RunStatus, string> = {
@@ -65,7 +65,7 @@ export function RunsTable({ runs, now }: { runs: RunDto[]; now: Date }) {
                   </span>
                 ) : null}
               </td>
-              <td>{formatTokens(run.usage)}</td>
+              <td title={describeTokens(run.usage)}>{formatTokens(run.usage)}</td>
               <td className={table.numeric}>{formatUsd(run.costUsd)}</td>
             </tr>
           ))}

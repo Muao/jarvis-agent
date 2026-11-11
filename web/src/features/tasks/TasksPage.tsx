@@ -8,7 +8,7 @@ import { Loading } from '../../components/Loading';
 import { RelativeTime } from '../../components/RelativeTime';
 import { StageBadge } from '../../components/StageBadge';
 import { CheckStatus } from './CheckStatus';
-import { formatUsd } from './format';
+import { formatTokenCount, formatUsd } from './format';
 import { filterTasks, TASK_FILTERS, type TaskFilter } from './taskFilters';
 import table from './Table.module.css';
 import styles from './TasksPage.module.css';
@@ -84,6 +84,9 @@ function TasksTable({ tasks }: { tasks: TaskDto[] }) {
               Runs
             </th>
             <th scope="col" className={table.numeric}>
+              Tokens
+            </th>
+            <th scope="col" className={table.numeric}>
               Notional $
             </th>
             <th scope="col">Updated</th>
@@ -120,6 +123,7 @@ function TasksTable({ tasks }: { tasks: TaskDto[] }) {
               </td>
               <td>{task.ci !== null ? <CheckStatus status={task.ci} /> : '—'}</td>
               <td className={table.numeric}>{task.runCount}</td>
+              <td className={table.numeric}>{formatTokenCount(task.tokens)}</td>
               <td className={table.numeric}>{formatUsd(task.costUsd)}</td>
               <td>
                 <RelativeTime at={task.updatedAt} />

@@ -52,6 +52,8 @@ export const TaskDtoSchema = z.object({
   ci: CheckStatusSchema.nullable(),
   runCount: z.number().int().min(0),
   costUsd: z.number().min(0),
+  /** Tokens of every run of the task: input, output, cache writes and cache reads together. */
+  tokens: z.number().int().min(0),
   updatedAt: IsoDateSchema,
 });
 export type TaskDto = z.infer<typeof TaskDtoSchema>;

@@ -125,6 +125,7 @@ describe('DTOs', () => {
       ci: 'running',
       runCount: 3,
       costUsd: 1.25,
+      tokens: 1_250_000,
       updatedAt: at,
     };
     expect(TaskDtoSchema.parse(task)).toEqual(task);

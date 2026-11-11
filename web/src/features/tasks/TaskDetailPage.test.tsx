@@ -47,7 +47,7 @@ describe('TaskDetailPage', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('T-12')).toBeInTheDocument();
     expect(screen.getByText('jarvis/T-12')).toBeInTheDocument();
-    expect(screen.getByText('notional $1.50')).toBeInTheDocument();
+    expect(screen.getByText('1.3M tokens · notional $1.50')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open thread' })).toHaveAttribute('href', '/chat/th-1');
     expect(screen.getByRole('link', { name: '#7' })).toHaveAttribute(
       'href',

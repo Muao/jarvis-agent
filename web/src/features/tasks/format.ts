@@ -19,8 +19,21 @@ export function elapsedMs(start: string, end: string | null, now: Date): number 
 
 const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
 
+/** Everything a run read and wrote: input, output, cache writes and cache reads. */
+export const totalTokens = (usage: TokenUsage): number =>
+  usage.input + usage.output + usage.cacheWrite + usage.cacheRead;
+
+/**
+ * "1.2M · 7.5K out": the total first, because almost all of a run's tokens are the context it
+ * re-reads from the cache on every turn — input and output alone look like nothing was used.
+ */
 export const formatTokens = (usage: TokenUsage): string =>
-  `${compact.format(usage.input)} in · ${compact.format(usage.output)} out`;
+  `${compact.format(totalTokens(usage))} · ${compact.format(usage.output)} out`;
+
+/** The full split, for a tooltip. */
+export const describeTokens = (usage: TokenUsage): string =>
+  `${usage.input.toLocaleString('en-US')} input · ${usage.output.toLocaleString('en-US')} output · ` +
+  `${usage.cacheWrite.toLocaleString('en-US')} cache write · ${usage.cacheRead.toLocaleString('en-US')} cache read`;
 
 /** 950 · 12.4K · 3.2M — a token count short enough for a meter. */
 export const formatTokenCount = (tokens: number): string => compact.format(tokens);

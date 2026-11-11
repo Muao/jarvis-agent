@@ -4,7 +4,7 @@ import type { RunTotals } from '../ports/run-repository.js';
 import type { Watch } from '../ports/watch-repository.js';
 import { ciStatusOf } from './pull-request.js';
 
-const NO_RUNS: RunTotals = { runCount: 0, costUsd: 0 };
+const NO_RUNS: RunTotals = { runCount: 0, costUsd: 0, tokens: 0 };
 
 /** A row of the task list; Task detail extends it. */
 export function toTaskDto(
@@ -32,6 +32,7 @@ export function toTaskDto(
     ci: ciStatusOf(facts.watch?.summary ?? null),
     runCount: totals.runCount,
     costUsd: totals.costUsd,
+    tokens: totals.tokens,
     updatedAt: task.updatedAt,
   };
 }
