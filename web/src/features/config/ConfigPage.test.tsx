@@ -1,5 +1,6 @@
 import { screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
 import { JarvisConfigSchema, type ConfigDto } from '@jarvis/shared';
 import { stubFetch } from '../../test/fakeFetch';
 import { usage } from '../../test/fixtures';
@@ -57,6 +58,33 @@ describe('ConfigPage', () => {
     expect(screen.getByText('alice')).toBeInTheDocument();
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('clamps a long profile file and expands it on demand', async () => {
+    // jsdom has no layout: report the file as taller than its clamped box.
+    const scrollHeight = vi
+      .spyOn(HTMLElement.prototype, 'scrollHeight', 'get')
+      .mockReturnValue(900);
+    const clientHeight = vi
+      .spyOn(HTMLElement.prototype, 'clientHeight', 'get')
+      .mockReturnValue(320);
+    try {
+      stubFetch({ 'GET /api/config': valid() });
+      renderWithProviders(<ConfigPage />);
+
+      const toggle = await screen.findByRole('button', { name: 'Show all of SOUL.md' });
+      expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+      await userEvent.click(toggle);
+
+      expect(screen.getByRole('button', { name: 'Show less' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+    } finally {
+      scrollHeight.mockRestore();
+      clientHeight.mockRestore();
+    }
   });
 
   it('shows config errors and the tasks-do-not-start note when invalid', async () => {

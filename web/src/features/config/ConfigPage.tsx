@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { ConfigDto, JarvisConfig } from '@jarvis/shared';
 import { useConfig } from '../../api/queries';
 import { ErrorBlock } from '../../components/ErrorBlock';
@@ -74,8 +74,24 @@ function limitRows(config: JarvisConfig): [string, string, string][] {
 }
 
 function ProfileFile({ label, file }: { label: string; file: ValidConfig['profile']['soul'] }) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // The preview is clamped by CSS; the toggle appears only when something is actually cut off.
+  useLayoutEffect(() => {
+    const element = contentRef.current;
+    if (!element || expanded) return;
+    const measure = () => setOverflows(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [file.content, expanded]);
+
   return (
-    <div>
+    <div className={styles.profileFile}>
       <h3 className={styles.sectionTitle}>{label}</h3>
       <p className={styles.muted}>
         <span className={styles.mono}>{file.path}</span>
@@ -89,9 +105,26 @@ function ProfileFile({ label, file }: { label: string; file: ValidConfig['profil
       {file.content === null ? (
         <p className={styles.warning}>File not found.</p>
       ) : (
-        <div className={styles.profile}>
-          <Markdown>{file.content}</Markdown>
-        </div>
+        <>
+          <div
+            ref={contentRef}
+            className={styles.profile}
+            data-expanded={expanded}
+            data-clipped={overflows && !expanded}
+          >
+            <Markdown>{file.content}</Markdown>
+          </div>
+          {overflows ? (
+            <button
+              type="button"
+              className={styles.profileToggle}
+              aria-expanded={expanded}
+              onClick={() => setExpanded((value) => !value)}
+            >
+              {expanded ? 'Show less' : `Show all of ${label}`}
+            </button>
+          ) : null}
+        </>
       )}
     </div>
   );

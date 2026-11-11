@@ -84,10 +84,46 @@
   padding-left: var(--space-5);
 }
 
+.profileFile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.profileFile + .profileFile {
+  margin-top: var(--space-4);
+}
+
 .profile {
+  align-self: stretch;
   max-height: 20rem;
-  overflow: auto;
+  /* Clamped in height only: a wide table or code line still scrolls sideways. */
+  overflow-x: auto;
+  overflow-y: hidden;
   padding: var(--space-2) var(--space-3);
   background: var(--color-surface-muted);
   border-radius: var(--radius-sm);
+}
+
+.profile[data-expanded='true'] {
+  max-height: none;
+}
+
+/* Fades the last lines out so a clamped file does not look cut mid-sentence. */
+.profile[data-clipped='true'] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 4rem), transparent);
+}
+
+.profileToggle {
+  padding: 0;
+  color: var(--color-accent);
+  background: none;
+  border: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-decoration: underline;
+  text-decoration-color: var(--color-accent-subtle);
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
