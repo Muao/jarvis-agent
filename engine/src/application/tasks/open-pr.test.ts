@@ -1152,3 +1152,47 @@ describe('no use case but OpenPr moves a task to PR Open (ADR-0022)', () => {
     expect(found).toEqual([join('tasks', 'open-pr.ts')]);
   });
 });
+
+describe('OpenPr — a change to the UI is checked in a browser first (ADR-0014)', () => {
+  const touchUi = (app: TestApp): void => {
+    app.branchPublisher.state = {
+      dirtyFiles: [],
+      commitsAhead: 1,
+      changedFiles: ['src/a.ts', 'web/src/Button.tsx'],
+    };
+  };
+  const note = (app: TestApp, taskId: string, type: string): Promise<void> =>
+    app.uow.run((tx) => tx.journal.append(taskEvent(taskId, type, app.clock.now(), 'system', {})));
+
+  it('refuses the first PR while no UI check was attempted, and names the files', async () => {
+    const { app, worker } = await setup('Reviewing');
+    touchUi(app);
+
+    const result = await app.openPr.execute(worker, TEXT);
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: 'ui_check_required',
+      files: ['web/src/Button.tsx'],
+    });
+    expect(app.checkRunner.calls).toHaveLength(0);
+    expectNothingPublished(app);
+  });
+
+  it.each(['dev_server_started', 'dev_server_refused'])(
+    'opens the PR once the journal shows %s',
+    async (type) => {
+      const { app, task, worker } = await setup('Reviewing');
+      touchUi(app);
+      await note(app, task.id, type);
+
+      expect(await app.openPr.execute(worker, TEXT)).toMatchObject({ ok: true });
+    },
+  );
+
+  it('asks for nothing when the diff touches no UI file', async () => {
+    const { app, worker } = await setup('Reviewing');
+
+    expect(await app.openPr.execute(worker, TEXT)).toMatchObject({ ok: true });
+  });
+});

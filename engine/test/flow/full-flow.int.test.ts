@@ -80,6 +80,8 @@ async function startFlow(options: {
     JSON.stringify({
       repo: { path: repo, remote: 'origin', baseBranch: 'main' },
       engine: { claudeBinary: FAKE_CLAUDE },
+      // The fake worker brings up no real project: keep these flows off Docker.
+      ui: { enabled: false },
       ...(options.checkRetries === undefined
         ? {}
         : { limits: { checkRetries: options.checkRetries } }),

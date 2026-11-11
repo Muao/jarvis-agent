@@ -26,7 +26,7 @@ const validInputs: Record<ToolName, Record<string, unknown>> = {
   report_pr: { number: 3, url: 'https://github.com/o/r/pull/3' },
   log_note: { text: 'note' },
   post_update: { text: 'ran the suite, 2 failures, fixing now' },
-  start_dev_server: {},
+  start_dev_server: { plan: { app: { command: 'npm run dev', port: 5173 } } },
   stop_dev_server: {},
   attach_image: { path: 'screenshots/001-task-card.png', alt: 'the task card' },
   comment_on_pr: { body: '## UI verification\n\nverdict: pass' },

@@ -1,6 +1,11 @@
 import { readFileSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
 import { basename, dirname } from 'node:path';
-import { JarvisConfigSchema, formatConfigError, type JarvisConfig } from '@jarvis/shared';
+import {
+  JarvisConfigSchema,
+  dropRetiredConfigKeys,
+  formatConfigError,
+  type JarvisConfig,
+} from '@jarvis/shared';
 import type { ConfigProvider } from '../../application/ports/config-provider.js';
 import { StartupError } from './startup-error.js';
 
@@ -8,9 +13,12 @@ export interface FileConfigProviderOptions {
   /** Debounce for file-system events; editors emit several per save. */
   debounceMs?: number;
   now?: () => string;
+  /** Told once per load which retired keys the file still carries (ADR-0026). */
+  warn?: (message: string) => void;
 }
 
-type Parsed = { ok: true; config: JarvisConfig } | { ok: false; message: string };
+type Parsed =
+  { ok: true; config: JarvisConfig; retired: string[] } | { ok: false; message: string };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -56,9 +64,11 @@ function parseFile(path: string): Parsed {
   } catch (error) {
     return { ok: false, message: `${path}: invalid JSON (${(error as Error).message})` };
   }
+  // ADR-0026: a config written before the engine went generic still loads, minus those keys.
+  const retired = dropRetiredConfigKeys(json);
   const result = JarvisConfigSchema.safeParse(json);
   if (!result.success) return { ok: false, message: formatConfigError(result.error) };
-  return { ok: true, config: deepFreeze(result.data) };
+  return { ok: true, config: deepFreeze(result.data), retired };
 }
 
 /**
@@ -74,6 +84,7 @@ export class FileConfigProvider implements ConfigProvider {
   private readonly listeners = new Set<(config: JarvisConfig) => void>();
   private readonly debounceMs: number;
   private readonly now: () => string;
+  private readonly warn: (message: string) => void;
 
   constructor(
     private readonly path: string,
@@ -81,12 +92,22 @@ export class FileConfigProvider implements ConfigProvider {
   ) {
     this.debounceMs = options.debounceMs ?? 150;
     this.now = options.now ?? (() => new Date().toISOString());
+    this.warn = options.warn ?? ((message) => console.warn(message));
+  }
+
+  private reportRetired(retired: readonly string[]): void {
+    if (retired.length === 0) return;
+    this.warn(
+      `${this.path}: ignoring retired keys ${retired.join(', ')} — the engine no longer takes ` +
+        'target-specific settings (ADR-0026). Remove them from the file.',
+    );
   }
 
   /** Reads and validates the file; throws StartupError listing `path: message` lines (LIM-02). Then starts watching. */
   load(): JarvisConfig {
     const parsed = parseFile(this.path);
     if (!parsed.ok) throw new StartupError(`Invalid config ${this.path}:\n${parsed.message}`);
+    this.reportRetired(parsed.retired);
     this.config = parsed.config;
     this.error = null;
     this.loaded = this.now();
@@ -119,6 +140,7 @@ export class FileConfigProvider implements ConfigProvider {
       throw new Error(`${this.path}: invalid JSON (${(error as Error).message})`, { cause: error });
     }
     if (!isPlainObject(current)) throw new Error(`${this.path}: expected a JSON object`);
+    dropRetiredConfigKeys(current);
     const merged = deepMerge(current, patch);
     const result = JarvisConfigSchema.safeParse(merged);
     if (!result.success) throw new Error(formatConfigError(result.error));

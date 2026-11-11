@@ -45,11 +45,11 @@
     "claudeBinary": "claude"
   },
   "ui": {
-    "enabled": false,
-    "devCommand": "pnpm dev",
-    "baseUrl": "http://127.0.0.1:5173",
-    "readyPath": "/",
+    "enabled": true,
+    "defaultImage": "node:22-bookworm",
     "readyTimeoutSeconds": 90,
+    "prepareTimeoutSeconds": 600,
+    "maxStartAttempts": 3,
     "leaseMinutes": 15,
     "maxScenarios": 8,
     "maxScreenshots": 12,

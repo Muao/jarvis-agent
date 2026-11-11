@@ -78,16 +78,20 @@ export const BROWSER_DENIED_TOOLS = ['browser_evaluate', 'browser_run_code_unsaf
 
 export const playwrightToolName = (tool: string): string => `mcp__playwright__${tool}`;
 
+const LOOPBACK_HOSTS = ['127.0.0.1', 'localhost'] as const;
+
 /** The Playwright MCP server for one worker run: headless, profile-less, pinned to the dev server. */
-export function playwrightServer(ctx: Pick<RunContext, 'config'>, screenshotsDir: string): Json {
+export function playwrightServer(
+  ctx: Pick<RunContext, 'config' | 'apiUrl'>,
+  screenshotsDir: string,
+): Json {
   const { ui } = ctx.config;
-  // The app's own origin plus whatever else the owner declared it talks to (an API on another
-  // port). Playwright MCP takes one **semicolon**-separated list: joined with commas it reads the
-  // whole string as a single origin, which matches nothing and blocks even `baseUrl`.
-  const origins = unique([
-    new URL(ui.baseUrl).origin,
-    ...ui.allowedOrigins.map((value) => new URL(value).origin),
-  ]).join(';');
+  const enginePort = new URL(ctx.apiUrl).port;
+  // ADR-0026: the ports of the app are chosen by the plan, after this server has started, so the
+  // allow-list is "this machine, any port" — and the engine's own API is taken back out of it.
+  // Playwright MCP takes **semicolon**-separated lists and evaluates the block-list first.
+  const origins = LOOPBACK_HOSTS.map((host) => `http://${host}:*`).join(';');
+  const blocked = LOOPBACK_HOSTS.map((host) => `http://${host}:${enginePort}`).join(';');
   return {
     command: 'npx',
     args: [
@@ -104,6 +108,8 @@ export function playwrightServer(ctx: Pick<RunContext, 'config'>, screenshotsDir
       // A brake, not a boundary: Playwright MCP says so itself, and it does not cover redirects.
       '--allowed-origins',
       origins,
+      '--blocked-origins',
+      blocked,
       '--console-level',
       'error',
       '--idle-timeout',

@@ -57,6 +57,28 @@ the firewall.
    `/etc/jarvis/infisical.env` and anything else. Docker is driven as root only: the one-off `compose up`
    below, and any long-lived container a target repository needs (its restart policy keeps it up).
 3. Once `tailscale ssh jarvis@<host>` works, remove SSH from the Hetzner firewall.
+   **Rootless Docker for the UI check (ADR-0026).** The engine runs each UI check in disposable
+   containers, as `jarvis`, through a rootless daemon — which gives a container no more than `jarvis`
+   already has, so the rule above stands. Once, as root:
+   ```sh
+   apt-get install -y uidmap dbus-user-session docker-ce-rootless-extras
+   loginctl enable-linger jarvis                      # the user daemon survives logout and reboot
+   sudo -iu jarvis dockerd-rootless-setuptool.sh install
+   sudo -iu jarvis systemctl --user enable --now docker
+   id -u jarvis                                       # <uid> for the drop-in below
+   sudo systemctl edit jarvis-engine
+   # [Service]
+   # Environment=DOCKER_HOST=unix:///run/user/<uid>/docker.sock
+   # Environment=XDG_RUNTIME_DIR=/run/user/<uid>
+   sudo -iu jarvis DOCKER_HOST=unix:///run/user/<uid>/docker.sock docker run --rm hello-world
+   ```
+   Without a daemon the engine does not hang: every `start_dev_server` is refused with
+   `docker_unavailable` and the pull request says the UI check did not complete.
+   Remove the retired keys from `~/.jarvis/jarvis.config.json` (`ui.devCommand`, `ui.baseUrl`,
+   `ui.readyPath`, `ui.allowedOrigins`, `ui.env`) and delete `~/.jarvis/ui/`; the engine ignores them
+   with a warning until then.
+   _Open:_ the check network may still reach private addresses (RFC1918, the tailnet). Dropping that
+   egress needs host firewall rules for the rootless network namespace and is not set up yet.
 4. Chromium for the UI check (ADR-0014), as root, into a path `jarvis` can read:
    ```sh
    export PLAYWRIGHT_BROWSERS_PATH=/ms-playwright

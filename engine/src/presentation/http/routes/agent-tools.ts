@@ -125,8 +125,8 @@ export const toolCalls: Readonly<Partial<Record<ToolName, Call>>> = {
     ...(await app.rememberOwner.execute(identity, input)),
   })),
 
-  start_dev_server: tool(schemas.start_dev_server, (app, identity) =>
-    app.startDevServer.execute(identity),
+  start_dev_server: tool(schemas.start_dev_server, (app, identity, input) =>
+    app.startDevServer.execute(identity, input.plan),
   ),
   stop_dev_server: tool(schemas.stop_dev_server, (app, identity) =>
     app.stopDevServer.execute(identity),

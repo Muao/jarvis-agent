@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { TaskIdSchema } from './common.js';
+import { EnvironmentPlanSchema } from './environment-plan.js';
 import { TaskKindSchema, TaskModelSchema, type Role } from './enums.js';
 
 /**
@@ -178,10 +179,10 @@ export const toolInputSchemas = {
   }),
 
   /**
-   * ADR-0014. No arguments on purpose: the command, the URL and the lease come from
-   * `ui.*` in the config, so a model can neither choose what the engine runs nor how long.
+   * ADR-0026. The worker says how to bring the project up; the engine runs it in disposable
+   * containers. The lease, the limits, the mounts and the network stay the engine's.
    */
-  start_dev_server: z.strictObject({}),
+  start_dev_server: z.strictObject({ plan: EnvironmentPlanSchema }),
   stop_dev_server: z.strictObject({}),
   /**
    * ADR-0014. `path` is relative to the task's artifacts directory and may not leave it.

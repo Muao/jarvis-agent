@@ -6,6 +6,7 @@ import {
   recordCheckFailure,
   recordCheckPass,
   resolveCheckCommands,
+  uiFilesIn,
   type Task,
   type TaskEvent,
 } from '../../domain/index.js';
@@ -51,6 +52,7 @@ export type OpenPrRefusal =
   | 'already_running'
   | 'dirty_tree'
   | 'no_commits'
+  | 'ui_check_required'
   | 'no_checks_declared'
   | 'checks_unavailable'
   | 'push_rejected'
@@ -125,6 +127,33 @@ const strings = (value: unknown): string[] =>
 function lastIndexOfType(journal: readonly TaskEvent[], type: string): number {
   for (let i = journal.length - 1; i >= 0; i -= 1) if (journal[i]?.type === type) return i;
   return -1;
+}
+
+/** Journal rows that show the worker at least tried to bring the app up (ADR-0014). */
+const UI_CHECK_ATTEMPTS: readonly string[] = ['dev_server_started', 'dev_server_refused'];
+
+/**
+ * The UI check is part of the workflow, not an option the worker may forget: a first pull request
+ * whose diff touches UI files is not opened until the journal shows the check was attempted. A
+ * refused start counts — the worker then says in the PR why the check did not complete.
+ */
+function uiCheckMissing(
+  task: Task,
+  journal: readonly TaskEvent[],
+  status: BranchStatus,
+  ui: { readonly enabled: boolean; readonly paths: readonly string[] },
+): OpenPrResult | null {
+  if (!ui.enabled || task.pr !== null) return null;
+  const files = uiFilesIn(status.changedFiles, ui.paths);
+  if (files.length === 0) return null;
+  if (journal.some((event) => UI_CHECK_ATTEMPTS.includes(event.type))) return null;
+  return {
+    ok: false,
+    reason: 'ui_check_required',
+    detail:
+      'This change touches UI files and no UI check has run. Call report_stage Reviewing, run the UI check (start_dev_server with a plan, the ui-tester subagent, stop_dev_server), then call open_pr again.',
+    files: files.slice(0, 20),
+  };
 }
 
 /** The commands the owner's approval fixed: the latest `checks_fixed` row (ADR-0022). */
@@ -369,6 +398,8 @@ export class OpenPr {
           'There is no commit beyond the base branch yet: commit your work, then call open_pr.',
       };
     }
+    const missing = uiCheckMissing(task, journal, status, deps.config.current().ui);
+    if (missing !== null) return missing;
     const headSha = await deps.branchPublisher.headSha(task.id);
 
     const commands = await this.commandsFor(task, journal, worktree.path, repo);

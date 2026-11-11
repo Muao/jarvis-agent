@@ -6,6 +6,7 @@ import {
   type JarvisConfig,
   type StreamEvent,
 } from '@jarvis/shared';
+import type { EnvironmentPlan } from '@jarvis/shared';
 import { memoryEntries, parseMemory } from '../../domain/index.js';
 import type { IsoTime, Message } from '../../domain/index.js';
 import type { ArtifactBlob, ArtifactFile, ArtifactStore } from '../ports/artifact-store.js';
@@ -263,21 +264,22 @@ export class InMemoryArtifactStore implements ArtifactStore {
 
 /** ADR-0014: records what the engine was asked to start, without starting anything. */
 export class FakeDevServerManager implements DevServerManager {
-  readonly started: { taskId: string; cwd: string }[] = [];
+  readonly started: { taskId: string; cwd: string; plan: EnvironmentPlan }[] = [];
   readonly stopped: string[] = [];
   /** What the next `start` answers; the default pretends the server came up. */
   nextResult: DevServerResult | null = null;
   private lease: DevServerLease | null = null;
 
-  async start(taskId: string, cwd: string): Promise<DevServerResult> {
-    this.started.push({ taskId, cwd });
+  async start(taskId: string, cwd: string, plan: EnvironmentPlan): Promise<DevServerResult> {
+    this.started.push({ taskId, cwd, plan });
     const result =
       this.nextResult ??
       ({
         ok: true,
         lease: {
           taskId,
-          baseUrl: 'http://127.0.0.1:5173',
+          baseUrl: `http://127.0.0.1:${plan.app.port}`,
+          origins: [plan.app.port, ...plan.extraPorts].map((p) => `http://127.0.0.1:${p}`),
           expiresAt: '2026-11-08T00:15:00.000Z',
         },
       } satisfies DevServerResult);

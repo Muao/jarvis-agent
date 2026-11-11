@@ -25,17 +25,11 @@ export const FORBIDDEN_PATHS = [
   'repos.allowSelf',
   'engine.port',
   'engine.claudeBinary',
-  // ADR-0014: the engine executes `ui.devCommand` itself, so chat must not be able to set it.
-  'ui.devCommand',
+  // What a check runs in, whether its browser is sandboxed and which diffs count as UI are the
+  // owner's; `ui.autoApproveComments` disables the only gate before writing to a pull request.
+  'ui.defaultImage',
   'ui.noSandbox',
   'ui.paths',
-  // The same boundary for the rest of `ui.*` that arms the dev server or skips a gate: `ui.env`
-  // is the environment handed to a pull request's build — a patch could re-expose exactly the
-  // secrets the narrowed inheritance removed (`{"GITHUB_TOKEN": "${GITHUB_TOKEN}"}`);
-  // `ui.allowedOrigins` widens where the checked page may reach; `ui.autoApproveComments`
-  // disables the only gate before writing to a pull request.
-  'ui.env',
-  'ui.allowedOrigins',
   'ui.autoApproveComments',
   // ADR-0018: this list decides whose pull request may run its code here without asking the owner.
   // A trust boundary is not a setting to be talked into.

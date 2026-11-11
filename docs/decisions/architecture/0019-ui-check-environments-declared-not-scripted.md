@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: superseded
 date: 2026-11-09
 decision-makers: [] # owner: the services a check may run must be configurable, not buried in a shell string (2026-11-09); owner: build the sandbox without Daytona-class infrastructure (2026-11-09); drafted by Claude
 scope:
@@ -13,10 +13,15 @@ scope:
     'docs/specs/ui-check-on-demand.md',
   ]
 supersedes: []
-superseded-by: []
+superseded-by: ['0026']
 ---
 
 # ADR-0019: A UI check's environment is declared per repository and runs in a disposable container
+
+> **Superseded by [ADR-0026](0026-engine-knows-no-target-project.md) (2026-11-11), never implemented.** Declaring a
+> repository's environment in `jarvis.config.json` keeps target-specific knowledge in the engine's config — the
+> thing the owner ruled out. The plan format and the disposable container designed here live on; only the author
+> of the plan changed, from the owner's config to the agent at runtime. Do not propose per-repository config again.
 
 ## Context and Problem Statement
 

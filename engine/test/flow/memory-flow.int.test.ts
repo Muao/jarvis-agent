@@ -68,6 +68,8 @@ beforeAll(async () => {
     JSON.stringify({
       repo: { path: repo, remote: 'origin', baseBranch: 'main' },
       engine: { claudeBinary: FAKE_CLAUDE },
+      // The fake worker brings up no real project: keep these flows off Docker.
+      ui: { enabled: false },
     }),
   );
   // The owner's own text, which the engine must leave byte for byte.

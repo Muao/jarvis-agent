@@ -1,6 +1,7 @@
 export * from './common.js';
 export * from './enums.js';
 export * from './config.js';
+export * from './environment-plan.js';
 export * from './run-event.js';
 export * from './stream.js';
 export * from './mcp.js';

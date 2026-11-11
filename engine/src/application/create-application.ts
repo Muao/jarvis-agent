@@ -333,6 +333,7 @@ export function createApplication(ports: ApplicationPorts): Application {
     updateConfig: new UpdateConfig({ ...deps, config }),
     startDevServer: new StartDevServer({
       ...deps,
+      config,
       devServers: ports.devServers,
       worktrees,
       trustHead,

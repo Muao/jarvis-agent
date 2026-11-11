@@ -127,6 +127,22 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
   history. AGENTS.md now requires specs and all documentation in English; the Ukrainian specs are being
   translated.
 
+## In progress — branch `feat/generic-dev-server` (2026-11-11, uncommitted)
+
+- **Repository-agnostic UI check (ADR-0026)**: the worker composes an environment plan from the target
+  repository and `start_dev_server({plan})` runs it in disposable Docker containers (`DockerDevServer`
+  replaces `ProcessDevServer`); `ui.devCommand` / `baseUrl` / `readyPath` / `allowedOrigins` / `env` are
+  gone from the config; no literal credential in a plan; new skill `agent/skills/project-knowledge`.
+- **The UI check is mandatory**: `ui.enabled` defaults to true; `open_pr` answers `ui_check_required`
+  for a first PR that touches `ui.paths` without an attempted check; the check also runs in `Fixing`
+  and `PR Open`.
+- Verified: unit tests, typecheck, lint; the adapter was run once against a real Docker daemon on the
+  laptop (image service + process service + app, generated secrets, failing steps). **Not verified**:
+  a real worker composing a plan for a real repository; the integration tests; the server.
+- Server steps before it works there _(owner)_: rootless Docker for `jarvis` and the config cleanup in
+  `docs/architecture/deployment.md` step 3.
+- Left for later: project records (spec section 3), egress filtering of the check network.
+
 ## Next
 
 0. **Set the real Postgres password** _(owner)_: generate (`openssl rand -base64 24`), store in Infisical

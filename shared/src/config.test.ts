@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import example from '../../jarvis.config.example.json';
-import { JarvisConfigSchema, formatConfigError } from './config.js';
+import {
+  JarvisConfigSchema,
+  RETIRED_CONFIG_KEYS,
+  dropRetiredConfigKeys,
+  formatConfigError,
+} from './config.js';
 
 describe('jarvis.config.example.json', () => {
   it('parses against the schema and names the remote, not a URL', () => {
@@ -129,29 +134,32 @@ describe('JarvisConfigSchema', () => {
     expect(lines.some((l) => l.startsWith('engine.port: '))).toBe(true);
   });
 
-  it('defaults the ui block to off (AC-1)', () => {
+  it('turns the ui check on by default: it is a step of the workflow', () => {
     const config = JarvisConfigSchema.parse(minimal);
-    expect(config.ui.enabled).toBe(false);
-    expect(config.ui.baseUrl).toBe('http://127.0.0.1:5173');
+    expect(config.ui.enabled).toBe(true);
+    expect(config.ui.defaultImage).toBe('node:22-bookworm');
+    expect(config.ui.maxStartAttempts).toBe(3);
     expect(config.ui.leaseMinutes).toBe(15);
     expect(config.ui.maxScenarios).toBe(8);
     expect(config.ui.attachToPr).toBe(true);
     expect(config.ui.paths).toContain('**/*.tsx');
   });
 
-  it('rejects a ui.baseUrl that is not on the loopback interface (AC-2)', () => {
-    const result = JarvisConfigSchema.safeParse({
-      ...minimal,
-      ui: { baseUrl: 'http://0.0.0.0:5173' },
-    });
-    if (result.success) throw new Error('expected failure');
-    expect(formatConfigError(result.error)).toMatch(/^ui\.baseUrl: .*127\.0\.0\.1/);
+  it('knows no target-specific ui key (ADR-0026)', () => {
+    for (const key of RETIRED_CONFIG_KEYS) {
+      const name = key.split('.')[1] as string;
+      expect(JarvisConfigSchema.safeParse({ ...minimal, ui: { [name]: 'x' } }).success).toBe(false);
+    }
   });
 
-  it('rejects a ui.readyPath that is not a path', () => {
-    expect(JarvisConfigSchema.safeParse({ ...minimal, ui: { readyPath: 'tasks' } }).success).toBe(
-      false,
-    );
+  it('drops retired keys from an older config and names them', () => {
+    const raw = {
+      ...minimal,
+      ui: { enabled: true, devCommand: './run.sh', env: { A: 'b' }, baseUrl: 'http://127.0.0.1:1' },
+    };
+    expect(dropRetiredConfigKeys(raw)).toEqual(['ui.devCommand', 'ui.baseUrl', 'ui.env']);
+    expect(JarvisConfigSchema.parse(raw).ui.enabled).toBe(true);
+    expect(dropRetiredConfigKeys(null)).toEqual([]);
   });
 
   it('labels root-level problems', () => {

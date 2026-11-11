@@ -89,18 +89,24 @@ export const JarvisConfigSchema = z.strictObject({
     })
     .prefault({}),
   /**
-   * ADR-0014: the UI check the worker runs in `Reviewing` — an engine-leased dev server plus
-   * Playwright MCP, driven by the `ui-tester` subagent. Off until the owner turns it on.
+   * ADR-0014, ADR-0026: the UI check — an engine-leased environment in disposable containers plus
+   * Playwright MCP, driven by the `ui-tester` subagent. Only
+   * generic knobs live here: how a particular project is brought up is worked out by the agent at
+   * runtime and never configured.
    */
   ui: z
     .strictObject({
-      enabled: z.boolean().default(false),
-      /** Run in the task's worktree by the engine, never chosen by a model. */
-      devCommand: z.string().min(1).default('pnpm dev'),
-      baseUrl: loopbackUrlOf("the agent's dev server").default('http://127.0.0.1:5173'),
-      readyPath: z.string().startsWith('/').default('/'),
+      /** On by default: the UI check is a step of the workflow. False is the owner's off switch. */
+      enabled: z.boolean().default(true),
+      /** The image a plan's commands run in when the plan names none. */
+      defaultImage: z.string().min(1).default('node:22-bookworm'),
+      /** How long one step may take to become ready (a service's port, the app's page). */
       readyTimeoutSeconds: positiveInt(90),
-      /** How long one dev server may live before the engine kills its process tree. */
+      /** How long one `prepare` command or one image pull may run. */
+      prepareTimeoutSeconds: positiveInt(600),
+      /** How many plans one run may try before it must report that the app does not come up. */
+      maxStartAttempts: positiveInt(3),
+      /** How long one environment may live before the engine removes its containers. */
       leaseMinutes: positiveInt(15),
       maxScenarios: positiveInt(8),
       maxScreenshots: positiveInt(12),
@@ -116,22 +122,6 @@ export const JarvisConfigSchema = z.strictObject({
       autoApproveComments: z.boolean().default(false),
       /** Chromium cannot use user namespaces inside the runtime container (ADR-0016). */
       noSandbox: z.boolean().default(false),
-      /**
-       * Origins the check's browser may talk to besides `baseUrl`. An application with a back end
-       * is more than one origin — the page is served from one port and calls an API on another —
-       * and Playwright MCP blocks every origin it was not given, so without this the API call
-       * fails as `ERR_BLOCKED_BY_CLIENT` and every scenario behind a login dies with it.
-       * A brake, not a boundary: it does not cover redirects (ADR-0014).
-       */
-      allowedOrigins: z.array(z.string().url()).default([]),
-      /**
-       * Extra environment for `devCommand`. The dev server otherwise inherits only a short list
-       * (`PATH`, `HOME`, `LANG`, `LC_ALL`, `TERM`, `TMPDIR`, `SHELL`, `USER`), so the engine's
-       * credentials never reach a pull request's build scripts. A value of exactly `${NAME}`
-       * passes that variable through from the engine on purpose; write secrets that way rather
-       * than into this file (ADR-0015).
-       */
-      env: z.record(z.string().min(1), z.string()).default({}),
       /** A diff touching none of these globs is not a UI change. */
       paths: z
         .array(z.string().min(1))
@@ -164,6 +154,33 @@ export const JarvisConfigSchema = z.strictObject({
     })
     .prefault({}),
 });
+
+/** ADR-0026: target-specific keys that left the config. A file that still has them loads without them. */
+export const RETIRED_CONFIG_KEYS: readonly string[] = [
+  'ui.devCommand',
+  'ui.baseUrl',
+  'ui.readyPath',
+  'ui.allowedOrigins',
+  'ui.env',
+];
+
+/**
+ * Removes `RETIRED_CONFIG_KEYS` from a raw config object, in place, and returns the ones it found —
+ * so an engine deployed over an older config starts, and says what it ignored.
+ */
+export function dropRetiredConfigKeys(raw: unknown): string[] {
+  const dropped: string[] = [];
+  if (typeof raw !== 'object' || raw === null) return dropped;
+  for (const key of RETIRED_CONFIG_KEYS) {
+    const [section, name] = key.split('.') as [string, string];
+    const holder = (raw as Record<string, unknown>)[section];
+    if (typeof holder === 'object' && holder !== null && name in holder) {
+      delete (holder as Record<string, unknown>)[name];
+      dropped.push(key);
+    }
+  }
+  return dropped;
+}
 
 export type JarvisConfig = z.output<typeof JarvisConfigSchema>;
 export type JarvisConfigInput = z.input<typeof JarvisConfigSchema>;

@@ -14,7 +14,7 @@ import {
 import { ShellCheckRunner } from './infrastructure/checks/shell-check-runner.js';
 import { GitBranchPublisher } from './infrastructure/git/git-branch-publisher.js';
 import { FileArtifactStore } from './infrastructure/artifacts/file-artifact-store.js';
-import { ProcessDevServer } from './infrastructure/dev-server/process-dev-server.js';
+import { DockerDevServer } from './infrastructure/dev-server/docker-dev-server.js';
 import { HttpHeartbeat } from './infrastructure/heartbeat/http-heartbeat.js';
 import { buildChildEnv } from './infrastructure/claude/child-env.js';
 import { ClaudeCliRunner } from './infrastructure/claude/index.js';
@@ -297,11 +297,10 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
     github,
     clock,
   });
-  // ADR-0014: the engine owns the UI check's dev server; a leftover from a previous engine dies here.
-  const devServers = new ProcessDevServer({
+  // ADR-0026: the engine owns the UI check's containers; a leftover from a previous engine dies here.
+  const devServers = new DockerDevServer({
     ui: () => provider.current().ui,
     logger,
-    stateFile: join(home.root, 'dev-server.json'),
     env: options.env,
   });
   await devServers.recover();

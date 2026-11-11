@@ -11,3 +11,4 @@ export * from './limits.js';
 export * from './watch.js';
 export * from './memory.js';
 export * from './checks.js';
+export * from './ui-paths.js';

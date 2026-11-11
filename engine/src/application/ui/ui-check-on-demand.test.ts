@@ -1,8 +1,14 @@
-import { JarvisConfigSchema } from '@jarvis/shared';
+import { EnvironmentPlanSchema, JarvisConfigSchema } from '@jarvis/shared';
 import { describe, expect, it } from 'vitest';
 import { buildTestApp, createTaskInNewThread, type TestApp } from '../testing/index.js';
 import { HEAD_APPROVED, HEAD_REFUSED } from './trust-pull-request-head.js';
 import { EDITED, FAILED, POSTED, REFUSED } from './comment-on-pr.js';
+
+/** A minimal environment plan, as the worker would compose it from the repository. */
+const PLAN = EnvironmentPlanSchema.parse({
+  prepare: ['npm ci'],
+  app: { command: 'npm run dev -- --host 0.0.0.0', port: 5173 },
+});
 
 const REPO = { owner: 'burnjohn', name: 'jarvis-sandbox' };
 const PR = { number: 41, url: 'https://github.com/burnjohn/jarvis-sandbox/pull/41' };
@@ -68,12 +74,16 @@ describe('running a pull request’s code needs the owner (ADR-0018)', () => {
     enable(app);
     const { task, thread } = await checking(app);
 
-    const result = await app.startDevServer.execute(app.identity.worker(task));
+    const result = await app.startDevServer.execute(app.identity.worker(task), PLAN);
 
     expect(result.ok).toBe(true);
     expect(cards(app, thread.id)).toHaveLength(0);
     expect(app.devServers.started).toEqual([
-      { taskId: task.id, cwd: `/jarvis/repos/${REPO.owner}/${REPO.name}/worktrees/${task.id}` },
+      {
+        taskId: task.id,
+        cwd: `/jarvis/repos/${REPO.owner}/${REPO.name}/worktrees/${task.id}`,
+        plan: PLAN,
+      },
     ]);
   });
 
@@ -86,7 +96,7 @@ describe('running a pull request’s code needs the owner (ADR-0018)', () => {
       author: 'stranger',
     });
 
-    const pending = app.startDevServer.execute(app.identity.worker(task));
+    const pending = app.startDevServer.execute(app.identity.worker(task), PLAN);
 
     const card = await firstCard(app, thread.id);
     expect(card).toMatchObject({
@@ -97,7 +107,7 @@ describe('running a pull request’s code needs the owner (ADR-0018)', () => {
           author: 'stranger',
           head: 'stranger/jarvis-sandbox:feature',
           fromFork: true,
-          willRun: 'pnpm dev',
+          willRun: ['npm ci', 'npm run dev -- --host 0.0.0.0'],
         }),
       },
     });
@@ -114,7 +124,7 @@ describe('running a pull request’s code needs the owner (ADR-0018)', () => {
     enable(app, ['someone-else']);
     const { task, thread } = await checking(app, { author: 'drive-by' });
 
-    const pending = app.startDevServer.execute(app.identity.worker(task));
+    const pending = app.startDevServer.execute(app.identity.worker(task), PLAN);
     const card = await firstCard(app, thread.id);
 
     expect(card.body.input).toMatchObject({ fromFork: false, author: 'drive-by' });
@@ -127,7 +137,7 @@ describe('running a pull request’s code needs the owner (ADR-0018)', () => {
     enable(app, []);
     const { task, thread } = await checking(app, { author: 'stranger' });
 
-    const pending = app.startDevServer.execute(app.identity.worker(task));
+    const pending = app.startDevServer.execute(app.identity.worker(task), PLAN);
     await app.answerPermission.execute(permissionIdOf(await firstCard(app, thread.id)), 'deny');
     const result = await pending;
 
@@ -145,12 +155,14 @@ describe('running a pull request’s code needs the owner (ADR-0018)', () => {
     enable(app, []);
     const { task, thread } = await checking(app, { author: 'stranger' });
 
-    const first = app.startDevServer.execute(app.identity.worker(task));
+    const first = app.startDevServer.execute(app.identity.worker(task), PLAN);
     await app.answerPermission.execute(permissionIdOf(await firstCard(app, thread.id)), 'allow');
     await first;
     await app.stopDevServer.execute(app.identity.worker(task));
 
-    await expect(app.startDevServer.execute(app.identity.worker(task))).resolves.toMatchObject({
+    await expect(
+      app.startDevServer.execute(app.identity.worker(task), PLAN),
+    ).resolves.toMatchObject({
       ok: true,
     });
     expect(cards(app, thread.id)).toHaveLength(1);
@@ -167,7 +179,7 @@ describe('running a pull request’s code needs the owner (ADR-0018)', () => {
     });
     app.codeHost.describe(PR.number, new Error('Not Found'), REPO);
 
-    const result = await app.startDevServer.execute(app.identity.worker(task));
+    const result = await app.startDevServer.execute(app.identity.worker(task), PLAN);
 
     expect(result).toMatchObject({ ok: false, reason: 'untrusted_head' });
     expect(cards(app, thread.id)).toHaveLength(0);
@@ -179,7 +191,9 @@ describe('running a pull request’s code needs the owner (ADR-0018)', () => {
     enable(app, []);
     const { task, thread } = await app.seed.task({ stage: 'Reviewing' });
 
-    await expect(app.startDevServer.execute(app.identity.worker(task))).resolves.toMatchObject({
+    await expect(
+      app.startDevServer.execute(app.identity.worker(task), PLAN),
+    ).resolves.toMatchObject({
       ok: true,
     });
     expect(cards(app, thread.id)).toHaveLength(0);

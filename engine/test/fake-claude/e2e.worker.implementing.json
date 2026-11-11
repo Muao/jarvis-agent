@@ -24,7 +24,7 @@
     {
       "type": "jarvis_tool",
       "tool": "start_dev_server",
-      "input": {}
+      "input": { "plan": { "app": { "command": "npm run dev -- --host 0.0.0.0", "port": 5173 } } }
     },
     {
       "type": "jarvis_tool",

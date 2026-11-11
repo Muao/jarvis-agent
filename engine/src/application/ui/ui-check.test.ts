@@ -1,8 +1,14 @@
-import { JarvisConfigSchema, toolInputSchemas } from '@jarvis/shared';
+import { EnvironmentPlanSchema, JarvisConfigSchema, toolInputSchemas } from '@jarvis/shared';
 import { describe, expect, it } from 'vitest';
 import { ForbiddenError } from '../errors.js';
 import { buildTestApp, type TestApp } from '../testing/index.js';
 import { ATTACHED } from './attach-image.js';
+
+/** A minimal environment plan, as the worker would compose it from the repository. */
+const PLAN = EnvironmentPlanSchema.parse({
+  prepare: ['npm ci'],
+  app: { command: 'npm run dev -- --host 0.0.0.0', port: 5173 },
+});
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -27,28 +33,57 @@ async function reviewing(app: TestApp) {
 }
 
 describe('start_dev_server (ADR-0014)', () => {
-  it('starts ui.devCommand in the task worktree and journals the lease (AC-8)', async () => {
+  it("starts the worker's plan from the task worktree and journals it (AC-8)", async () => {
     const app = buildTestApp();
     enableUi(app);
     const task = await reviewing(app);
 
-    const result = await app.startDevServer.execute(app.identity.worker(task));
+    const result = await app.startDevServer.execute(app.identity.worker(task), PLAN);
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error('expected success');
     expect(result.lease.baseUrl).toBe('http://127.0.0.1:5173');
     expect(app.devServers.started).toEqual([
-      { taskId: task.id, cwd: `/jarvis/worktrees/${task.id}` },
+      { taskId: task.id, cwd: `/jarvis/worktrees/${task.id}`, plan: PLAN },
     ]);
     expect(journalOf(app, task.id)).toContain('dev_server_started');
   });
 
-  it('accepts no arguments at all, so no model can choose what the engine runs', () => {
-    expect(toolInputSchemas.start_dev_server.safeParse({}).success).toBe(true);
-    expect(toolInputSchemas.start_dev_server.safeParse({ command: 'rm -rf /' }).success).toBe(
-      false,
-    );
-    expect(toolInputSchemas.stop_dev_server.safeParse({ taskId: 'T-2' }).success).toBe(false);
+  it('takes a plan and nothing else: no mounts, no flags, no task to act for', () => {
+    const { start_dev_server: start, stop_dev_server: stop } = toolInputSchemas;
+    expect(start.safeParse({ plan: PLAN }).success).toBe(true);
+    expect(start.safeParse({}).success).toBe(false);
+    expect(start.safeParse({ plan: { ...PLAN, volumes: ['/:/host'] } }).success).toBe(false);
+    expect(start.safeParse({ plan: PLAN, taskId: 'T-2' }).success).toBe(false);
+    expect(stop.safeParse({ taskId: 'T-2' }).success).toBe(false);
+  });
+
+  it('refuses a plan that carries a literal credential, before anything runs', async () => {
+    const app = buildTestApp();
+    enableUi(app);
+    const task = await reviewing(app);
+    const plan = EnvironmentPlanSchema.parse({ ...PLAN, env: { JWT_SECRET: 'dev-secret' } });
+
+    const result = await app.startDevServer.execute(app.identity.worker(task), plan);
+
+    expect(result).toMatchObject({ ok: false, reason: 'invalid_plan' });
+    expect(app.devServers.started).toHaveLength(0);
+    expect(journalOf(app, task.id)).toContain('dev_server_refused');
+  });
+
+  it('lets one run try ui.maxStartAttempts plans and no more', async () => {
+    const app = buildTestApp();
+    enableUi(app, { maxStartAttempts: 2 });
+    const task = await reviewing(app);
+    app.devServers.nextResult = { ok: false, reason: 'step_failed', detail: 'npm ci failed' };
+    const worker = app.identity.worker(task);
+
+    await app.startDevServer.execute(worker, PLAN);
+    await app.startDevServer.execute(worker, PLAN);
+    const third = await app.startDevServer.execute(worker, PLAN);
+
+    expect(third).toMatchObject({ ok: false, reason: 'attempts_exhausted' });
+    expect(app.devServers.started).toHaveLength(2);
   });
 
   it('is refused outside Reviewing', async () => {
@@ -56,7 +91,7 @@ describe('start_dev_server (ADR-0014)', () => {
     enableUi(app);
     const { task } = await app.seed.task({ stage: 'Implementing' });
 
-    await expect(app.startDevServer.execute(app.identity.worker(task))).rejects.toThrow(
+    await expect(app.startDevServer.execute(app.identity.worker(task), PLAN)).rejects.toThrow(
       ForbiddenError,
     );
     expect(app.devServers.started).toHaveLength(0);
@@ -67,9 +102,9 @@ describe('start_dev_server (ADR-0014)', () => {
     enableUi(app);
     const thread = await app.seed.thread();
 
-    await expect(app.startDevServer.execute(app.identity.dispatcher(thread.id))).rejects.toThrow(
-      ForbiddenError,
-    );
+    await expect(
+      app.startDevServer.execute(app.identity.dispatcher(thread.id), PLAN),
+    ).rejects.toThrow(ForbiddenError);
   });
 
   it('passes a refusal through and journals its reason (AC-9, AC-10, AC-15)', async () => {
@@ -82,7 +117,7 @@ describe('start_dev_server (ADR-0014)', () => {
       detail: 'http://127.0.0.1:5173 already answers.',
     };
 
-    const result = await app.startDevServer.execute(app.identity.worker(task));
+    const result = await app.startDevServer.execute(app.identity.worker(task), PLAN);
 
     expect(result).toMatchObject({ ok: false, reason: 'port_busy' });
     expect(journalOf(app, task.id)).toContain('dev_server_refused');
@@ -94,7 +129,7 @@ describe('stop_dev_server (ADR-0014)', () => {
     const app = buildTestApp();
     enableUi(app);
     const task = await reviewing(app);
-    await app.startDevServer.execute(app.identity.worker(task));
+    await app.startDevServer.execute(app.identity.worker(task), PLAN);
 
     expect(await app.stopDevServer.execute(app.identity.worker(task))).toEqual({ stopped: true });
     expect(app.devServers.stopped).toEqual([task.id]);

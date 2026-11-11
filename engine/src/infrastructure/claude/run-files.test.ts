@@ -42,9 +42,9 @@ describe('writeRunFiles', () => {
       },
       ui: {
         enabled: false,
-        devCommand: 'pnpm dev',
-        baseUrl: 'http://127.0.0.1:5173',
-        readyPath: '/',
+        defaultImage: 'node:22-bookworm',
+        prepareTimeoutSeconds: 600,
+        maxStartAttempts: 3,
         readyTimeoutSeconds: 90,
         leaseMinutes: 15,
         maxScenarios: 8,
@@ -52,8 +52,6 @@ describe('writeRunFiles', () => {
         maxImageMb: 5,
         attachToPr: true,
         autoApproveComments: false,
-        allowedOrigins: [],
-        env: {},
         noSandbox: false,
         paths: ['**/*.tsx'],
       },
@@ -123,25 +121,13 @@ describe('writeRunFiles', () => {
       expect(playwright.args).not.toContain('--no-sandbox');
       const pairs = (flag: string) => playwright.args[playwright.args.indexOf(flag) + 1];
       expect(pairs('--output-dir')).toBe('/jarvis/tasks/T-1/screenshots');
-      expect(pairs('--allowed-origins')).toBe('http://127.0.0.1:5173');
-    });
-
-    // An app with a back end is two origins: the page on one port, its API on another. Playwright
-    // MCP blocks every origin it was not given, so with only `baseUrl` the first API call died as
-    // ERR_BLOCKED_BY_CLIENT and took every logged-in scenario with it (T-5 on quick-blog PR #38).
-    it('lets the browser reach the API origins the owner declared (AC-4)', async () => {
-      await writeRunFiles(
-        runDir,
-        workerSpec,
-        uiOn({ allowedOrigins: ['http://127.0.0.1:5001', 'http://127.0.0.1:5001/ignored/path'] }),
+      // ADR-0026: the app's ports come from the plan, after this server started — so any port
+      // of this machine, minus the engine's own API. Semicolons are Playwright MCP's separator.
+      expect(pairs('--allowed-origins')).toBe('http://127.0.0.1:*;http://localhost:*');
+      const engine = new URL(uiOn().apiUrl).port;
+      expect(pairs('--blocked-origins')).toBe(
+        `http://127.0.0.1:${engine};http://localhost:${engine}`,
       );
-
-      const playwright = json('mcp.json')['mcpServers']?.['playwright'] as { args: string[] };
-      const origins = playwright.args[playwright.args.indexOf('--allowed-origins') + 1];
-      // The app's own origin stays first, and a repeated origin is not listed twice.
-      // Semicolons: Playwright MCP's own separator. A comma-joined list is one invalid origin,
-      // which blocks every request including the app's own (T-5 run 3).
-      expect(origins).toBe('http://127.0.0.1:5173;http://127.0.0.1:5001');
     });
 
     it('adds --no-sandbox only when the config asks for it (the runtime container)', async () => {
@@ -323,9 +309,9 @@ describe('writeRunFiles', () => {
           },
           ui: {
             enabled: false,
-            devCommand: 'pnpm dev',
-            baseUrl: 'http://127.0.0.1:5173',
-            readyPath: '/',
+            defaultImage: 'node:22-bookworm',
+            prepareTimeoutSeconds: 600,
+            maxStartAttempts: 3,
             readyTimeoutSeconds: 90,
             leaseMinutes: 15,
             maxScenarios: 8,
@@ -333,8 +319,6 @@ describe('writeRunFiles', () => {
             maxImageMb: 5,
             attachToPr: true,
             autoApproveComments: false,
-            allowedOrigins: [],
-            env: {},
             noSandbox: false,
             paths: ['**/*.tsx'],
           },

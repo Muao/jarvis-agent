@@ -86,6 +86,8 @@ function freshHome(): string {
       repo: { path: repo, remote: 'origin', baseBranch: 'main' },
       engine: { claudeBinary: FAKE_CLAUDE, port: E2E_PORT },
       watch: { pollSeconds: 3600 },
+      // The fake worker has no real project to bring up; its start_dev_server is refused as disabled.
+      ui: { enabled: false },
     }),
   );
   return home;

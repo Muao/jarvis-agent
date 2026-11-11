@@ -1,3 +1,4 @@
+import type { EnvironmentPlan } from '@jarvis/shared';
 import type { Task } from '../../domain/index.js';
 import type { CodeHost, PullRequestDescription } from '../ports/code-host.js';
 import type { ConfigProvider } from '../ports/config-provider.js';
@@ -40,7 +41,7 @@ function reviewerListed(author: string, reviewers: readonly string[]): boolean {
 export class TrustPullRequestHead {
   constructor(private readonly deps: TrustHeadDeps) {}
 
-  async decide(identity: RunIdentity, task: Task): Promise<TrustDecision> {
+  async decide(identity: RunIdentity, task: Task, plan: EnvironmentPlan): Promise<TrustDecision> {
     if (task.kind !== 'ui_check' || task.pr === null) {
       return { trusted: true, detail: 'not a pull-request check' };
     }
@@ -74,7 +75,6 @@ export class TrustPullRequestHead {
     const why = pr.fromFork
       ? `the head lives in the fork ${pr.headRepo.owner}/${pr.headRepo.name}`
       : `${pr.author === '' ? 'the author' : pr.author} is not in allowlist.githubReviewers`;
-    const devCommand = this.deps.config.current().ui.devCommand;
     const permissionId = await this.deps.permissions.request.execute(identity, {
       tool_name: 'start_dev_server',
       input: {
@@ -82,8 +82,9 @@ export class TrustPullRequestHead {
         author: pr.author,
         head: `${pr.headRepo.owner}/${pr.headRepo.name}:${pr.headRef}`,
         fromFork: pr.fromFork,
-        willRun: devCommand,
-        warning: `Running this pull request's code on this machine. ${why}.`,
+        willRun: [...plan.prepare, plan.app.command],
+        where: "in a disposable container, without the engine's environment or files",
+        warning: `Running this pull request's code in a container on this machine. ${why}.`,
       },
     });
     const answer = await this.deps.permissions.await.execute(permissionId);
