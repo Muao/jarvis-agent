@@ -123,6 +123,8 @@ class InMemoryJournalRepository implements JournalRepository {
     this.db.tables.journal.push(event);
   };
   list = async (taskId: string) => this.db.tables.journal.filter((e) => e.taskId === taskId);
+  ofTypesSince = async (types: readonly string[], since: string) =>
+    this.db.tables.journal.filter((e) => types.includes(e.type) && e.at >= since);
 
   /** `seq` is the 1-based position in the journal, like a bigserial. */
   private numbered(): JournalEntry[] {

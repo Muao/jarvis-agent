@@ -5,6 +5,7 @@ import type { AwaitPermission } from '../permissions/await-permission.js';
 import type { RequestPermission } from '../permissions/request-permission.js';
 import type { RunIdentity } from '../run-identity.js';
 import type { TaskDeps } from '../tasks/deps.js';
+import { reportDailyLimit, writesToday } from '../tasks/daily-limit.js';
 import { loadWorkerTask } from '../tasks/guards.js';
 import { transact } from '../transaction.js';
 
@@ -53,10 +54,10 @@ export interface CommentOnPrDeps extends TaskDeps {
  * ADR-0018: the only way a run can write on a pull request. `gh pr comment` and `gh pr review` are
  * denied to the worker, so this is the single door.
  *
- * Every write asks the owner separately, so there is no count to keep: the owner decides each time
- * whether the pull request needs another comment. The one exception is `ui.autoApproveComments`,
- * which the owner sets themselves to stop being asked; it is off by default, and with it on the
- * journal still records every write, because the trail is the only thing left. With `commentId` the body replaces an earlier comment
+ * By default the write needs no owner approval (`ui.autoApproveComments`): the agent works on its
+ * own, the journal records every write, and `limits.maxPrCommentsPerDay` bounds how many there can
+ * be in a day across all tasks — at the limit the thread is told and nothing is posted. With the
+ * setting off, every write asks the owner first. With `commentId` the body replaces an earlier comment
  * instead of adding one, which is how a corrected verdict reaches the reader without leaving the
  * stale one above it. Only a comment this task posted can be replaced — the id is checked against
  * the task's own journal, so an approved card can never be turned into an edit of somebody else's
@@ -87,6 +88,13 @@ export class CommentOnPr {
         ok: false,
         reason: `comment ${String(commentId)} was not posted by task ${task.id}; post a new comment instead of editing someone else's`,
       };
+    }
+
+    // Posting and replacing both write to the pull request, so both count.
+    const limit = this.deps.config.current().limits.maxPrCommentsPerDay;
+    if ((await writesToday(this.deps, [POSTED, EDITED])).length >= limit) {
+      const told = await reportDailyLimit(this.deps, task, 'pr_comments', limit);
+      return { ok: false, reason: `${told} Keep the report in the thread and do not retry today.` };
     }
 
     if (!this.deps.config.current().ui.autoApproveComments) {

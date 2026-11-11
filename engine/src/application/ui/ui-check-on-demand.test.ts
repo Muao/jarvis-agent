@@ -13,12 +13,15 @@ const PLAN = EnvironmentPlanSchema.parse({
 const REPO = { owner: 'burnjohn', name: 'jarvis-sandbox' };
 const PR = { number: 41, url: 'https://github.com/burnjohn/jarvis-sandbox/pull/41' };
 
-/** The UI check is off by default, and the trust gate needs a reviewer list to check against. */
+/**
+ * The trust gate needs a reviewer list to check against. Comments are posted without asking by
+ * default; these tests are about the card, so they turn it back on.
+ */
 function enable(app: TestApp, reviewers: string[] = ['burnjohn']): void {
   app.config.set(
     JarvisConfigSchema.parse({
       repo: { path: '/jarvis/repo' },
-      ui: { enabled: true },
+      ui: { enabled: true, autoApproveComments: false },
       allowlist: { githubReviewers: reviewers },
     }),
   );
@@ -338,6 +341,36 @@ describe('comment_on_pr (ADR-0018)', () => {
     expect(
       app.db.tables.journal.filter((e) => e.type === POSTED).map((e) => e.data),
     ).toContainEqual(expect.objectContaining({ asked: false }));
+  });
+
+  it('stops at limits.maxPrCommentsPerDay, tells the thread once and posts nothing more', async () => {
+    const app = buildTestApp();
+    app.config.set(
+      JarvisConfigSchema.parse({
+        repo: { path: '/jarvis/repo' },
+        ui: { enabled: true },
+        limits: { maxPrCommentsPerDay: 2 },
+        allowlist: { githubReviewers: ['burnjohn'] },
+      }),
+    );
+    const { task, thread } = await checking(app);
+    const worker = app.identity.worker(task);
+    await app.commentOnPr.execute(worker, { body });
+    await app.commentOnPr.execute(worker, { body });
+
+    const third = await app.commentOnPr.execute(worker, { body });
+    const fourth = await app.commentOnPr.execute(worker, { body });
+
+    expect(third.ok).toBe(false);
+    expect(fourth.ok).toBe(false);
+    if (third.ok) throw new Error('expected a refusal');
+    expect(third.reason).toContain('daily limit of 2 pull-request comments');
+    expect(app.codeHost.comments).toHaveLength(2);
+    const notices = app
+      .messagesOf(thread.id)
+      .filter((m) => m.kind === 'system' && String(m.body.text).includes('daily limit'));
+    expect(notices).toHaveLength(1);
+    expect(cards(app, thread.id)).toHaveLength(0);
   });
 
   it('refuses a task with no pull request, without asking the owner (AC-51)', async () => {

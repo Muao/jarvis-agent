@@ -31,6 +31,8 @@ describe('JarvisConfigSchema', () => {
       maxTurnsPerRun: 60,
       maxBudgetUsdPerRun: 3,
       dailyBudgetTokens: 50_000_000,
+      maxPrCommentsPerDay: 100,
+      maxCommitsPerDay: 100,
       permissionTimeoutMinutes: 30,
       stallMinutes: 10,
       firstProgressUpdateSeconds: 30,

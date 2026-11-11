@@ -147,6 +147,9 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
   the live view and vanish); the daily budget is counted in tokens (`limits.dailyBudgetTokens`, all
   token kinds together) because the CLI's dollar figure is a session total, not a run's — a run now
   records only what it added; three worker slots on the server (2 CPU / 3 GB: watch the memory).
+- **Autonomy with daily brakes**: PR comments are posted without a permission card by default
+  (`ui.autoApproveComments`), bounded by `limits.maxPrCommentsPerDay` (100); pushes are bounded by
+  `limits.maxCommitsPerDay` (100). At a limit nothing is written and the task's thread is told once.
 - Left for later: project records (spec section 3), egress filtering of the check network, neutral
   repository names in test fixtures.
 

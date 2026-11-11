@@ -1,4 +1,4 @@
-import { asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray } from 'drizzle-orm';
 import type {
   JournalEntry,
   JournalRepository,
@@ -48,6 +48,16 @@ export class PgJournalRepository implements JournalRepository {
 
   async entries(taskId: string): Promise<readonly JournalEntry[]> {
     return (await this.rowsOf(taskId)).map(toEntry);
+  }
+
+  async ofTypesSince(types: readonly string[], since: string): Promise<readonly TaskEvent[]> {
+    if (types.length === 0) return [];
+    const rows = await this.db
+      .select()
+      .from(taskEvents)
+      .where(and(inArray(taskEvents.type, [...types]), gte(taskEvents.at, toDate(since))))
+      .orderBy(asc(taskEvents.seq));
+    return rows.map(toDomain);
   }
 
   async recent(limit: number): Promise<readonly JournalEntry[]> {

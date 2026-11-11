@@ -1196,3 +1196,48 @@ describe('OpenPr — a change to the UI is checked in a browser first (ADR-0014)
     expect(await app.openPr.execute(worker, TEXT)).toMatchObject({ ok: true });
   });
 });
+
+describe('OpenPr — pushed commits are counted per day', () => {
+  const limitTo = (app: TestApp, maxCommitsPerDay: number): void => {
+    const current = app.config.current();
+    app.config.set({ ...current, limits: { ...current.limits, maxCommitsPerDay } });
+  };
+
+  it('journals how many commits a push put on the remote', async () => {
+    const { app, worker } = await setup('Implementing');
+    app.branchPublisher.state = { dirtyFiles: [], commitsAhead: 3, changedFiles: ['src/a.ts'] };
+
+    await app.openPr.execute(worker, TEXT);
+
+    const pushed = app.db.tables.journal.find((e) => e.type === 'branch_pushed');
+    expect(pushed?.data).toMatchObject({ commits: 3, commitsAhead: 3 });
+  });
+
+  it('refuses to push once the day reached limits.maxCommitsPerDay and tells the thread', async () => {
+    const { app, task, thread, worker } = await setup('Implementing');
+    limitTo(app, 3);
+    await app.uow.run((tx) =>
+      tx.journal.append(
+        taskEvent(task.id, 'branch_pushed', app.clock.now(), 'system', { commits: 3 }),
+      ),
+    );
+
+    const result = await app.openPr.execute(worker, TEXT);
+
+    expect(result).toMatchObject({ ok: false, reason: 'daily_commit_limit' });
+    expectNothingPublished(app);
+    const notices = app
+      .messagesOf(thread.id)
+      .filter((m) => m.kind === 'system' && String(m.body.text).includes('daily limit'));
+    expect(notices.map((m) => m.body.text)).toEqual([
+      expect.stringContaining('daily limit of 3 pushed commits'),
+    ]);
+  });
+
+  it('pushes while the day is under the limit', async () => {
+    const { app, worker } = await setup('Implementing');
+    limitTo(app, 3);
+
+    expect(await app.openPr.execute(worker, TEXT)).toMatchObject({ ok: true });
+  });
+});

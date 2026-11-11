@@ -22,6 +22,12 @@ superseded-by: []
 
 # ADR-0018: Check an existing pull request's UI as a `ui_check` task, with the criteria taken from whatever the PR offers
 
+> **Amended 2026-11-11 (owner ruling: the agent works on its own; only dangerous actions are gated).**
+> `ui.autoApproveComments` now defaults to true: a PR comment is posted without a permission card. What bounds
+> it is a count per local day across all tasks, `limits.maxPrCommentsPerDay` (default 100); at the limit nothing
+> is posted and the task's thread is told. Pushed commits are bounded the same way by `limits.maxCommitsPerDay`.
+> The card for running an untrusted head's code is unchanged.
+
 ## Context and Problem Statement
 
 ADR-0014 gave the worker a browser, but only on one path: a task Jarvis itself drove to `Reviewing`,

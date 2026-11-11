@@ -51,6 +51,12 @@ function limitRows(config: JarvisConfig): [string, string, string][] {
       'Tokens per day, all kinds together; new runs wait when it is reached',
     ],
     [
+      'maxPrCommentsPerDay',
+      String(limits.maxPrCommentsPerDay),
+      'Pull-request comments per day, all tasks; posted without asking up to this count',
+    ],
+    ['maxCommitsPerDay', String(limits.maxCommitsPerDay), 'Commits pushed per day, all tasks'],
+    [
       'permissionTimeout',
       `${limits.permissionTimeoutMinutes} min`,
       'How long a permission request waits for you',

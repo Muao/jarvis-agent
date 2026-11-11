@@ -19,6 +19,8 @@
     "maxTurnsPerRun": 60,
     "maxBudgetUsdPerRun": 3,
     "dailyBudgetTokens": 50000000,
+    "maxPrCommentsPerDay": 100,
+    "maxCommitsPerDay": 100,
     "permissionTimeoutMinutes": 30,
     "stallMinutes": 10,
     "firstProgressUpdateSeconds": 30,
@@ -55,7 +57,7 @@
     "maxScreenshots": 12,
     "maxImageMb": 5,
     "attachToPr": true,
-    "autoApproveComments": false,
+    "autoApproveComments": true,
     "noSandbox": false,
     "paths": [
       "**/*.tsx",

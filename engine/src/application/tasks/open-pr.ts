@@ -27,6 +27,7 @@ import type { RunEventLog } from '../runs/run-event-log.js';
 import type { RunIdentity } from '../run-identity.js';
 import { transact } from '../transaction.js';
 import type { TaskDeps } from './deps.js';
+import { reportDailyLimit, writesToday } from './daily-limit.js';
 import { loadWorkerTask } from './guards.js';
 import { worktreeFor } from './worktree-for.js';
 
@@ -53,6 +54,7 @@ export type OpenPrRefusal =
   | 'dirty_tree'
   | 'no_commits'
   | 'ui_check_required'
+  | 'daily_commit_limit'
   | 'no_checks_declared'
   | 'checks_unavailable'
   | 'push_rejected'
@@ -128,6 +130,10 @@ function lastIndexOfType(journal: readonly TaskEvent[], type: string): number {
   for (let i = journal.length - 1; i >= 0; i -= 1) if (journal[i]?.type === type) return i;
   return -1;
 }
+
+/** How many commits one `branch_pushed` row put on the remote; rows from before the count carry none. */
+const commitsOf = (push: TaskEvent): number =>
+  typeof push.data['commits'] === 'number' ? push.data['commits'] : 1;
 
 /** Journal rows that show the worker at least tried to bring the app up (ADR-0014). */
 const UI_CHECK_ATTEMPTS: readonly string[] = ['dev_server_started', 'dev_server_refused'];
@@ -815,6 +821,29 @@ export class OpenPr {
     const { deps } = this;
     const { task, repo, headSha } = input;
 
+    // The brake on an agent that pushes without asking: commits per local day, across all tasks.
+    const limit = deps.config.current().limits.maxCommitsPerDay;
+    const pushes = await writesToday(deps, ['branch_pushed']);
+    if (pushes.reduce((sum, push) => sum + commitsOf(push), 0) >= limit) {
+      const told = await reportDailyLimit(deps, task, 'commits', limit);
+      return {
+        ok: false,
+        reason: 'daily_commit_limit',
+        detail: `${told} Your commits stay on the branch; stop here.`,
+      };
+    }
+    const alreadyPushed = await transact(deps, async (tx) =>
+      (await tx.journal.list(task.id)).reduce(
+        (max, event) =>
+          event.type === 'branch_pushed' && typeof event.data['commitsAhead'] === 'number'
+            ? Math.max(max, event.data['commitsAhead'])
+            : max,
+        0,
+      ),
+    );
+    const { commitsAhead } = input.status;
+    const commits = Math.max(1, commitsAhead - alreadyPushed);
+
     const pushed = await deps.branchPublisher.push({ taskId: task.id, repo, sha: headSha });
     if (!pushed.ok) {
       await transact(deps, (tx) =>
@@ -833,7 +862,12 @@ export class OpenPr {
         : { ok: false, reason: 'host_error', detail: pushed.detail };
     }
     await transact(deps, (tx) =>
-      deps.writer.note(tx, task.id, 'branch_pushed', 'system', { headSha, branch: task.branch }),
+      deps.writer.note(tx, task.id, 'branch_pushed', 'system', {
+        headSha,
+        branch: task.branch,
+        commits,
+        commitsAhead,
+      }),
     );
 
     let number: number;

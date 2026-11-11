@@ -64,6 +64,13 @@ export const JarvisConfigSchema = z.strictObject({
        * the CLI's dollar figure is notional and is reported per session, not per run.
        */
       dailyBudgetTokens: positiveInt(50_000_000),
+      /**
+       * Comments the agent may post or replace on pull requests per local day, across all tasks.
+       * The agent writes them without asking (`ui.autoApproveComments`); this count is the brake.
+       */
+      maxPrCommentsPerDay: positiveInt(100),
+      /** Commits the engine may push per local day, across all tasks. */
+      maxCommitsPerDay: positiveInt(100),
       permissionTimeoutMinutes: positiveInt(30),
       stallMinutes: positiveInt(10),
       /** The first chat update of a run, so the owner is not left wondering for a whole interval. */
@@ -119,12 +126,11 @@ export const JarvisConfigSchema = z.strictObject({
       /** ADR-0014: false leaves screenshot file names in the PR instead of inline images. */
       attachToPr: z.boolean().default(true),
       /**
-       * ADR-0018: true posts and replaces PR comments without a permission card. Off by default,
-       * and deliberately so — the card is the only gate on what a run writes on a pull request,
-       * and since there is no per-task comment count it is also the only brake on how much. Turn
-       * it on only for a repository where an unwanted comment costs nothing to delete.
+       * ADR-0018, amended: true (the default) posts and replaces PR comments without a permission
+       * card — the agent is meant to work on its own, and `limits.maxPrCommentsPerDay` bounds how
+       * much it can write. False brings the card back for every comment.
        */
-      autoApproveComments: z.boolean().default(false),
+      autoApproveComments: z.boolean().default(true),
       /** Chromium cannot use user namespaces inside the runtime container (ADR-0016). */
       noSandbox: z.boolean().default(false),
       /** A diff touching none of these globs is not a UI change. */
