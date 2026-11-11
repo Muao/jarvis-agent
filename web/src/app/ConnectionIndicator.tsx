@@ -16,7 +16,10 @@ export function ConnectionIndicator() {
       role="status"
       aria-label="Engine connection"
     >
-      <span aria-hidden="true">{symbol}</span> {text}
+      <span aria-hidden="true" className={styles.dot}>
+        {symbol}
+      </span>{' '}
+      {text}
     </span>
   );
 }

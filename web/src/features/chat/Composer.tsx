@@ -1,4 +1,5 @@
 import type { KeyboardEvent } from 'react';
+import { Icon } from '../../components/Icon';
 import styles from './Composer.module.css';
 
 interface ComposerProps {
@@ -78,6 +79,7 @@ export function Composer({
           onClick={submit}
         >
           Send
+          <Icon name="send" size="sm" />
         </button>
       </div>
       <p className={styles.hint}>Enter — send, Shift+Enter — new line</p>

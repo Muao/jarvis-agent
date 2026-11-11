@@ -20,7 +20,7 @@
 }
 
 .current {
-  color: var(--color-text);
+  color: var(--color-accent);
   font-weight: 700;
 }
 

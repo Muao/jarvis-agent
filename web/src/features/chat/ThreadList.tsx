@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import type { ThreadDto } from '@jarvis/shared';
 import { ErrorBlock } from '../../components/ErrorBlock';
+import { Icon } from '../../components/Icon';
 import { Loading } from '../../components/Loading';
 import { RelativeTime } from '../../components/RelativeTime';
 import { StageBadge } from '../../components/StageBadge';
@@ -24,6 +25,7 @@ export function ThreadList({ threads, loading, error, onRetry, selectedId }: Thr
     <section className={styles.list} aria-label="Threads">
       <div className={styles.top}>
         <Link to="/chat" className={styles.newThread}>
+          <Icon name="plus" size="sm" />
           New thread
         </Link>
         <div role="group" aria-label="Filter threads" className={styles.filters}>

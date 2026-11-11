@@ -1,52 +1,81 @@
-/* Provisional neutral tokens (ADR-0012). The owner's design replaces these values; names stay. */
+/*
+ * Jarvis design tokens — dark "liquid glass" theme (T-3). The only file with colour literals (web/AGENTS.md).
+ * Palette: deep slate page lit by soft indigo ambient light, translucent frosted panels, indigo
+ * accent, desaturated status tints. Text pairs are >= 4.5:1,
+ * non-text indicators >= 3:1 (WCAG 2.1 AA). Names are stable; components refer to roles, not hues.
+ */
 :root {
+  color-scheme: dark;
+
   /* surface and text */
-  --color-bg: #f6f7f9;
-  --color-surface: #ffffff;
-  --color-surface-muted: #eef0f4;
-  --color-border: #d8dce3;
-  --color-text: #1b1f27;
-  --color-text-muted: #5a6272;
-  --color-focus: #2457d6;
-  --color-backdrop: rgb(0 0 0 / 0.4);
+  --color-bg: #0a0d14;
+  /* panels are frosted glass: translucent over the ambient page, blurred by --glass-blur */
+  --color-surface: rgb(24 29 46 / 0.56);
+  --color-surface-raised: rgb(32 38 58 / 0.62);
+  --color-surface-muted: rgb(255 255 255 / 0.045);
+  --color-surface-hover: rgb(255 255 255 / 0.06);
+  --color-surface-solid: #141926;
+  --color-border: rgb(255 255 255 / 0.085);
+  --color-border-strong: #7a86a3;
+  --color-text: #e8ebf3;
+  --color-text-muted: #a7afc2;
+  --color-text-faint: #a3abbe;
+  --color-focus: #a5b4fc;
+  --color-backdrop: rgb(3 5 10 / 0.68);
+  --color-glow: rgb(129 140 248 / 0.16);
+  --color-glow-soft: rgb(129 140 248 / 0.07);
+  --color-ambient-1: rgb(99 102 241 / 0.22);
+  --color-ambient-2: rgb(56 189 248 / 0.1);
+  --color-ambient-3: rgb(168 85 247 / 0.16);
+  --glass-highlight: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 0.07),
+    rgb(255 255 255 / 0.015) 38%,
+    rgb(255 255 255 / 0) 60%
+  );
+  --glass-edge: rgb(255 255 255 / 0.12);
+  --color-scrollbar: #2c3447;
+  --color-selection: rgb(129 140 248 / 0.32);
 
   /* intent */
-  --color-accent: #2457d6;
-  --color-accent-contrast: #ffffff;
-  --color-success: #1f7a3d;
-  --color-success-bg: #e3f4e8;
-  --color-warning: #8a5a00;
-  --color-warning-bg: #fff3d6;
-  --color-danger: #b3261e;
-  --color-danger-bg: #fde8e6;
-  --color-info: #2457d6;
-  --color-info-bg: #e6edfc;
+  --color-accent: #969eff;
+  --color-accent-hover: #a3a9ff;
+  --color-accent-subtle: rgb(139 147 255 / 0.14);
+  --color-accent-contrast: #0a0d14;
+  --color-success: #4ade80;
+  --color-success-bg: #0f2a1d;
+  --color-warning: #fbbf24;
+  --color-warning-bg: #2c2109;
+  --color-danger: #fa8585;
+  --color-danger-bg: #2f1518;
+  --color-info: #7cb4ff;
+  --color-info-bg: #13203a;
 
   /* task stages: text colour on a tinted background; the label and symbol carry the meaning */
-  --stage-intake: #5a6272;
-  --stage-intake-bg: #eef0f4;
-  --stage-context: #2457d6;
-  --stage-context-bg: #e6edfc;
-  --stage-spec-review: #7a3db8;
-  --stage-spec-review-bg: #f1e7fb;
-  --stage-implementing: #0d6e7a;
-  --stage-implementing-bg: #dff3f5;
-  --stage-verifying: #8a5a00;
-  --stage-verifying-bg: #fff3d6;
-  --stage-reviewing: #a1407a;
-  --stage-reviewing-bg: #fbe7f2;
-  --stage-pr-open: #1f7a3d;
-  --stage-pr-open-bg: #e3f4e8;
-  --stage-fixing: #b25a00;
-  --stage-fixing-bg: #ffe9d2;
-  --stage-done: #1f7a3d;
-  --stage-done-bg: #ffffff;
-  --stage-blocked: #8a5a00;
-  --stage-blocked-bg: #fff3d6;
-  --stage-failed: #b3261e;
-  --stage-failed-bg: #ffffff;
-  --stage-cancelled: #5a6272;
-  --stage-cancelled-bg: #ffffff;
+  --stage-intake: #b4bccd;
+  --stage-intake-bg: #1c2233;
+  --stage-context: #7cb4ff;
+  --stage-context-bg: #13203a;
+  --stage-spec-review: #c4a5ff;
+  --stage-spec-review-bg: #241a3d;
+  --stage-implementing: #5eead4;
+  --stage-implementing-bg: #0e2a2a;
+  --stage-verifying: #fbbf24;
+  --stage-verifying-bg: #2c2109;
+  --stage-reviewing: #f9a8d4;
+  --stage-reviewing-bg: #321829;
+  --stage-pr-open: #4ade80;
+  --stage-pr-open-bg: #0f2a1d;
+  --stage-fixing: #fdba74;
+  --stage-fixing-bg: #2f1d0c;
+  --stage-done: #4ade80;
+  --stage-done-bg: #10141e;
+  --stage-blocked: #fbbf24;
+  --stage-blocked-bg: #2c2109;
+  --stage-failed: #f87171;
+  --stage-failed-bg: #10141e;
+  --stage-cancelled: #9aa3b8;
+  --stage-cancelled-bg: #10141e;
 
   /* spacing, radius, shadow */
   --space-1: 0.25rem;
@@ -55,19 +84,42 @@
   --space-4: 1rem;
   --space-5: 1.5rem;
   --space-6: 2rem;
-  --radius-sm: 4px;
-  --radius-md: 8px;
+  --space-7: 3rem;
+  --page-pad: clamp(1.5rem, 1rem + 2.5vw, 3.5rem);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
   --radius-pill: 999px;
-  --shadow-dialog: 0 12px 32px var(--color-backdrop);
+  --shadow-card: inset 0 1px 0 var(--glass-edge), 0 10px 30px rgb(0 0 0 / 0.32);
+  --glass-blur: blur(28px) saturate(180%);
+  --shadow-dialog: 0 24px 64px rgb(0 0 0 / 0.6), 0 0 0 1px var(--color-border);
+  --ring: 0 0 0 3px var(--color-accent-subtle);
+
+  /* motion */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* icons */
+  --icon-sm: 14px;
+  --icon-md: 16px;
+  --icon-lg: 20px;
 
   /* type */
-  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-sans: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono:
+    'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-size-xs: 0.75rem;
   --font-size-sm: 0.8125rem;
   --font-size-md: 0.9375rem;
   --font-size-lg: 1.125rem;
-  --line-height: 1.5;
+  --font-size-xl: 1.625rem;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --line-height: 1.55;
+  --letter-spacing-tight: -0.011em;
+  --letter-spacing-caps: 0.06em;
 
   /* layout */
-  --nav-width: 13rem;
+  --nav-width: 15rem;
 }

@@ -27,6 +27,10 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
   worker may pass `open_pr({ skip: [{command, reason}] })` for a command that ran red on the head
   (`skip_not_allowed` otherwise; `## Checks skipped locally — CI decides`). ADR-0022 amended, worker prompt
   updated.
+- **Dark redesign of the web UI** (T-3, 2026-11-10/11): a calm dark "liquid glass" theme — frosted
+  translucent panels over soft indigo ambient light, indigo accent, self-hosted Inter and JetBrains
+  Mono, a Lucide-based `Icon` component, every screen restyled without changing behaviour. The visual
+  language is in `docs/specs/web-ui-design.md`.
 - **Iteration 1 in full except Phase 5** (the live vertical slice): the task state machine, run scheduler
   with slots and budget, permissions, recovery after restart, Postgres with an append-only journal, the
   Claude CLI runner and its MCP tool server, the GitHub code host and PR watcher, the HTTP API with SSE, and

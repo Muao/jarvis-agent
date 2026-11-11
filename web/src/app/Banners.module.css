@@ -1,7 +1,15 @@
 .banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
   padding: var(--space-2) var(--space-4);
   font-size: var(--font-size-sm);
   border-bottom: 1px solid currentcolor;
+}
+
+.icon {
+  flex: none;
 }
 
 .warning {

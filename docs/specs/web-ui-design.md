@@ -297,6 +297,36 @@ A row per connection: name, status (`Connected`, `Not configured`, `Error`), det
 | `ANTHROPIC_API_KEY` in the environment | A red warning on Connections and in the shell | CON-01 |
 | The config is invalid | Config shows the error; Chat explains that tasks do not start | — |
 
+## Visual language
+
+Decided in T-3 with the owner (2026-11-10, revised 2026-11-11 towards a calmer "liquid glass"
+interface); the design system was picked with the ui-ux-pro-max skill (dark mode, glassmorphism with
+ambient light). Values live only in `web/src/styles/tokens.css`.
+
+- **Theme.** Dark only (`color-scheme: dark`). No light theme or switch.
+- **Glass.** Panels are frosted glass: translucent `surface` / `surface-raised` fills, `--glass-blur`
+  (`backdrop-filter`), a faint top highlight (`--glass-highlight`), a hairline white edge and a soft
+  shadow, 18 px corners. The header and navigation float as glass panels over the page; chat, task and
+  overview panels follow the same recipe.
+- **Ambient light.** The page is deep slate lit by three soft, low-alpha pools (indigo, violet, sky)
+  and a faint central glow, so the glass has something to refract. Kept low so text contrast holds
+  everywhere.
+- **Accent.** Indigo (`--color-accent`), with dark text on accent buttons: the primary action, the
+  active nav item, the current thread and focus.
+- **Status colours.** Desaturated green, amber, red and blue on dark tints, and a separate hue per task
+  stage. Colour never carries meaning alone: the stage badge, check status, connection state and
+  session status keep their symbol and word.
+- **Contrast.** Text and status text ≥ 4.5:1 and indicators ≥ 3:1 (WCAG 2.1 AA), checked against the
+  glass composited over the brightest ambient point.
+- **Type.** Inter (interface) and JetBrains Mono (IDs, SHAs, code), self-hosted as variable woff2
+  (Latin + Cyrillic) under `web/public/fonts`; tabular figures in tables; calm weights (600 for titles).
+- **Space.** Page padding scales with the viewport (`--page-pad`); larger gaps between sections and
+  roomier panels.
+- **Icons.** One set: Lucide outlines (ISC) in `web/src/components/Icon.tsx`, 1.75 stroke, 14/16/20 px.
+  Every nav item has an icon and its name; icons are decorative unless given a label.
+- **Motion.** 120–180 ms ease-out on hover, focus and state changes; a small entrance for message cards
+  and dialogs; everything is cut to near zero under `prefers-reduced-motion`.
+
 ## Open design questions
 
 - [ ] Are Chat and Overview separate screens, or is Chat paired with a right-hand worker status panel? This determines whether
@@ -304,5 +334,5 @@ A row per connection: name, status (`Connected`, `Not configured`, `Error`), det
 - [ ] Does the Session console open as a separate page or as a side panel over Chat and Task detail?
 - [ ] Should the thread show the agent's intermediate messages, or only the `Status card` and decision cards (less noise, but less visibility)?
 - [ ] How to mark the dispatcher session in the thread list: a separate service thread or only a link from each thread?
-- [ ] Is a dark theme needed in iteration 1?
+- [x] Is a dark theme needed in iteration 1? — Yes: the UI is dark only (T-3, 2026-11-10); see "Visual language".
 - [ ] Is a global `Stop all` needed for the case when the agent is doing something wrong?

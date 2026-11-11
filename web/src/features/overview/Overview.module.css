@@ -1,13 +1,14 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
-  padding: var(--space-5);
+  gap: var(--space-6);
+  padding: var(--space-6) var(--page-pad) var(--space-7);
 }
 
 .title {
   margin: 0;
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-xl);
+  font-weight: 650;
 }
 
 .kpis {
@@ -21,25 +22,48 @@
 
 .kpi,
 .card {
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-5);
   background: var(--color-surface);
+  background-image: var(--glass-highlight);
+  backdrop-filter: var(--glass-blur);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .kpi {
   display: flex;
   flex-direction: column;
+  gap: var(--space-2);
+}
+
+@media (min-width: 72rem) {
+  .kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.7fr);
+  }
 }
 
 .kpiLabel {
+  order: -1;
   color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-caps);
+  text-transform: uppercase;
 }
 
 .kpiValue {
-  font-size: var(--font-size-lg);
+  font-size: 1.5rem;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
 }
 
 .section {
@@ -50,7 +74,11 @@
 
 .sectionTitle {
   margin: 0;
-  font-size: var(--font-size-md);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-caps);
+  text-transform: uppercase;
 }
 
 .cards {
@@ -92,9 +120,28 @@
 
 .table {
   width: 100%;
-  border-collapse: collapse;
+  overflow: hidden;
+  border-collapse: separate;
+  border-spacing: 0;
   background: var(--color-surface);
+  background-image: var(--glass-highlight);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-card);
   border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.table th {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-caps);
+  text-transform: uppercase;
+  background: var(--color-surface-raised);
+}
+
+.table tr:last-child td {
+  border-bottom: 0;
 }
 
 .table th,

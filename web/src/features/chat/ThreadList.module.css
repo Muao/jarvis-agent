@@ -1,12 +1,16 @@
 .list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
   min-height: 0;
-  padding: var(--space-3);
+  padding: var(--space-4);
   overflow-y: auto;
   background: var(--color-surface);
-  border-right: 1px solid var(--color-border);
+  background-image: var(--glass-highlight);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: var(--glass-blur);
 }
 
 .top {
@@ -16,12 +20,24 @@
 }
 
 .newThread {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 2.25rem;
   padding: var(--space-2) var(--space-3);
   color: var(--color-accent-contrast);
+  font-weight: var(--font-weight-semibold);
   text-align: center;
   text-decoration: none;
   background: var(--color-accent);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
+  transition: background-color var(--duration-base) var(--ease-out);
+}
+
+.newThread:hover {
+  color: var(--color-accent-contrast);
+  background: var(--color-accent-hover);
 }
 
 .filters {
@@ -31,19 +47,20 @@
 }
 
 .filter {
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--font-size-sm);
-  color: var(--color-text);
+  padding: 0.125rem var(--space-2);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
   cursor: pointer;
-  background: var(--color-surface-muted);
+  background: transparent;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
 }
 
 .filter[aria-pressed='true'] {
   font-weight: 600;
-  color: var(--color-accent);
-  background: var(--color-info-bg);
+  color: var(--color-text);
+  background: var(--color-accent-subtle);
   border-color: var(--color-accent);
 }
 
@@ -71,18 +88,21 @@
   text-decoration: none;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .row:hover {
-  background: var(--color-surface-muted);
+  color: var(--color-text);
+  background: var(--color-surface-hover);
 }
 
 .row[aria-current='page'] {
-  background: var(--color-info-bg);
+  background: var(--color-accent-subtle);
   border-color: var(--color-accent);
 }
 
 .title {
+  font-weight: var(--font-weight-medium);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

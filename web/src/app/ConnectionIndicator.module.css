@@ -1,17 +1,46 @@
 .indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0.125rem var(--space-3) 0.125rem var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
   font-size: var(--font-size-sm);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   white-space: nowrap;
+}
+
+.dot {
+  font-size: 0.7em;
+  line-height: 1;
 }
 
 .live {
   color: var(--color-success);
+  background: var(--color-success-bg);
+}
+
+.live .dot {
+  animation: pulse 2.4s var(--ease-out) infinite;
 }
 
 .reconnecting {
   color: var(--color-warning);
+  background: var(--color-warning-bg);
 }
 
 .offline {
   color: var(--color-danger);
+  background: var(--color-danger-bg);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
 }

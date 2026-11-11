@@ -18,6 +18,10 @@
   color: var(--color-accent);
   background: none;
   border: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   text-decoration: underline;
+  text-decoration-color: var(--color-accent-subtle);
+  text-underline-offset: 3px;
   cursor: pointer;
 }

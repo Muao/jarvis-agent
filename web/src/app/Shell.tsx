@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router';
 import { useOverview, useThreads } from '../api/queries';
+import { Icon, type IconName } from '../components/Icon';
 import { UsageMeter } from '../components/UsageMeter';
 import { Banners } from './Banners';
 import { ConnectionIndicator } from './ConnectionIndicator';
@@ -7,26 +8,33 @@ import { WaitingCounter } from './WaitingCounter';
 import { currentDeploymentLabel } from './deployment-label';
 import styles from './Shell.module.css';
 
-const MAIN_NAV = [
-  { to: '/chat', label: 'Chat' },
-  { to: '/overview', label: 'Overview' },
-  { to: '/tasks', label: 'Tasks' },
-] as const;
+interface NavItem {
+  to: string;
+  label: string;
+  icon: IconName;
+}
 
-const SERVICE_NAV = [
-  { to: '/capabilities', label: 'Capabilities' },
-  { to: '/usage', label: 'Usage' },
-  { to: '/config', label: 'Config' },
-  { to: '/connections', label: 'Connections' },
-] as const;
+const MAIN_NAV: readonly NavItem[] = [
+  { to: '/chat', label: 'Chat', icon: 'chat' },
+  { to: '/overview', label: 'Overview', icon: 'overview' },
+  { to: '/tasks', label: 'Tasks', icon: 'tasks' },
+];
 
-function NavItems({ items }: { items: readonly { to: string; label: string }[] }) {
-  return items.map(({ to, label }) => (
+const SERVICE_NAV: readonly NavItem[] = [
+  { to: '/capabilities', label: 'Capabilities', icon: 'capabilities' },
+  { to: '/usage', label: 'Usage', icon: 'usage' },
+  { to: '/config', label: 'Config', icon: 'config' },
+  { to: '/connections', label: 'Connections', icon: 'connections' },
+];
+
+function NavItems({ items }: { items: readonly NavItem[] }) {
+  return items.map(({ to, label, icon }) => (
     <NavLink
       key={to}
       to={to}
       className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}
     >
+      <Icon name={icon} className={styles.linkIcon} />
       {label}
     </NavLink>
   ));
@@ -39,7 +47,12 @@ export function Shell() {
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
-        <span className={styles.product}>Jarvis</span>
+        <span className={styles.brand}>
+          <span className={styles.logo} aria-hidden="true">
+            <Icon name="bot" size="md" />
+          </span>
+          <span className={styles.product}>Jarvis</span>
+        </span>
         <span className={styles.local} title={deployment.title}>
           {deployment.text}
         </span>

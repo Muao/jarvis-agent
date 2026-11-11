@@ -15,7 +15,8 @@
 
 .title {
   margin: 0;
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-xl);
+  font-weight: 650;
 }
 
 .facts {
@@ -50,10 +51,14 @@
 }
 
 .summary {
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-4);
   background: var(--color-surface);
+  background-image: var(--glass-highlight);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-card);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
+  font-variant-numeric: tabular-nums;
 }
 
 .notice,

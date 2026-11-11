@@ -1,8 +1,8 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-5);
+  gap: var(--space-6);
+  padding: var(--space-6) var(--page-pad) var(--space-7);
 }
 
 .title {
@@ -25,8 +25,10 @@
 
 .filter {
   padding: var(--space-1) var(--space-3);
-  color: var(--color-text);
+  color: var(--color-text-muted);
   background: var(--color-surface);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   cursor: pointer;
@@ -41,6 +43,7 @@
 
 .search {
   min-width: 16rem;
+  min-height: 2.25rem;
   padding: var(--space-1) var(--space-3);
   font: inherit;
   border: 1px solid var(--color-border);

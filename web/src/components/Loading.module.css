@@ -1,5 +1,24 @@
 .loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   margin: 0;
   padding: var(--space-4);
   color: var(--color-text-muted);
+}
+
+.loading::before {
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  content: '';
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

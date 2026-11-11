@@ -1,4 +1,5 @@
 import { useConnections, useLiveStream, useOverview } from '../api/queries';
+import { Icon } from '../components/Icon';
 import { RelativeTime } from '../components/RelativeTime';
 import { usageLevel } from '../components/UsageMeter';
 import styles from './Banners.module.css';
@@ -19,6 +20,7 @@ function DisconnectedBanner() {
   if (status === 'live') return null;
   return (
     <div role="status" className={`${styles.banner} ${styles.warning}`}>
+      <Icon name={status === 'offline' ? 'offline' : 'refresh'} className={styles.icon} />
       <strong>{status === 'offline' ? 'Offline' : 'Reconnecting…'}</strong> Changes are disabled
       until the engine is back.
       {lastSeenAt !== null ? (
@@ -36,6 +38,7 @@ function BudgetBanner() {
   if (!data || usageLevel(data.usage) !== 'paused') return null;
   return (
     <div role="status" className={`${styles.banner} ${styles.danger}`}>
+      <Icon name="warning" className={styles.icon} />
       <strong>Paused: daily budget reached</strong> New tasks wait in the queue. Resets{' '}
       <RelativeTime at={data.usage.resetsAt} />.
     </div>
@@ -47,6 +50,7 @@ function BillingBanner() {
   if (!data || (!data.billingEnvDetected && data.claudeSubscription !== false)) return null;
   return (
     <div role="alert" className={`${styles.banner} ${styles.danger}`}>
+      <Icon name="error" className={styles.icon} />
       <strong>API billing risk</strong>{' '}
       {data.billingEnvDetected
         ? 'ANTHROPIC_API_KEY is set, so the CLI would bill the API instead of your subscription.'

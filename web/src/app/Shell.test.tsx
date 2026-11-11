@@ -41,6 +41,21 @@ describe('Shell', () => {
     }
   });
 
+  it('gives every navigation item an icon next to its name and marks the current one', async () => {
+    routes();
+    renderApp({ route: '/tasks' });
+    const nav = await screen.findByRole('navigation', { name: 'Main' });
+    const links = within(nav).getAllByRole('link');
+    expect(links).toHaveLength(7);
+    for (const link of links) {
+      expect(link.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+    }
+    expect(within(nav).getByRole('link', { name: 'Tasks' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  });
+
   it('navigates between screens', async () => {
     routes();
     renderApp({ route: '/chat' });

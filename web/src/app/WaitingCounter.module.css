@@ -1,5 +1,8 @@
 .idle,
 .waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   font-size: var(--font-size-sm);
   white-space: nowrap;
 }
@@ -9,11 +12,17 @@
 }
 
 .waiting {
-  padding: 0 var(--space-2);
+  padding: 0.125rem var(--space-3);
   color: var(--color-warning);
   background: var(--color-warning-bg);
   border: 1px solid var(--color-warning);
   border-radius: var(--radius-pill);
-  font-weight: 700;
+  font-weight: var(--font-weight-semibold);
   text-decoration: none;
+  transition: background-color var(--duration-base) var(--ease-out);
+}
+
+.waiting:hover {
+  color: var(--color-warning);
+  background: var(--color-surface-hover);
 }

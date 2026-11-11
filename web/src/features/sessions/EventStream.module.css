@@ -22,11 +22,13 @@
 }
 
 .filter {
-  padding: var(--space-1) var(--space-2);
-  color: var(--color-text);
+  padding: 0.125rem var(--space-3);
+  color: var(--color-text-muted);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
 }
 
@@ -43,7 +45,8 @@
 
 .search {
   min-width: 12rem;
-  padding: var(--space-1) var(--space-2);
+  min-height: 2rem;
+  padding: var(--space-1) var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
 }
@@ -65,8 +68,11 @@
   flex: 1;
   overflow-y: auto;
   background: var(--color-surface);
+  background-image: var(--glass-highlight);
+  backdrop-filter: var(--glass-blur);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
 }
 
 .list {
@@ -94,5 +100,6 @@
   border: 0;
   border-radius: var(--radius-pill);
   box-shadow: var(--shadow-dialog);
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }
