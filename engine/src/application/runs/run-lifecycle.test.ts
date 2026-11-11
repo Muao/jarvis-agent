@@ -227,6 +227,28 @@ describe('run exit', () => {
     ]);
   });
 
+  it('posts what the worker said at the end of its turn, so the answer does not vanish', async () => {
+    const a = app();
+    const { taskId, thread } = await createTaskInNewThread(a);
+
+    await a.runner.forTask(taskId)?.exit({ ...result('success'), message: ' PR #40 is ready. \n' });
+
+    const said = a
+      .messagesOf(thread.id)
+      .filter((m) => m.kind === 'jarvis')
+      .map((m) => ({ taskId: m.taskId, text: m.body.text }));
+    expect(said).toEqual([{ taskId, text: 'PR #40 is ready.' }]);
+  });
+
+  it('posts nothing for a turn that ended without text or without success', async () => {
+    const a = app();
+    const { taskId, thread } = await createTaskInNewThread(a);
+
+    await a.runner.forTask(taskId)?.exit({ ...result('error_max_turns'), message: 'max turns' });
+
+    expect(a.messagesOf(thread.id).filter((m) => m.kind === 'jarvis')).toEqual([]);
+  });
+
   it('tells the thread why a run failed', async () => {
     const a = app();
     const { taskId, thread } = await createTaskInNewThread(a);
