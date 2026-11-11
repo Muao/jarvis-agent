@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   EnvironmentPlanSchema,
   planCredentialViolations,
+  redactPlanForJournal,
   resolvePlanEnv,
   type EnvironmentPlanInput,
 } from './environment-plan.js';
@@ -39,7 +40,13 @@ describe('EnvironmentPlanSchema (ADR-0026)', () => {
 
   it.each([
     ['an image with flags', { image: 'node --privileged' }],
-    ['an image by digest', { image: 'node@sha256:abc' }],
+    ['an image by a short digest', { image: 'node@sha256:abc' }],
+    ['an image on an arbitrary registry', { image: 'evil.example.com/team/app:1' }],
+    ['an image on localhost', { image: 'localhost/app' }],
+    ['an image on an IP registry', { image: '10.0.0.5/app:1' }],
+    ['an image on a registry with a port', { image: 'registry.local:5000/app' }],
+    ['an image on localhost with a port', { image: 'localhost:5000/app' }],
+    ['an image on an unlisted ghcr look-alike', { image: 'ghcr.io.evil.com/a/b' }],
     ['a cwd that leaves the repository', { app: { command: 'x', port: 5173, cwd: '../..' } }],
     ['an absolute cwd', { app: { command: 'x', port: 5173, cwd: '/etc' } }],
     ['a privileged port', { app: { command: 'x', port: 80 } }],
@@ -61,6 +68,30 @@ describe('EnvironmentPlanSchema (ADR-0026)', () => {
       EnvironmentPlanSchema.safeParse({ app: { command: 'npm run dev', port: 5173 }, ...input })
         .success,
     ).toBe(false);
+  });
+});
+
+describe('image references', () => {
+  it.each([
+    'node',
+    'node:22-bookworm',
+    'mongo:7',
+    'bitnami/redis:7.2',
+    'docker.io/library/postgres:16',
+    'ghcr.io/org/image:tag',
+    'mcr.microsoft.com/playwright:v1.50.0-noble',
+    'public.ecr.aws/docker/library/redis:7',
+    `node:22@sha256:${'a'.repeat(64)}`,
+    `ghcr.io/org/image@sha256:${'0'.repeat(64)}`,
+  ])('accepts %s', (image) => {
+    expect(plan({ image }).image).toBe(image);
+  });
+});
+
+describe('runAsRoot', () => {
+  it('is optional and stays out of the plan when unset', () => {
+    expect(plan().runAsRoot).toBeUndefined();
+    expect(plan({ runAsRoot: true }).runAsRoot).toBe(true);
   });
 });
 
@@ -98,11 +129,106 @@ describe('planCredentialViolations', () => {
     expect(problems[0]).toMatch(message);
   });
 
+  it.each([
+    ['a passphrase-like name', { SESSION_PASS: 'correct-horse' }],
+    ['a pwd name', { MYSQL_PWD: 'rootroot' }],
+    ['an auth name', { BASIC_AUTH: 'admin:admin' }],
+    ['a salt name', { PASSWORD_SALT: 'pepper1' }],
+    ['a cookie name', { COOKIE_SIGNING: 'abc' }],
+    ['a private name', { PRIVATE_THING: 'abc' }],
+    ['a _KEY suffix', { STRIPE_KEY: 'abc' }],
+  ])('refuses %s with a literal value', (_name, env) => {
+    expect(planCredentialViolations(plan({ env }))).toHaveLength(1);
+  });
+
+  it('lets harmless values through under a secret-looking name', () => {
+    expect(
+      planCredentialViolations(
+        plan({
+          env: {
+            AUTH_ENABLED: 'true',
+            AUTH_URL: 'http://localhost:3000/auth',
+            PASSWORD_MIN_LENGTH: '8',
+            KEY: '',
+          },
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('refuses a long random-looking value under an innocent name', () => {
+    const problems = planCredentialViolations(
+      plan({ env: { SOMETHING: 'Zk9vQ2x7LmR4pT8wYb3NcE6hJd1sFa5U' } }),
+    );
+    expect(problems[0]).toMatch(/random-looking/);
+  });
+
+  it('does not take paths, URLs, prose or short values for secrets', () => {
+    expect(
+      planCredentialViolations(
+        plan({
+          env: {
+            PATH_X: '/usr/local/lib/node_modules/some-package/bin/cli-1.2.3',
+            API_URL: 'https://api.example.com/v1/things?limit=100',
+            GREETING: 'hello there this is a sentence with 3 numbers',
+            NODE_OPTIONS: '--max-old-space-size=2048',
+            SHORT: 'a1b2c3',
+          },
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('accepts what the engine generates itself: hex placeholders never appear as plan strings', () => {
+    expect(
+      planCredentialViolations(
+        plan({
+          env: {
+            SECRET_KEY_BASE: { generate: true },
+            DB_URL: 'postgres://app:${SECRET_KEY_BASE}@db/x',
+          },
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  it.each([
+    ['--password with a value', 'mysql --password hunter2 -e "select 1"'],
+    ['--password=value', 'mysql --password=hunter2'],
+    ['--token=value', 'tool login --token=abc123def'],
+    ['an inline PGPASSWORD', 'PGPASSWORD=hunter2 psql -h db -c "select 1"'],
+    ['an inline MYSQL_PWD after &&', 'cd x && MYSQL_PWD=rootroot mysql -h db'],
+  ])('refuses %s in a command', (_name, command) => {
+    const problems = planCredentialViolations(plan({ prepare: [command] }));
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toMatch(/^prepare\[0\]/);
+  });
+
+  it.each([
+    'mysql --password "$DB_PASSWORD"',
+    'PGPASSWORD=$DB_PASSWORD psql -h db',
+    'PGPASSWORD="${DB_PASSWORD}" psql -h db',
+    'npm ci --no-audit && NODE_ENV=test npm run build',
+    'git config user.email a@b.c --global',
+  ])('lets %s through', (command) => {
+    expect(planCredentialViolations(plan({ prepare: [command] }))).toEqual([]);
+  });
+
   it('refuses a credential written into a command', () => {
     const problems = planCredentialViolations(
       plan({ prepare: ['psql postgres://app:hunter2@db/app -c "select 1"'] }),
     );
     expect(problems[0]).toMatch(/^prepare\[0\]/);
+  });
+});
+
+describe('redactPlanForJournal', () => {
+  it('keeps env names and drops every value', () => {
+    const redacted = redactPlanForJournal(
+      plan({ env: { NODE_ENV: 'development', DB_PASSWORD: { generate: true } } }),
+    );
+    expect(redacted.env).toEqual({ NODE_ENV: 'set', DB_PASSWORD: 'generated' });
+    expect(JSON.stringify(redacted)).not.toContain('development');
   });
 });
 
