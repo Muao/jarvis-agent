@@ -62,7 +62,11 @@ async function send(
   try {
     res = await fetch(path, {
       method,
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      headers: {
+        // The engine refuses mutating owner requests without it (ADR-0028).
+        'X-Jarvis-Owner': '1',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch (cause) {

@@ -57,14 +57,14 @@ describe('api client', () => {
     await postVoid('/threads/th-1/messages', { text: 'hi' });
     expect(spy).toHaveBeenCalledWith('/api/threads/th-1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'X-Jarvis-Owner': '1', 'Content-Type': 'application/json' },
       body: '{"text":"hi"}',
     });
 
     await get('/ping', Pong, { afterSeq: 3, skip: undefined });
     expect(spy).toHaveBeenLastCalledWith(
       '/api/ping?afterSeq=3',
-      expect.objectContaining({ method: 'GET' }),
+      expect.objectContaining({ method: 'GET', headers: { 'X-Jarvis-Owner': '1' } }),
     );
   });
 

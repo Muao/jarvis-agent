@@ -21,13 +21,14 @@ import {
   type TestApp,
 } from '../../application/testing/index.js';
 import { SseHub } from '../../infrastructure/sse/sse-hub.js';
+import { asOwner } from './as-owner.js';
 import { buildServer } from './server.js';
 
 const servers: FastifyInstance[] = [];
 
 function start(options: { realRuns?: boolean } = {}): { app: TestApp; http: FastifyInstance } {
   const app = buildTestApp(options);
-  const http = buildServer(app, { stream: new SseHub() });
+  const http = asOwner(buildServer(app, { stream: new SseHub() }));
   servers.push(http);
   return { app, http };
 }

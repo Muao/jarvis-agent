@@ -6,6 +6,7 @@ import {
   type TestApp,
 } from '../../application/testing/index.js';
 import { SseHub } from '../../infrastructure/sse/sse-hub.js';
+import { asOwner } from './as-owner.js';
 import { buildServer } from './server.js';
 
 const servers: FastifyInstance[] = [];
@@ -17,7 +18,7 @@ afterEach(async () => {
 /** A worker run with a live process: its run token is what the MCP server would send. */
 async function workerRun() {
   const app = buildTestApp({ realRuns: true });
-  const http = buildServer(app, { stream: new SseHub() });
+  const http = asOwner(buildServer(app, { stream: new SseHub() }));
   servers.push(http);
   const { taskId, thread } = await createTaskInNewThread(app);
   const process = app.runner.forTask(taskId);
@@ -27,7 +28,7 @@ async function workerRun() {
 
 async function dispatcherRun() {
   const app = buildTestApp({ realRuns: true });
-  const http = buildServer(app, { stream: new SseHub() });
+  const http = asOwner(buildServer(app, { stream: new SseHub() }));
   servers.push(http);
   const { threadId } = await app.postOwnerMessage.execute({ text: 'Add a page' });
   return { app, http, thread: { id: threadId } };

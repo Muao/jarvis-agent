@@ -220,6 +220,8 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
   const github = await createGitHub(env, config, logger);
   const port = options.port ?? config.engine.port;
   let apiUrl = `http://${LOOPBACK_HOST}:${port}`;
+  // The browser of a UI check must not reach Postgres either (ADR-0028).
+  const databasePorts = [Number(new URL(env.databaseUrl).port || 5432)];
 
   // ADR-0012: a task may target a repo besides the configured default, clone-on-demand.
   const selfRepo = await remoteRepoRef(JARVIS_ROOT, 'origin');
@@ -271,6 +273,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
         },
         mcpServer: MCP_SERVER,
         apiUrl,
+        protectedPorts: databasePorts,
         connectorsFile: home.mcpServersFile,
         claudeAiConnectors: current.connectors.claudeAi,
         connectorSecrets: {
@@ -342,6 +345,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
   });
 
   const app = createApplication({
+    redact,
     uow: new PgUnitOfWork(createDatabase(pool)),
     ids: new CryptoIdGenerator(),
     clock,
@@ -391,6 +395,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
   const server = buildServer(app, {
     stream: hub,
     redact,
+    allowedOrigins: env.allowedOrigins,
     ...(options.logger === undefined ? {} : { logger: options.logger }),
   });
 

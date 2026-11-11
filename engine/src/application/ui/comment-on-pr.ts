@@ -1,4 +1,4 @@
-import type { EventActor, TaskEvent } from '../../domain/index.js';
+import type { EventActor, Task, TaskEvent } from '../../domain/index.js';
 import type { CodeHost } from '../ports/code-host.js';
 import type { ConfigProvider } from '../ports/config-provider.js';
 import type { AwaitPermission } from '../permissions/await-permission.js';
@@ -8,6 +8,7 @@ import type { TaskDeps } from '../tasks/deps.js';
 import { reportDailyLimit, writesToday } from '../tasks/daily-limit.js';
 import { loadWorkerTask } from '../tasks/guards.js';
 import { transact } from '../transaction.js';
+import { isTrustedHead } from './trust-pull-request-head.js';
 
 export const POSTED = 'ui_comment_posted';
 export const EDITED = 'ui_comment_edited';
@@ -48,6 +49,8 @@ export interface CommentOnPrDeps extends TaskDeps {
     readonly request: RequestPermission;
     readonly await: AwaitPermission;
   };
+  /** Masks secrets in the comment before it leaves the machine (SEC-04). Absent: the text is posted as is. */
+  readonly redact?: (text: string) => string;
 }
 
 /**
@@ -57,7 +60,10 @@ export interface CommentOnPrDeps extends TaskDeps {
  * By default the write needs no owner approval (`ui.autoApproveComments`): the agent works on its
  * own, the journal records every write, and `limits.maxPrCommentsPerDay` bounds how many there can
  * be in a day across all tasks — at the limit the thread is told and nothing is posted. With the
- * setting off, every write asks the owner first. With `commentId` the body replaces an earlier comment
+ * setting off, every write asks the owner first — and so it does when the head of the pull request
+ * is not trusted (a fork, or an author outside `allowlist.githubReviewers`: the same test as the
+ * dev-server gate of ADR-0018), because what a stranger wrote is in the worker's context. The body
+ * goes through the secret redactor either way. With `commentId` the body replaces an earlier comment
  * instead of adding one, which is how a corrected verdict reaches the reader without leaving the
  * stale one above it. Only a comment this task posted can be replaced — the id is checked against
  * the task's own journal, so an approved card can never be turned into an edit of somebody else's
@@ -97,13 +103,16 @@ export class CommentOnPr {
       return { ok: false, reason: `${told} Keep the report in the thread and do not retry today.` };
     }
 
-    if (!this.deps.config.current().ui.autoApproveComments) {
+    const body = this.deps.redact?.(input.body) ?? input.body;
+    const auto =
+      this.deps.config.current().ui.autoApproveComments && (await this.headIsTrusted(task));
+    if (!auto) {
       const permissionId = await this.deps.permissions.request.execute(identity, {
         tool_name: 'comment_on_pr',
         input: {
           pullRequest: task.pr.url,
-          comment: input.body.length > PREVIEW ? `${input.body.slice(0, PREVIEW)}…` : input.body,
-          characters: input.body.length,
+          comment: body.length > PREVIEW ? `${body.slice(0, PREVIEW)}…` : body,
+          characters: body.length,
           ...(commentId === undefined ? {} : { replaces: commentId }),
         },
       });
@@ -124,8 +133,8 @@ export class CommentOnPr {
     const repo = task.targetRepo ?? undefined;
     const result =
       commentId === undefined
-        ? await this.deps.codeHost.postComment(task.pr.number, input.body, repo)
-        : await this.deps.codeHost.editComment(commentId, input.body, repo);
+        ? await this.deps.codeHost.postComment(task.pr.number, body, repo)
+        : await this.deps.codeHost.editComment(commentId, body, repo);
     const kind = commentId === undefined ? POSTED : EDITED;
     await this.note(
       task.id,
@@ -136,11 +145,25 @@ export class CommentOnPr {
             pr: task.pr.number,
             url: result.url,
             commentId: result.id,
-            ...(this.deps.config.current().ui.autoApproveComments ? { asked: false } : {}),
+            ...(auto ? { asked: false } : {}),
           }
         : { pr: task.pr.number, reason: result.reason },
     );
     return result.ok ? { ok: true, url: result.url } : { ok: false, reason: result.reason };
+  }
+
+  /** A pull request that cannot be read is not trusted. */
+  private async headIsTrusted(task: Task): Promise<boolean> {
+    if (task.pr === null) return false;
+    try {
+      const pr = await this.deps.codeHost.describePullRequest(
+        task.pr.number,
+        task.targetRepo ?? undefined,
+      );
+      return isTrustedHead(pr, this.deps.config.current().allowlist.githubReviewers);
+    } catch {
+      return false;
+    }
   }
 
   private async note(

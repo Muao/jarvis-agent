@@ -138,6 +138,8 @@ export interface TestAppOptions {
   readonly realRuns?: boolean;
   /** ADR-0022: `false` plays an engine with no GitHub token (`open_pr` answers `host_unconfigured`). */
   readonly hostConfigured?: boolean;
+  /** Masks secrets in text that leaves the machine (a pull-request comment). Default: none. */
+  readonly redact?: (text: string) => string;
 }
 
 /** In-memory fakes for every port plus the wired use cases; reused by later tasks' tests. */
@@ -169,6 +171,7 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
   const capabilities = new FakeCapabilityCatalog(ownerPlugin);
 
   const application = createApplication({
+    ...(options.redact === undefined ? {} : { redact: options.redact }),
     uow,
     ids,
     clock,

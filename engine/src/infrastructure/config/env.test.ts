@@ -31,7 +31,16 @@ describe('loadEnv', () => {
       databaseUrl: 'postgres://x',
       listenHost: '127.0.0.1',
       logLevel: 'info',
+      allowedOrigins: [],
     });
+  });
+
+  it('reads extra allowed origins from JARVIS_ALLOWED_ORIGINS', () => {
+    const env = loadEnv({
+      DATABASE_URL: 'p',
+      JARVIS_ALLOWED_ORIGINS: ' http://127.0.0.1:5180, https://j.ts.net ,',
+    });
+    expect(env.allowedOrigins).toEqual(['http://127.0.0.1:5180', 'https://j.ts.net']);
   });
 
   it('accepts an explicit 127.0.0.1 listen host', () => {
@@ -95,6 +104,7 @@ describe('loadEnv', () => {
       databaseUrl: 'postgres://x',
       listenHost: '127.0.0.1',
       logLevel: 'info',
+      allowedOrigins: [],
       githubToken: 'g',
       notionToken: 'n',
     });
