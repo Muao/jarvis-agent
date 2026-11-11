@@ -163,24 +163,27 @@ Then `systemctl enable --now jarvis-engine jarvis-web` and `tailscale serve --bg
 From the laptop, over Tailscale SSH:
 
 ```sh
-pnpm run redeploy             # the usual way: see below
-pnpm run deploy:remote        # the bare deploy: ssh root@jarvis-01 /home/jarvis/jarvis/scripts/deploy.sh
+export JARVIS_HOST=<server name>   # or JARVIS_HOST=<server name> in ~/.jarvis/.env; there is no default
+pnpm run redeploy                  # the usual way: see below
 ```
 
-`pnpm run redeploy` (`scripts/redeploy.sh`) is the manual redeploy in one command. It shows the commits
-that are about to go out, waits for live runs to finish so a working agent is not cut off mid-turn (up to
-10 minutes; `-- --wait 30` to wait longer, `-- --now` to interrupt them — they resume after the restart),
-runs `scripts/deploy.sh` on the server, then checks `/api/health` and the units and prints the commit that
-is live. `-- --check` only shows what would be deployed and whether a run is live. With nothing new on
-`main` it restarts the same commit, which is how to bounce the engine after a config or unit change.
-`JARVIS_HOST` overrides the host (default `root@jarvis-01`).
+`pnpm run redeploy` (`scripts/redeploy.sh`) is the manual redeploy in one command. It resolves `origin/main` on
+GitHub, shows the commits that are about to go out, waits for live runs to finish so a working agent is not cut
+off mid-turn (up to 10 minutes; `-- --wait 30` to wait longer, `-- --now` to interrupt them — they resume after
+the restart), runs `/usr/local/sbin/jarvis-deploy <sha>` on the server, then checks `/api/health` and the units
+and prints the commit that is live. `-- --check` only shows what would be deployed and whether a run is live.
+With nothing new on `main` it restarts the same commit. `JARVIS_HOST` (a name, or `user@name`; `root@` is assumed)
+is required: no host name is committed to the repository.
 
-`jarvis` has no password and no sudo rule, so the deploy runs as root; the script then runs every git and
-pnpm step as `jarvis` (`runuser`), so nothing in the checkout ends up owned by root, and only `systemctl` and
-`systemd-run` run as root. On the server as `jarvis`, `cd ~/jarvis && pnpm run deploy` works too, but only once a
-sudo rule for those two commands exists.
+`jarvis-deploy` is a root-owned script outside the checkout (`deploy/root/jarvis-deploy`, installed once, §7). The
+checkout is writable by `jarvis` (worker Bash, check commands, a container escape), so root must never execute
+anything from it. The script validates the 40-hex SHA, checks it equals GitHub's current `refs/heads/main`, then
+does `git fetch` + `git reset --hard <sha>` (main's history was rewritten, so ff-only no longer applies), install,
+build and migrate as `jarvis` (`runuser`, and a transient unit that lends the migration the root-only Infisical
+file), and as root only the lock, `systemctl restart` and an inlined copy of the `wait-healthy.sh` check. The old
+`deploy:remote` script is removed: it ran the checkout's `deploy.sh` as root.
 
-`pnpm run deploy` runs [`scripts/deploy.sh`](../../deploy/README.md#deploy-script), which wraps the exact sequence
+`pnpm run deploy` (rehearsals, or `jarvis` with a sudo rule; never as root) runs [`scripts/deploy.sh`](../../deploy/README.md#deploy-script), which wraps the exact sequence
 above (pull, install, build, migrate, restart) behind one lock-protected command. Use `pnpm run deploy`, not
 `pnpm deploy` — the bare form is pnpm's own built-in `deploy` subcommand (for packaging a workspace project), not
 this repo's script.
@@ -189,3 +192,62 @@ this repo's script.
 
 Hetzner automatic backups (daily snapshot of the whole disk) cover Postgres, `~/.jarvis` and `~/.claude`.
 After a restore, check `claude -p "ping"`; log in again if the session expired.
+
+## 7. Hardening runbook (H2 egress, H3 root deploy)
+
+One-time, owner-run steps on the server, as root (`sudo -i` or `tailscale ssh root@<host>`), from the checkout
+(`cd /home/jarvis/jarvis`). The checkout is jarvis-writable, so **review the files you are about to run**
+(`git log -3 -- deploy/`, read the scripts) or copy them out of a commit you trust first.
+
+**Order:** `git pull` (as jarvis; the deploy path before H3 is the old one) → H3 install → H2 install → verify.
+
+### H3: root-owned deploy entrypoint
+
+```sh
+deploy/root/install-root-deploy.sh      # install -o root -g root -m 0755 → /usr/local/sbin/jarvis-deploy
+```
+
+Test from the laptop with `pnpm run redeploy -- --check`, then a real `pnpm run redeploy`. Updating the entrypoint
+is always an explicit re-run of that installer by the owner; a deploy never replaces it.
+
+### H2: egress filter and container DNS
+
+```sh
+deploy/hardening/egress.sh              # nftables table + jarvis-egress.service + rootless docker daemon.json
+export JARVIS_TAILNET_NAME=<this host's tailnet name, see `tailscale status`>
+deploy/hardening/verify-egress.sh
+```
+
+What it does. A persistent nftables table `inet jarvis_egress` (hook `output`) is loaded at boot by
+`jarvis-egress.service` (which runs `/usr/local/sbin/jarvis-egress load`, so the host's own addresses are
+resolved at every boot; re-run the installer after an address change). For `meta skuid jarvis` it accepts loopback,
+established traffic and an optional `EGRESS_EXTRA_ALLOW` list, and drops `100.64.0.0/10`, `10.0.0.0/8`,
+`172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `fd7a:115c:a1e0::/48`, `fc00::/7`, `fe80::/10` and the host's
+own global IPv4/IPv6 addresses. Rootless Docker sends container traffic out of the host namespace as uid `jarvis`
+(slirp4netns/pasta), so containers are covered too; root, `tailscaled`, `systemd-resolved`, `alloy` and `sshd` run
+as other uids and are not affected, so SSH over Tailscale and `tailscale serve` keep working. Public resolvers
+need no rule (public ranges are allowed). It also writes `~jarvis/.config/docker/daemon.json` (merged with
+`jq`, backup kept) with `"dns": ["1.1.1.1", "9.9.9.9"]` and `"dns-search": []`, and restarts the user's Docker
+(Postgres is briefly down; the engine reports 503 and recovers). Existing containers keep their old
+`resolv.conf` until recreated: `docker compose up -d --force-recreate` as `jarvis`.
+
+Assumption: the engine and its children need nothing in the blocked ranges. Postgres, the web preview and
+Alloy's OTLP are on loopback; GitHub, npm, Docker Hub, Infisical, healthchecks.io and the Anthropic API are
+public. A target repo whose checks need a private host: add that single address via `EGRESS_EXTRA_ALLOW="ip ip" deploy/hardening/egress.sh`
+(it is not persisted in the unit; edit the unit's `Environment=` or re-run).
+
+Verification (`verify-egress.sh`, the same checks by hand as `jarvis` with `DOCKER_HOST` set): from a throwaway
+container, `curl https://<tailnet name>/api/health`, `curl http://100.100.100.100/` and
+`curl http://169.254.169.254/` must fail; `curl https://registry.npmjs.org/` and `docker pull node:22-bookworm`
+must work; `curl http://127.0.0.1:4310/api/health` on the host must still return 200.
+
+Rollback: `deploy/hardening/egress.sh remove` (or just `nft delete table inet jarvis_egress`; it returns on the
+next boot unless the unit is disabled). It leaves `daemon.json` alone; remove the two keys to revert DNS.
+
+### Known residual risk
+
+Rootless Docker still runs as uid `jarvis`, the same uid as the engine and worker sessions, so a container
+escape owns `jarvis` (its `~/.claude` login, the checkout, the Postgres volume) even though it can no longer
+reach the tailnet or root. Next step: run Docker under a dedicated uid with no access to `jarvis`' files, and
+have the engine talk to it over a socket. Until then the egress filter and the root-owned deploy limit the
+blast radius; they do not remove it.
