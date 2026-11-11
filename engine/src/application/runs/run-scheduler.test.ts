@@ -174,7 +174,9 @@ describe('RunScheduler worker slots (DSP-08, LIM-05)', () => {
     expect(runs[0]).toMatchObject({ status: 'failed' });
     expect(runs[0]?.error).toContain('spawn claude ENOENT');
     expect(await a.scheduler.isQueued('T-1')).toBe(false);
-    expect(systemTexts(a, thread.id)).toEqual([]);
+    expect(systemTexts(a, thread.id)).toEqual([
+      'The worker run of T-1 failed: could not start claude: spawn claude ENOENT',
+    ]);
   });
 });
 

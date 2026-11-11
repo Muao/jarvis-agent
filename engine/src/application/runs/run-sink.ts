@@ -101,12 +101,11 @@ export class RunSink implements RunListener {
     await notifiers.events.publish({ type: 'run', id: run.id });
     if (run.taskId !== null) await notifiers.events.publish({ type: 'task', id: run.taskId });
     await notifiers.events.publish({ type: 'overview' });
-    if (run.status !== 'limit_reached') return;
+    const text = endNotice(run);
+    if (text === null) return;
     // LIM-03: the owner learns why the work stopped instead of finding a silent thread.
     await transact(this.deps, async (tx, outbox) => {
-      const body: BodyOf<'system'> = {
-        text: `Run stopped at its limit: ${run.error ?? 'limit reached'}.`,
-      };
+      const body: BodyOf<'system'> = { text };
       await messages.post(tx, outbox, {
         threadId: run.threadId,
         taskId: run.taskId,
@@ -115,4 +114,19 @@ export class RunSink implements RunListener {
       });
     });
   }
+}
+
+const NOTICE_REASON_CHARS = 600;
+
+/** What the thread is told when a run ended without finishing its work; `null` when it ended well. */
+function endNotice(run: Run): string | null {
+  if (run.status === 'limit_reached') {
+    return `Run stopped at its limit: ${run.error ?? 'limit reached'}.`;
+  }
+  if (run.status !== 'failed') return null;
+  const reason = (run.error ?? 'no reason reported').replace(/\s+/g, ' ').trim();
+  const shown =
+    reason.length <= NOTICE_REASON_CHARS ? reason : `${reason.slice(0, NOTICE_REASON_CHARS)}…`;
+  const who = run.taskId === null ? 'The dispatcher run' : `The worker run of ${run.taskId}`;
+  return `${who} failed: ${shown}`;
 }

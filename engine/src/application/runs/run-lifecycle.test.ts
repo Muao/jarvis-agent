@@ -227,6 +227,20 @@ describe('run exit', () => {
     ]);
   });
 
+  it('tells the thread why a run failed', async () => {
+    const a = app();
+    const { taskId, thread } = await createTaskInNewThread(a);
+
+    await a.runner
+      .forTask(taskId)
+      ?.exit({ type: 'exit', code: 1, message: 'claude exited with code 1: not logged in' });
+
+    expect(systemTexts(a, thread.id)).toEqual([
+      'The worker of T-1 started — Context.',
+      'The worker run of T-1 failed: claude exited with code 1: not logged in',
+    ]);
+  });
+
   it('forgets the run token', async () => {
     const a = app();
     const { taskId } = await createTaskInNewThread(a);
