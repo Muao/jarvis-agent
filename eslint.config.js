@@ -13,6 +13,7 @@ export default tseslint.config(
       '**/test-results/**',
       'engine/drizzle/**',
       'docs/**',
+      'deck/**',
       '.claude/**',
     ],
   },
