@@ -96,9 +96,16 @@ export const playwrightToolName = (tool: string): string => `mcp__playwright__${
 
 const LOOPBACK_HOSTS = ['127.0.0.1', 'localhost'] as const;
 
+/**
+ * The web UI (`vite preview`, web/vite.config.ts, compose.yaml) proxies the whole owner `/api`,
+ * which has no login: a browser that can open it can approve its own permission cards. It is not
+ * in the engine's config, so it is named here, next to the block list that needs it.
+ */
+export const WEB_UI_PORT = 5180;
+
 /** The Playwright MCP server for one worker run: headless, profile-less, pinned to the dev server. */
 export function playwrightServer(
-  ctx: Pick<RunContext, 'config' | 'apiUrl'>,
+  ctx: Pick<RunContext, 'config' | 'apiUrl' | 'protectedPorts'>,
   screenshotsDir: string,
 ): Json {
   const { ui } = ctx.config;
@@ -107,7 +114,13 @@ export function playwrightServer(
   // allow-list is "this machine, any port" — and the engine's own API is taken back out of it.
   // Playwright MCP takes **semicolon**-separated lists and evaluates the block-list first.
   const origins = LOOPBACK_HOSTS.map((host) => `http://${host}:*`).join(';');
-  const blocked = LOOPBACK_HOSTS.map((host) => `http://${host}:${enginePort}`).join(';');
+  // The engine API, the web UI that proxies it, and Postgres: Jarvis's own services, never the app under test.
+  const protectedPorts = [
+    ...new Set([enginePort, String(WEB_UI_PORT), ...(ctx.protectedPorts ?? []).map(String)]),
+  ];
+  const blocked = protectedPorts
+    .flatMap((port) => LOOPBACK_HOSTS.map((host) => `http://${host}:${port}`))
+    .join(';');
   return {
     command: 'npx',
     args: [

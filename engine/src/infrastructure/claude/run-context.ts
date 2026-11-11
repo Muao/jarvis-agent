@@ -21,6 +21,11 @@ export interface RunContext {
   readonly mcpServer: { readonly command: string; readonly args: readonly string[] };
   /** Base URL of the engine API, for example `http://127.0.0.1:4310`. */
   readonly apiUrl: string;
+  /**
+   * Loopback ports of Jarvis's own services besides the engine API (Postgres), which the browser
+   * of a UI check must never reach. The web UI port is a constant in run-files.ts.
+   */
+  readonly protectedPorts?: readonly number[];
   /** `~/.jarvis/mcp/servers.json`; connector servers are added for workers when it exists. */
   readonly connectorsFile?: string;
   /**

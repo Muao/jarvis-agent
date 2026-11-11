@@ -11,6 +11,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildTestApp, type TestApp } from '../../application/testing/index.js';
 import { SseHub } from '../../infrastructure/sse/sse-hub.js';
+import { asOwner } from './as-owner.js';
 import { buildServer } from './server.js';
 
 const servers: FastifyInstance[] = [];
@@ -20,7 +21,7 @@ afterEach(async () => {
 
 function start(): { app: TestApp; http: FastifyInstance } {
   const app = buildTestApp();
-  const http = buildServer(app, { stream: new SseHub() });
+  const http = asOwner(buildServer(app, { stream: new SseHub() }));
   servers.push(http);
   return { app, http };
 }

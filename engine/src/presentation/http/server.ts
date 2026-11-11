@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type { Application } from '../../application/index.js';
 import { registerErrorHandling } from './errors.js';
+import { registerOwnerGuard } from './owner-guard.js';
 import { agentRoutes } from './routes/agent.js';
 import { capabilityRoutes } from './routes/capabilities.js';
 import { healthRoutes } from './routes/health.js';
@@ -22,6 +23,8 @@ export interface ServerOptions {
   readonly logger?: FastifyServerOptions['logger'];
   /** Interval of `: ping` comments on the stream. */
   readonly heartbeatMs?: number;
+  /** Extra origins allowed to send mutating owner requests (`JARVIS_ALLOWED_ORIGINS`, ADR-0028). */
+  readonly allowedOrigins?: readonly string[];
 }
 
 /**
@@ -36,6 +39,7 @@ export function buildServer(app: Application, options: ServerOptions): FastifyIn
     connectionTimeout: 0,
   });
   registerErrorHandling(http, options.redact ?? ((text) => text));
+  registerOwnerGuard(http, { allowedOrigins: options.allowedOrigins ?? [] });
 
   const routes = [
     threadRoutes(app),

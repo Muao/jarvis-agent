@@ -16,6 +16,8 @@ export interface JarvisEnv {
   readonly logLevel: LogLevel;
   /** Healthchecks.io style ping URL; it carries a token, so it is a secret. Absent: no heartbeat (ADR-0016). */
   readonly heartbeatUrl?: string;
+  /** Extra origins allowed to send mutating owner requests, from `JARVIS_ALLOWED_ORIGINS` (comma-separated; ADR-0028). */
+  readonly allowedOrigins: readonly string[];
   readonly githubToken?: string;
   readonly notionToken?: string;
 }
@@ -95,6 +97,10 @@ export function loadEnv(source: EnvSource = process.env): JarvisEnv {
     databaseUrl,
     listenHost,
     logLevel,
+    allowedOrigins: (nonEmpty(source['JARVIS_ALLOWED_ORIGINS']) ?? '')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter((origin) => origin !== ''),
     ...(heartbeatUrl !== undefined ? { heartbeatUrl } : {}),
     ...(githubToken !== undefined ? { githubToken } : {}),
     ...(notionToken !== undefined ? { notionToken } : {}),

@@ -126,8 +126,18 @@ describe('writeRunFiles', () => {
       expect(pairs('--allowed-origins')).toBe('http://127.0.0.1:*;http://localhost:*');
       const engine = new URL(uiOn().apiUrl).port;
       expect(pairs('--blocked-origins')).toBe(
-        `http://127.0.0.1:${engine};http://localhost:${engine}`,
+        `http://127.0.0.1:${engine};http://localhost:${engine};http://127.0.0.1:5180;http://localhost:5180`,
       );
+    });
+
+    it('also blocks the web UI and Postgres ports (the web UI proxies the unauthenticated owner API)', async () => {
+      await writeRunFiles(runDir, workerSpec, { ...uiOn(), protectedPorts: [5433] });
+      const args = (json('mcp.json')['mcpServers']?.['playwright'] as { args: string[] }).args;
+      const blocked = (args[args.indexOf('--blocked-origins') + 1] ?? '').split(';');
+      for (const port of [5180, 5433]) {
+        expect(blocked).toContain(`http://127.0.0.1:${port}`);
+        expect(blocked).toContain(`http://localhost:${port}`);
+      }
     });
 
     it('adds --no-sandbox only when the config asks for it (the runtime container)', async () => {
