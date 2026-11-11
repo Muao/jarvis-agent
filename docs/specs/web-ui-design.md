@@ -79,6 +79,10 @@ The shell on every screen:
 - A counter of what is waiting on the owner: questions, spec/plan approvals, permission requests.
   Clicking it goes to the oldest such thread.
 - A full-width `Paused: daily budget reached` banner when the limit is exhausted (see "Global states").
+- A `Collapse navigation` / `Expand navigation` button at the start of the header (`aria-expanded`). Collapsed,
+  the navigation is an icon-only rail: every item stays a link with its name (for screen readers and as a
+  hover tooltip) and the active item keeps its bar. The choice is kept in this browser (`localStorage`) and
+  survives a reload.
 
 ## Screens
 
@@ -92,9 +96,14 @@ DSP-01, DSP-04…DSP-07, WRK-04, WRK-05, SEC-01.
 1. **Thread list** (left column). Each row: the first words of the message, a `Task Stage` badge (if there is a task),
    time of last activity, a "waiting for you" marker. At the top, a `New thread` button and an `All · Waiting for me · Active · Done · Archived` filter. Each row has an archive button (shown on hover or focus); an archived thread shows only under `Archived`, where the same button brings it back. Archiving only hides the thread: its task and runs go on.
    Sorting: threads waiting on the owner first, then by last activity.
+   The column is resizable from the handle between it and the thread (a `Resize thread list` separator): drag,
+   arrow keys (Shift for bigger steps), Home/End, double-click to reset. Width 14rem–32rem, 19rem by default,
+   kept in this browser and restored on reload.
 2. **Thread** (center). Header: thread title, links to the task (`T-12 →`) and the PR (`PR #34 ↗`), stage badge.
    Below it, a chronological feed of messages.
-3. **Input field** at the bottom of the thread. Text, `Send`, a hint "Enter — send, Shift+Enter — new line".
+3. **Input field** at the bottom of the thread. One frame: the text field on top, growing with the text up to
+   a cap and then scrolling; under it the hint "Enter — send, Shift+Enter — new line" on the left and `Send`
+   at the bottom right. The empty-state field has the same layout, taller.
    While the dispatcher is processing the previous message, a new one can be written: it is placed in the queue with a `queued` marker.
 4. **Empty state with no thread selected:** a "Describe a task or ask a question" field and a few examples
    ("Add a course curriculum page from the design…", "What does Notion say about…").

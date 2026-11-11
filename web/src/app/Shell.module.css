@@ -74,14 +74,56 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  flex: none;
   width: var(--nav-width);
   padding: var(--space-5) var(--space-3);
+  overflow: hidden;
   background: var(--color-surface);
   background-image: var(--glass-highlight);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   backdrop-filter: var(--glass-blur);
+  transition:
+    width var(--duration-base) var(--ease-out),
+    padding var(--duration-base) var(--ease-out);
+}
+
+/* Icon-only rail: names stay in the DOM for screen readers and show as a tooltip on hover. */
+.collapsed {
+  width: var(--nav-width-collapsed);
+  padding-inline: var(--space-2);
+}
+
+.collapsed .link {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.navToggle {
+  display: inline-grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  transition:
+    background-color var(--duration-base) var(--ease-out),
+    color var(--duration-base) var(--ease-out);
+}
+
+.navToggle:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.navToggle:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
 }
 
 .group {
@@ -113,6 +155,11 @@
 
 .linkIcon {
   opacity: 0.85;
+}
+
+.linkLabel {
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .link:hover {

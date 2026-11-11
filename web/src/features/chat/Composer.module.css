@@ -20,18 +20,10 @@
     0 0 48px var(--color-glow-soft);
 }
 
-.row {
+/* The frame looks like one input: field on top, toolbar (hint left, Send right) under it. */
+.field {
   display: flex;
-  gap: var(--space-2);
-  align-items: flex-end;
-}
-
-.input {
-  flex: 1;
-  padding: var(--space-2) var(--space-3);
-  font: inherit;
-  color: var(--color-text);
-  resize: vertical;
+  flex-direction: column;
   background: var(--color-surface-muted);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -40,30 +32,77 @@
     box-shadow var(--duration-base) var(--ease-out);
 }
 
-.input:focus-visible {
+.field:hover {
+  border-color: var(--color-border-strong);
+}
+
+.field:focus-within {
   border-color: var(--color-accent);
-  outline: none;
   box-shadow: var(--ring);
+}
+
+.fieldDisabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.input {
+  /* Grows with the text (where supported) up to max-height, then scrolls. */
+  field-sizing: content;
+  min-height: 2.75rem;
+  max-height: 12rem;
+  padding: var(--space-3) var(--space-4) var(--space-1);
+  font: inherit;
+  line-height: var(--line-height);
+  color: var(--color-text);
+  resize: none;
+  background: transparent;
+  border: 0;
+  outline: none;
+}
+
+.large .input {
+  min-height: 7.5rem;
+  max-height: 20rem;
+}
+
+.input::placeholder {
+  color: var(--color-text-muted);
 }
 
 .input:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+}
+
+.toolbar {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: flex-end;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  cursor: text;
 }
 
 .send {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  min-height: 2.5rem;
-  padding: var(--space-2) var(--space-4);
+  flex: none;
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-4);
   font: inherit;
   font-weight: var(--font-weight-semibold);
   color: var(--color-accent-contrast);
   cursor: pointer;
   background: var(--color-accent);
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
+  transition: background-color var(--duration-base) var(--ease-out);
+}
+
+.send:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
 }
 
 .send:hover:not(:disabled) {
@@ -75,10 +114,15 @@
   opacity: 0.5;
 }
 
-.hint,
 .thinking {
   margin: 0;
   font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.hint {
+  margin: 0 auto 0 0;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
 

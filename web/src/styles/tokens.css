@@ -122,4 +122,5 @@
 
   /* layout */
   --nav-width: 15rem;
+  --nav-width-collapsed: 4rem;
 }

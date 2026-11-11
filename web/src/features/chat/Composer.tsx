@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from 'react';
+import { useRef, type KeyboardEvent, type MouseEvent } from 'react';
 import { Icon } from '../../components/Icon';
 import styles from './Composer.module.css';
 
@@ -37,6 +37,15 @@ export function Composer({
     }
   };
 
+  const input = useRef<HTMLTextAreaElement>(null);
+  const focusInput = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget && !(event.target instanceof HTMLParagraphElement)) {
+      return;
+    }
+    event.preventDefault();
+    input.current?.focus();
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
@@ -61,28 +70,33 @@ export function Composer({
           resets.
         </p>
       ) : null}
-      <div className={styles.row}>
+      {/* One frame: the field on top, the hint and Send in a toolbar under it, Send at the bottom right. */}
+      <div className={`${styles.field} ${offline ? styles.fieldDisabled : ''}`}>
         <textarea
+          ref={input}
           className={styles.input}
           aria-label="Message"
           placeholder={placeholder}
-          rows={large ? 5 : 2}
+          rows={large ? 4 : 1}
           value={value}
           disabled={offline}
           onChange={(event) => onValueChange(event.target.value)}
           onKeyDown={onKeyDown}
         />
-        <button
-          type="button"
-          className={styles.send}
-          disabled={offline || value.trim() === ''}
-          onClick={submit}
-        >
-          Send
-          <Icon name="send" size="sm" />
-        </button>
+        {/* Clicking the toolbar's empty space puts the caret in the field, like clicking the frame. */}
+        <div className={styles.toolbar} onMouseDown={focusInput}>
+          <p className={styles.hint}>Enter — send, Shift+Enter — new line</p>
+          <button
+            type="button"
+            className={styles.send}
+            disabled={offline || value.trim() === ''}
+            onClick={submit}
+          >
+            Send
+            <Icon name="send" size="sm" />
+          </button>
+        </div>
       </div>
-      <p className={styles.hint}>Enter — send, Shift+Enter — new line</p>
     </div>
   );
 }

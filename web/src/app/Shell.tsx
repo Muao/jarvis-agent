@@ -7,6 +7,7 @@ import { ConnectionIndicator } from './ConnectionIndicator';
 import { WaitingCounter } from './WaitingCounter';
 import { currentDeploymentLabel } from './deployment-label';
 import styles from './Shell.module.css';
+import { usePersistentState } from './usePersistentState';
 
 interface NavItem {
   to: string;
@@ -27,15 +28,20 @@ const SERVICE_NAV: readonly NavItem[] = [
   { to: '/connections', label: 'Connections', icon: 'connections' },
 ];
 
-function NavItems({ items }: { items: readonly NavItem[] }) {
+const NAV_COLLAPSED_KEY = 'jarvis.nav.collapsed';
+const asBoolean = (raw: unknown) => (typeof raw === 'boolean' ? raw : undefined);
+
+function NavItems({ items, collapsed }: { items: readonly NavItem[]; collapsed: boolean }) {
   return items.map(({ to, label, icon }) => (
     <NavLink
       key={to}
       to={to}
+      title={collapsed ? label : undefined}
       className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}
     >
       <Icon name={icon} className={styles.linkIcon} />
-      {label}
+      {/* Hidden only visually when collapsed, so the link keeps its accessible name. */}
+      <span className={collapsed ? 'visually-hidden' : styles.linkLabel}>{label}</span>
     </NavLink>
   ));
 }
@@ -44,9 +50,21 @@ export function Shell() {
   const overview = useOverview();
   const threads = useThreads();
   const deployment = currentDeploymentLabel();
+  const [collapsed, setCollapsed] = usePersistentState(NAV_COLLAPSED_KEY, false, asBoolean);
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
+        <button
+          type="button"
+          className={styles.navToggle}
+          aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+          title={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+          aria-expanded={!collapsed}
+          aria-controls="main-nav"
+          onClick={() => setCollapsed(!collapsed)}
+        >
+          <Icon name={collapsed ? 'panel-left-open' : 'panel-left-close'} />
+        </button>
         <span className={styles.brand}>
           <span className={styles.logo} aria-hidden="true">
             <Icon name="bot" size="md" />
@@ -64,12 +82,16 @@ export function Shell() {
       </header>
       <Banners />
       <div className={styles.body}>
-        <nav className={styles.nav} aria-label="Main">
+        <nav
+          id="main-nav"
+          className={`${styles.nav} ${collapsed ? styles.collapsed : ''}`}
+          aria-label="Main"
+        >
           <div className={styles.group}>
-            <NavItems items={MAIN_NAV} />
+            <NavItems items={MAIN_NAV} collapsed={collapsed} />
           </div>
           <div className={styles.group}>
-            <NavItems items={SERVICE_NAV} />
+            <NavItems items={SERVICE_NAV} collapsed={collapsed} />
           </div>
         </nav>
         <main className={styles.main}>

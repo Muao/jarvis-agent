@@ -30,3 +30,15 @@ for (const { name, path, ready } of PAGES) {
     expect(await seriousViolations(page)).toEqual([]);
   });
 }
+
+test('Chat with the navigation collapsed to icons has no serious or critical accessibility violations', async ({
+  page,
+}) => {
+  await page.goto('/chat');
+  await expect(page.getByRole('separator', { name: 'Resize thread list' })).toBeVisible();
+  await page.getByRole('button', { name: 'Collapse navigation' }).click();
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  await expect(page.getByRole('button', { name: 'Expand navigation' })).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Chat' })).toBeVisible();
+  expect(await seriousViolations(page)).toEqual([]);
+});

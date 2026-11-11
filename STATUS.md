@@ -20,6 +20,10 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
 
 ## Done
 
+- **Roomier chat layout** (T-4, 2026-11-11, branch `jarvis/T-4`): the navigation collapses to an
+  icon-only rail from a header button; the thread list column is resizable (drag, arrow keys,
+  double-click to reset; 14–32rem); both are kept in the browser's `localStorage`. The composer is one
+  frame — a field that grows with the text, the hint on the left and `Send` at the bottom right.
 - **Archiving threads and a pinned task model** (2026-11-11): a thread
   can be archived and brought back from its row in the list or the `⋯` menu (`threads.archived_at`,
   migration 0007, `POST /api/threads/:id/archive|unarchive`); archived threads show only under the

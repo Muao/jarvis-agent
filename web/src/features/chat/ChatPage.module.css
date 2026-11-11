@@ -1,7 +1,7 @@
+/* The resize handle fills the gap between the two panels, so the grid itself has none. */
 .page {
   display: grid;
-  grid-template-columns: 19rem minmax(0, 1fr);
-  gap: var(--space-3);
+  grid-template-columns: var(--thread-list-width) auto minmax(0, 1fr);
   height: 100%;
   min-height: 0;
 }

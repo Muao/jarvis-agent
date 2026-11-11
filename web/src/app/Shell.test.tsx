@@ -56,6 +56,43 @@ describe('Shell', () => {
     );
   });
 
+  it('collapses the navigation to an icon rail that keeps link names, and expands it again', async () => {
+    routes();
+    renderApp({ route: '/tasks' });
+    const toggle = await screen.findByRole('button', { name: 'Collapse navigation' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle).toHaveAttribute('aria-controls', 'main-nav');
+
+    await userEvent.click(toggle);
+    const expand = screen.getByRole('button', { name: 'Expand navigation' });
+    expect(expand).toHaveAttribute('aria-expanded', 'false');
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    const tasks = within(nav).getByRole('link', { name: 'Tasks' });
+    expect(tasks).toHaveAttribute('title', 'Tasks');
+    expect(tasks).toHaveAttribute('aria-current', 'page');
+    expect(within(tasks).getByText('Tasks')).toHaveClass('visually-hidden');
+    expect(within(nav).getAllByRole('link')).toHaveLength(7);
+
+    await userEvent.click(expand);
+    expect(screen.getByRole('button', { name: 'Collapse navigation' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(within(nav).getByRole('link', { name: 'Tasks' })).not.toHaveAttribute('title');
+  });
+
+  it('remembers the collapsed navigation across a reload', async () => {
+    routes();
+    const first = renderApp({ route: '/tasks' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Collapse navigation' }));
+    expect(window.localStorage.getItem('jarvis.nav.collapsed')).toBe('true');
+    first.unmount();
+
+    routes();
+    renderApp({ route: '/tasks' });
+    expect(await screen.findByRole('button', { name: 'Expand navigation' })).toBeInTheDocument();
+  });
+
   it('navigates between screens', async () => {
     routes();
     renderApp({ route: '/chat' });

@@ -19,4 +19,6 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   FakeEventSource.uninstall();
+  // Persisted UI state (nav collapsed, column widths) must not leak between tests.
+  window.localStorage.clear();
 });

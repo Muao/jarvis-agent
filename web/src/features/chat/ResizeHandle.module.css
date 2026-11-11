@@ -1,0 +1,30 @@
+/* Sits in the gap between the two panels; the visible line appears on hover, focus and drag. */
+.handle {
+  position: relative;
+  width: var(--space-3);
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.handle::after {
+  position: absolute;
+  inset-block: var(--space-4);
+  inset-inline-start: 50%;
+  width: 2px;
+  background: transparent;
+  border-radius: var(--radius-pill);
+  transform: translateX(-50%);
+  transition: background-color var(--duration-fast) var(--ease-out);
+  content: '';
+}
+
+.handle:hover::after {
+  background: var(--color-border-strong);
+}
+
+.handle:focus-visible::after,
+.handle:active::after {
+  background: var(--color-accent);
+  box-shadow: 0 0 12px var(--color-glow);
+}

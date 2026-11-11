@@ -16,16 +16,18 @@ interface ThreadListProps {
   error: unknown;
   onRetry: () => void;
   selectedId: string | undefined;
+  /** Lets the column's resize handle point at the list (`aria-controls`). */
+  id?: string;
 }
 
-export function ThreadList({ threads, loading, error, onRetry, selectedId }: ThreadListProps) {
+export function ThreadList({ threads, loading, error, onRetry, selectedId, id }: ThreadListProps) {
   const [filter, setFilter] = useState<ThreadFilter>('all');
   const rows = threads ? visibleThreads(threads, filter) : [];
   const canMutate = useCanMutate();
   const archive = useArchiveThread();
 
   return (
-    <section className={styles.list} aria-label="Threads">
+    <section id={id} className={styles.list} aria-label="Threads">
       <div className={styles.top}>
         <Link to="/chat" className={styles.newThread}>
           <Icon name="plus" size="sm" />
