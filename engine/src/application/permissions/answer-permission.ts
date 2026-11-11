@@ -2,6 +2,7 @@ import { decidePermission, type PermissionDecision } from '../../domain/index.js
 import { NotFoundError } from '../errors.js';
 import type { RunEventLog } from '../runs/run-event-log.js';
 import type { TaskDeps } from '../tasks/deps.js';
+import { settleChecksRequest } from '../tasks/checks-refresh.js';
 import { transact } from '../transaction.js';
 import type { PermissionWaiters } from './permission-waiters.js';
 import { recordPermissionEvent } from './record-permission-event.js';
@@ -33,6 +34,7 @@ export class AnswerPermission {
         });
         outbox.taskChanged(task);
       }
+      await settleChecksRequest(this.deps, tx, outbox, next, decision, card?.id ?? null);
       return next;
     });
     this.deps.waiters.settle(permissionId);
