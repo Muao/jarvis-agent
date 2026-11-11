@@ -30,7 +30,7 @@ describe('JarvisConfigSchema', () => {
       taskTimeoutMinutes: 60,
       maxTurnsPerRun: 60,
       maxBudgetUsdPerRun: 3,
-      dailyBudgetUsd: 20,
+      dailyBudgetTokens: 50_000_000,
       permissionTimeoutMinutes: 30,
       stallMinutes: 10,
       firstProgressUpdateSeconds: 30,
@@ -83,8 +83,8 @@ describe('JarvisConfigSchema', () => {
   });
 
   it('keeps explicit values and partial sections', () => {
-    const config = JarvisConfigSchema.parse({ ...minimal, limits: { dailyBudgetUsd: 5 } });
-    expect(config.limits.dailyBudgetUsd).toBe(5);
+    const config = JarvisConfigSchema.parse({ ...minimal, limits: { dailyBudgetTokens: 5000 } });
+    expect(config.limits.dailyBudgetTokens).toBe(5000);
     expect(config.limits.checkRetries).toBe(3);
   });
 
@@ -121,7 +121,7 @@ describe('JarvisConfigSchema', () => {
   it('reports invalid values as readable path: message lines', () => {
     const result = JarvisConfigSchema.safeParse({
       repo: {},
-      limits: { maxConcurrentWorkers: 0, dailyBudgetUsd: 'lots' },
+      limits: { maxConcurrentWorkers: 0, dailyBudgetTokens: 'lots' },
       engine: { port: 70000 },
     });
     if (result.success) throw new Error('expected failure');
@@ -130,7 +130,7 @@ describe('JarvisConfigSchema', () => {
     for (const line of lines) expect(line).toMatch(/^[\w.()]+: .+/);
     expect(lines.some((l) => l.startsWith('repo.path: '))).toBe(true);
     expect(lines.some((l) => l.startsWith('limits.maxConcurrentWorkers: '))).toBe(true);
-    expect(lines.some((l) => l.startsWith('limits.dailyBudgetUsd: '))).toBe(true);
+    expect(lines.some((l) => l.startsWith('limits.dailyBudgetTokens: '))).toBe(true);
     expect(lines.some((l) => l.startsWith('engine.port: '))).toBe(true);
   });
 
@@ -160,6 +160,13 @@ describe('JarvisConfigSchema', () => {
     expect(dropRetiredConfigKeys(raw)).toEqual(['ui.devCommand', 'ui.baseUrl', 'ui.env']);
     expect(JarvisConfigSchema.parse(raw).ui.enabled).toBe(true);
     expect(dropRetiredConfigKeys(null)).toEqual([]);
+  });
+
+  it('drops the retired dollar budget and rejects it in a strict parse', () => {
+    const raw = { ...minimal, limits: { dailyBudgetUsd: 20, stallMinutes: 5 } };
+    expect(JarvisConfigSchema.safeParse(raw).success).toBe(false);
+    expect(dropRetiredConfigKeys(raw)).toEqual(['limits.dailyBudgetUsd']);
+    expect(JarvisConfigSchema.parse(raw).limits.dailyBudgetTokens).toBe(50_000_000);
   });
 
   it('labels root-level problems', () => {

@@ -693,16 +693,22 @@ function contract(name: string, make: () => Repositories): void {
         });
       });
 
-      it('sums the cost of runs started at or after a moment', async () => {
+      it('sums the tokens of runs started at or after a moment', async () => {
         const repos = make();
         await seedThread(repos);
-        expect(await repos.runs.costSince(at(0))).toBe(0);
-        await seedRun(repos, 'r-1', { startedAt: at(0), costUsd: 1.5 });
-        await seedRun(repos, 'r-2', { startedAt: at(10), costUsd: 0.25 });
-        await seedRun(repos, 'r-3', { startedAt: at(20), costUsd: 2 });
-        expect(await repos.runs.costSince(at(10))).toBeCloseTo(2.25);
-        expect(await repos.runs.costSince(at(0))).toBeCloseTo(3.75);
-        expect(await repos.runs.costSince(at(21))).toBe(0);
+        const tokens = (input: number, output: number, cacheWrite: number, cacheRead: number) => ({
+          input,
+          output,
+          cacheWrite,
+          cacheRead,
+        });
+        expect(await repos.runs.tokensSince(at(0))).toBe(0);
+        await seedRun(repos, 'r-1', { startedAt: at(0), usage: tokens(100, 200, 300, 400) });
+        await seedRun(repos, 'r-2', { startedAt: at(10), usage: tokens(1, 2, 3, 4) });
+        await seedRun(repos, 'r-3', { startedAt: at(20), usage: tokens(10, 20, 30, 40) });
+        expect(await repos.runs.tokensSince(at(10))).toBe(110);
+        expect(await repos.runs.tokensSince(at(0))).toBe(1110);
+        expect(await repos.runs.tokensSince(at(21))).toBe(0);
       });
 
       it('keeps every budget reset and reports the latest', async () => {

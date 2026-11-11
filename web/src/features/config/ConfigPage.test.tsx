@@ -17,7 +17,7 @@ const valid = (patch: { warning?: string | null } = {}): ConfigDto => ({
     allowlist: { githubReviewers: ['alice'], autoAllowedCommands: ['pnpm test'] },
   }),
   usage: {
-    ...usage({ todayUsd: 17 }),
+    ...usage({ todayTokens: 17_000_000 }),
     byRole: { dispatcher: 2, worker: 15 },
     byTask: [{ taskId: 'T-1', costUsd: 15 }],
   },
@@ -37,7 +37,7 @@ describe('ConfigPage', () => {
     stubFetch({ 'GET /api/config': valid({ warning: 'AGENTS.md has no dev command' }) });
     renderWithProviders(<ConfigPage />);
 
-    expect(await screen.findByText(/notional \$17\.00 \/ \$20\.00 today/)).toBeInTheDocument();
+    expect(await screen.findByText(/17M \/ 20M tokens today/)).toBeInTheDocument();
     expect(screen.getByText(/Near limit \(85%\)/)).toBeInTheDocument();
     expect(screen.getByText('worker: notional $15.00')).toBeInTheDocument();
     expect(screen.getByText('T-1: notional $15.00')).toBeInTheDocument();
@@ -64,13 +64,13 @@ describe('ConfigPage', () => {
       'GET /api/config': {
         valid: false,
         path: '/home/me/.jarvis/jarvis.config.json',
-        errors: ['limits.dailyBudgetUsd: Too small', 'repo.path: Required'],
+        errors: ['limits.dailyBudgetTokens: Too small', 'repo.path: Required'],
       },
     });
     renderWithProviders(<ConfigPage />);
 
     const errors = await screen.findByRole('list', { name: 'Config errors' });
-    expect(within(errors).getByText('limits.dailyBudgetUsd: Too small')).toBeInTheDocument();
+    expect(within(errors).getByText('limits.dailyBudgetTokens: Too small')).toBeInTheDocument();
     expect(within(errors).getByText('repo.path: Required')).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('Tasks do not start');
     expect(screen.queryByRole('region', { name: 'Limits' })).not.toBeInTheDocument();

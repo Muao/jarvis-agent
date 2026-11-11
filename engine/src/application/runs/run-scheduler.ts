@@ -255,7 +255,7 @@ export class RunScheduler implements RunCoordinator {
   private async budgetLeft(): Promise<boolean> {
     const { uow, clock, config } = this.deps;
     const spent = await uow.run(async (tx) =>
-      tx.runs.costSince(await usageWindowStart(tx, clock.now())),
+      tx.runs.tokensSince(await usageWindowStart(tx, clock.now())),
     );
     return canStartRun(spent, config.current().limits).ok;
   }
@@ -294,11 +294,11 @@ export class RunScheduler implements RunCoordinator {
     const day = startOfLocalDay(this.deps.clock.now());
     if (this.budgetNoticeDay.get(threadId) === day) return;
     this.budgetNoticeDay.set(threadId, day);
-    const budget = this.deps.config.current().limits.dailyBudgetUsd;
+    const budget = this.deps.config.current().limits.dailyBudgetTokens.toLocaleString('en-US');
     await this.postSystem(
       threadId,
       taskId,
-      `Daily budget of $${budget} is used up. Nothing new starts; queued work resumes tomorrow or when the budget is raised.`,
+      `Daily budget of ${budget} tokens is used up. Nothing new starts; queued work resumes tomorrow or when the budget is raised.`,
     );
   }
 

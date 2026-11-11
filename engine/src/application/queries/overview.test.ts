@@ -15,7 +15,7 @@ describe('GetOverview', () => {
     const overview = OverviewDtoSchema.parse(await app.getOverview.execute());
 
     expect(overview).toMatchObject({
-      usage: { todayUsd: 0, budgetUsd: 20, paused: false },
+      usage: { todayTokens: 0, budgetTokens: 50_000_000, paused: false },
       dispatcher: { status: 'idle', action: null, runningSince: null, sessionId: null },
       workers: [{ state: 'free' }],
       queue: [],
@@ -195,16 +195,19 @@ describe('GetOverview', () => {
     const app = buildTestApp({ realRuns: true });
     await taskInPrOpen(app);
     expect((await app.getOverview.execute()).usage).toMatchObject({
-      todayUsd: 0.5,
-      budgetUsd: 20,
+      todayTokens: 15,
+      budgetTokens: 50_000_000,
       paused: false,
     });
 
     app.config.set({
       ...app.config.current(),
-      limits: { ...app.config.current().limits, dailyBudgetUsd: 0.5 },
+      limits: { ...app.config.current().limits, dailyBudgetTokens: 15 },
     });
-    expect((await app.getOverview.execute()).usage).toMatchObject({ budgetUsd: 0.5, paused: true });
+    expect((await app.getOverview.execute()).usage).toMatchObject({
+      budgetTokens: 15,
+      paused: true,
+    });
   });
 
   it('shows a failed last dispatcher run as an error', async () => {

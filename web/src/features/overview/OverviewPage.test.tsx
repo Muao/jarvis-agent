@@ -42,7 +42,7 @@ describe('OverviewPage', () => {
     );
     const kpis = await screen.findByRole('list', { name: 'Key figures' });
     expect(within(kpis).getByText('2/3')).toBeInTheDocument();
-    expect(within(kpis).getByText('notional $3.20 / $20.00')).toBeInTheDocument();
+    expect(within(kpis).getByText('3.2M / 20M tokens')).toBeInTheDocument();
 
     const worker1 = screen.getByRole('article', { name: 'Worker 1' });
     expect(within(worker1).getByText('Add login page', { exact: false })).toBeInTheDocument();
@@ -144,7 +144,10 @@ describe('OverviewPage', () => {
 
   it('shows Paused on slots when the budget is reached', async () => {
     render(
-      overview({ usage: usage({ todayUsd: 20, paused: true }), workers: [{ state: 'free' }] }),
+      overview({
+        usage: usage({ todayTokens: 20_000_000, paused: true }),
+        workers: [{ state: 'free' }],
+      }),
     );
     const worker = await screen.findByRole('article', { name: 'Worker 1' });
     expect(within(worker).getByText('Paused')).toBeInTheDocument();

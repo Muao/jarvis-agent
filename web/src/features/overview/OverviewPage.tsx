@@ -8,6 +8,7 @@ import { Loading } from '../../components/Loading';
 import { RelativeTime } from '../../components/RelativeTime';
 import { StageBadge } from '../../components/StageBadge';
 import { StageStepper } from '../../components/StageStepper';
+import { formatTokenCount } from '../tasks/format';
 import { formatDuration, useNow } from './useNow';
 import styles from './Overview.module.css';
 
@@ -44,7 +45,10 @@ function Kpis({ data }: { data: OverviewDto }) {
     ['Queue', String(data.queue.length)],
     ['Waiting for you', String(data.waitingForOwner)],
     ['PRs open', String(data.prsOpen)],
-    ['Usage today', `notional ${usd(data.usage.todayUsd)} / ${usd(data.usage.budgetUsd)}`],
+    [
+      'Usage today',
+      `${formatTokenCount(data.usage.todayTokens)} / ${formatTokenCount(data.usage.budgetTokens)} tokens`,
+    ],
   ] as const;
   return (
     <ul className={styles.kpis} aria-label="Key figures">

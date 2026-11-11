@@ -22,4 +22,7 @@ const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFracti
 export const formatTokens = (usage: TokenUsage): string =>
   `${compact.format(usage.input)} in · ${compact.format(usage.output)} out`;
 
+/** 950 · 12.4K · 3.2M — a token count short enough for a meter. */
+export const formatTokenCount = (tokens: number): string => compact.format(tokens);
+
 export const shortSha = (sha: string): string => sha.slice(0, 7);

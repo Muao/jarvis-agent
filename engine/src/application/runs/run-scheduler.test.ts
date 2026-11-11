@@ -183,7 +183,7 @@ describe('RunScheduler worker slots (DSP-08, LIM-05)', () => {
 describe('RunScheduler daily budget (LIM-04)', () => {
   it('starts nothing once the budget is used up, tells the thread once, and resumes when it is raised', async () => {
     const a = app();
-    a.config.set(configWith({ dailyBudgetUsd: 1 }));
+    a.config.set(configWith({ dailyBudgetTokens: 10 }));
     const first = await createTaskInNewThread(a);
     await a.runner.forTask(first.taskId)?.succeed(1.5);
 
@@ -192,10 +192,10 @@ describe('RunScheduler daily budget (LIM-04)', () => {
 
     expect(a.runner.processes).toHaveLength(1);
     expect(systemTexts(a, second.thread.id)).toHaveLength(1);
-    expect(systemTexts(a, second.thread.id)[0]).toContain('Daily budget of $1 is used up');
+    expect(systemTexts(a, second.thread.id)[0]).toContain('Daily budget of 10 tokens is used up');
     expect(await a.scheduler.isQueued(second.taskId)).toBe(true);
 
-    a.config.set(configWith({ dailyBudgetUsd: 100 }));
+    a.config.set(configWith({ dailyBudgetTokens: 1_000_000 }));
     await a.scheduler.resumeQueued();
 
     expect(a.runner.live.map((p) => p.spec.taskId)).toEqual([second.taskId]);
@@ -203,7 +203,7 @@ describe('RunScheduler daily budget (LIM-04)', () => {
 
   it('resumes the next day because usage counts from local midnight', async () => {
     const a = app();
-    a.config.set(configWith({ dailyBudgetUsd: 1 }));
+    a.config.set(configWith({ dailyBudgetTokens: 10 }));
     const first = await createTaskInNewThread(a);
     await a.runner.forTask(first.taskId)?.succeed(2);
     const second = await createTaskInNewThread(a);
@@ -217,7 +217,7 @@ describe('RunScheduler daily budget (LIM-04)', () => {
 
   it('pauses dispatcher turns too, with one message per thread and day', async () => {
     const a = app();
-    a.config.set(configWith({ dailyBudgetUsd: 1 }));
+    a.config.set(configWith({ dailyBudgetTokens: 10 }));
     const first = await createTaskInNewThread(a);
     await a.runner.forTask(first.taskId)?.succeed(2);
 
@@ -227,7 +227,7 @@ describe('RunScheduler daily budget (LIM-04)', () => {
     expect(a.runner.forThread(posted.threadId, 'dispatcher')).toBeUndefined();
     expect(systemTexts(a, posted.threadId)).toHaveLength(1);
 
-    a.config.set(configWith({ dailyBudgetUsd: 100 }));
+    a.config.set(configWith({ dailyBudgetTokens: 1_000_000 }));
     await a.scheduler.resumeQueued();
     expect(a.runner.forThread(posted.threadId, 'dispatcher')?.spec.firstMessage).toContain(
       'status?\n\nhello?',
@@ -238,7 +238,7 @@ describe('RunScheduler daily budget (LIM-04)', () => {
 describe("RunScheduler reset of today's usage (LIM-04)", () => {
   it('starts queued work at once and counts only runs started after the reset', async () => {
     const a = app();
-    a.config.set(configWith({ dailyBudgetUsd: 1 }));
+    a.config.set(configWith({ dailyBudgetTokens: 10 }));
     const first = await createTaskInNewThread(a);
     await a.runner.forTask(first.taskId)?.succeed(1.5);
     const second = await createTaskInNewThread(a);
@@ -247,14 +247,14 @@ describe("RunScheduler reset of today's usage (LIM-04)", () => {
     a.clock.advanceMinutes(1);
     const usage = await a.resetDailyUsage.execute();
 
-    expect(usage).toMatchObject({ todayUsd: 0, paused: false });
+    expect(usage).toMatchObject({ todayTokens: 0, paused: false });
     expect(a.runner.live.map((p) => p.spec.taskId)).toEqual([second.taskId]);
-    expect((await a.getOverview.execute()).usage).toMatchObject({ todayUsd: 0, paused: false });
+    expect((await a.getOverview.execute()).usage).toMatchObject({ todayTokens: 0, paused: false });
   });
 
   it('announces a later exhaustion again to a thread that was told before the reset', async () => {
     const a = app();
-    a.config.set(configWith({ dailyBudgetUsd: 1 }));
+    a.config.set(configWith({ dailyBudgetTokens: 10 }));
     const first = await createTaskInNewThread(a);
     await a.runner.forTask(first.taskId)?.succeed(1.5);
     const second = await createTaskInNewThread(a);

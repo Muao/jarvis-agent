@@ -63,8 +63,11 @@ export interface RunRepository {
   latestOfRole(role: Role): Promise<Run | null>;
   /** Run count and cost for every task that had a run. */
   totalsByTask(): Promise<ReadonlyMap<string, RunTotals>>;
-  /** Estimated cost of the runs started at or after `since` (usage today, LIM-04). */
-  costSince(since: IsoTime): Promise<number>;
+  /**
+   * Tokens of the runs started at or after `since`: input, output, cache writes and cache reads
+   * together (usage today, LIM-04).
+   */
+  tokensSince(since: IsoTime): Promise<number>;
   /** The same cost split by role and task. */
   usageSince(since: IsoTime): Promise<UsageBreakdown>;
   /**

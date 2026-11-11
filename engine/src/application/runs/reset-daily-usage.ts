@@ -27,7 +27,7 @@ export class ResetDailyUsage {
     const now = clock.now();
     const spent = await uow.run(async (tx) => {
       await tx.budgetResets.append(now);
-      return tx.runs.costSince(await usageWindowStart(tx, now));
+      return tx.runs.tokensSince(await usageWindowStart(tx, now));
     });
     await scheduler.budgetWasReset();
     await events.publish({ type: 'overview' });

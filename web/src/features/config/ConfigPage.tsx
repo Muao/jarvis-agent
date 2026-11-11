@@ -46,9 +46,9 @@ function limitRows(config: JarvisConfig): [string, string, string][] {
       'Notional spend cap for one run',
     ],
     [
-      'dailyBudgetUsd',
-      `notional ${usd(limits.dailyBudgetUsd)}`,
-      'Daily notional spend; new runs wait when it is reached',
+      'dailyBudgetTokens',
+      limits.dailyBudgetTokens.toLocaleString('en-US'),
+      'Tokens per day, all kinds together; new runs wait when it is reached',
     ],
     [
       'permissionTimeout',

@@ -172,20 +172,20 @@ describe('permission', () => {
 });
 
 describe('limit policy', () => {
-  const limits = { dailyBudgetUsd: 20, taskTimeoutMinutes: 60, stallMinutes: 10 };
+  const limits = { dailyBudgetTokens: 2000, taskTimeoutMinutes: 60, stallMinutes: 10 };
 
   it('usageLeft is the remaining budget, floored at zero', () => {
-    expect(usageLeft(0, limits)).toBe(20);
-    expect(usageLeft(12.5, limits)).toBe(7.5);
-    expect(usageLeft(20, limits)).toBe(0);
-    expect(usageLeft(25, limits)).toBe(0);
+    expect(usageLeft(0, limits)).toBe(2000);
+    expect(usageLeft(1250, limits)).toBe(750);
+    expect(usageLeft(2000, limits)).toBe(0);
+    expect(usageLeft(2500, limits)).toBe(0);
   });
 
   it('canStartRun is false exactly when the budget is reached (LIM-04)', () => {
     expect(canStartRun(0, limits)).toEqual({ ok: true });
-    expect(canStartRun(19.99, limits)).toEqual({ ok: true });
-    expect(canStartRun(20, limits)).toEqual({ ok: false, reason: 'daily_budget_reached' });
-    expect(canStartRun(30, limits)).toEqual({ ok: false, reason: 'daily_budget_reached' });
+    expect(canStartRun(1999, limits)).toEqual({ ok: true });
+    expect(canStartRun(2000, limits)).toEqual({ ok: false, reason: 'daily_budget_reached' });
+    expect(canStartRun(3000, limits)).toEqual({ ok: false, reason: 'daily_budget_reached' });
   });
 
   it('isTaskTimedOut compares active worker time with the limit (WRK-11)', () => {

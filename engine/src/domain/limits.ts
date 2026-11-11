@@ -3,20 +3,23 @@ import { elapsedMs, MS_PER_MINUTE, type IsoTime } from './time.js';
 
 export type Limits = JarvisConfig['limits'];
 
-/** Remaining daily budget in USD, never negative. */
-export function usageLeft(spentTodayUsd: number, limits: Pick<Limits, 'dailyBudgetUsd'>): number {
-  return Math.max(0, limits.dailyBudgetUsd - spentTodayUsd);
+/** Remaining daily budget in tokens, never negative. */
+export function usageLeft(
+  spentTodayTokens: number,
+  limits: Pick<Limits, 'dailyBudgetTokens'>,
+): number {
+  return Math.max(0, limits.dailyBudgetTokens - spentTodayTokens);
 }
 
 export type StartDecision =
   { readonly ok: true } | { readonly ok: false; readonly reason: 'daily_budget_reached' };
 
-/** LIM-04: once the day's estimated cost reaches the budget no new run starts. */
+/** LIM-04: once the day's tokens reach the budget no new run starts. */
 export function canStartRun(
-  spentTodayUsd: number,
-  limits: Pick<Limits, 'dailyBudgetUsd'>,
+  spentTodayTokens: number,
+  limits: Pick<Limits, 'dailyBudgetTokens'>,
 ): StartDecision {
-  return usageLeft(spentTodayUsd, limits) > 0
+  return usageLeft(spentTodayTokens, limits) > 0
     ? { ok: true }
     : { ok: false, reason: 'daily_budget_reached' };
 }

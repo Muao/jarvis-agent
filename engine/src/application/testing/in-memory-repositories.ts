@@ -176,10 +176,13 @@ class InMemoryRunRepository implements RunRepository {
     }
     return totals;
   };
-  costSince = async (since: string) =>
+  tokensSince = async (since: string) =>
     [...this.db.tables.runs.values()]
       .filter((r) => r.startedAt >= since)
-      .reduce((sum, r) => sum + r.costUsd, 0);
+      .reduce(
+        (sum, r) => sum + r.usage.input + r.usage.output + r.usage.cacheWrite + r.usage.cacheRead,
+        0,
+      );
   usageSince = async (since: string): Promise<UsageBreakdown> => {
     const byRole = Object.fromEntries(ROLES.map((role) => [role, 0])) as Record<Role, number>;
     const byTask = new Map<string, number>();

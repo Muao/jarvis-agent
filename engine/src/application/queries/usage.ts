@@ -11,14 +11,14 @@ export function nextLocalMidnight(now: IsoTime): IsoTime {
 
 /** Usage today against the daily budget (LIM-04). */
 export function usageOf(
-  spentUsd: number,
-  limits: Pick<Limits, 'dailyBudgetUsd'>,
+  spentTokens: number,
+  limits: Pick<Limits, 'dailyBudgetTokens'>,
   now: IsoTime,
 ): UsageDto {
   return {
-    todayUsd: spentUsd,
-    budgetUsd: limits.dailyBudgetUsd,
+    todayTokens: spentTokens,
+    budgetTokens: limits.dailyBudgetTokens,
     resetsAt: nextLocalMidnight(now),
-    paused: !canStartRun(spentUsd, limits).ok,
+    paused: !canStartRun(spentTokens, limits).ok,
   };
 }

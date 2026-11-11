@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import type { UsageDto } from '@jarvis/shared';
 import { useCanMutate, useResetUsage } from '../api/queries';
+import { formatTokenCount } from '../features/tasks/format';
 import { ConfirmDialog } from './ConfirmDialog';
 import { RelativeTime } from './RelativeTime';
 import styles from './UsageMeter.module.css';
@@ -11,11 +12,9 @@ const WARNING_RATIO = 0.8;
 type UsageLevel = 'ok' | 'warning' | 'paused';
 
 export function usageLevel(usage: UsageDto): UsageLevel {
-  if (usage.paused || usage.todayUsd >= usage.budgetUsd) return 'paused';
-  return usage.todayUsd / usage.budgetUsd >= WARNING_RATIO ? 'warning' : 'ok';
+  if (usage.paused || usage.todayTokens >= usage.budgetTokens) return 'paused';
+  return usage.todayTokens / usage.budgetTokens >= WARNING_RATIO ? 'warning' : 'ok';
 }
-
-const usd = (value: number) => `$${value.toFixed(2)}`;
 
 interface UsageMeterProps {
   usage: UsageDto;
@@ -41,7 +40,7 @@ function ResetUsageButton() {
       <ConfirmDialog
         open={asking}
         title="Reset today's usage?"
-        description="Spent today starts again from $0.00 and queued work starts at once. Midnight still resets it as before."
+        description="Tokens used today start again from 0 and queued work starts at once. Midnight still resets it as before."
         confirmLabel="Reset usage"
         onConfirm={() => {
           setAsking(false);
@@ -55,8 +54,8 @@ function ResetUsageButton() {
 
 export function UsageMeter({ usage, variant = 'compact' }: UsageMeterProps) {
   const level = usageLevel(usage);
-  const percent = Math.min(100, Math.round((usage.todayUsd / usage.budgetUsd) * 100));
-  const label = `notional ${usd(usage.todayUsd)} / ${usd(usage.budgetUsd)} today`;
+  const percent = Math.min(100, Math.round((usage.todayTokens / usage.budgetTokens) * 100));
+  const label = `${formatTokenCount(usage.todayTokens)} / ${formatTokenCount(usage.budgetTokens)} tokens today`;
   const bar = (
     <span
       role="progressbar"

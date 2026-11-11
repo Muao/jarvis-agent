@@ -25,8 +25,8 @@ describe('GetConfig', () => {
       loadedAt: '2026-01-01T09:00:00.000Z',
       config: { repo: { path: '/jarvis/repo' }, limits: { maxConcurrentWorkers: 1 } },
       usage: {
-        todayUsd: 0.5,
-        budgetUsd: 20,
+        todayTokens: 15,
+        budgetTokens: 50_000_000,
         paused: false,
         byRole: { dispatcher: 0, worker: 0.5 },
         byTask: [{ taskId: 'T-1', costUsd: 0.5 }],

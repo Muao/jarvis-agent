@@ -3,8 +3,8 @@ import type { OverviewDto, RunEvent, ThreadDto, UsageDto } from '@jarvis/shared'
 const AT = '2026-10-26T10:00:00.000Z';
 
 export const usage = (patch: Partial<UsageDto> = {}): UsageDto => ({
-  todayUsd: 3.2,
-  budgetUsd: 20,
+  todayTokens: 3_200_000,
+  budgetTokens: 20_000_000,
   resetsAt: '2026-10-27T00:00:00.000Z',
   paused: false,
   ...patch,

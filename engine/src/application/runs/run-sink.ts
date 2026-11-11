@@ -72,7 +72,16 @@ export class RunSink implements RunListener {
       const finished = await uow.run(async (tx) => {
         const run = await tx.runs.get(this.live.runId);
         if (run === null || run.status !== 'running') return null;
-        const done = finishRun(run, outcome, clock.now());
+        const finished = finishRun(run, outcome, clock.now());
+        // The CLI reports the cost of the whole session, earlier runs included: a resumed worker
+        // that answers in one turn would otherwise be recorded at the session's full price again.
+        const earlier = (await tx.runs.listBySession(run.sessionId))
+          .filter((other) => other.id !== run.id)
+          .reduce((sum, other) => sum + other.costUsd, 0);
+        const done =
+          outcome.type === 'result'
+            ? { ...finished, costUsd: Math.max(0, finished.costUsd - earlier) }
+            : finished;
         await tx.runs.save(done);
         return done;
       });

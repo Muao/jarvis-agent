@@ -79,13 +79,21 @@ describe('FileConfigProvider hot reload', () => {
     const seen: JarvisConfig[] = [];
     provider.onChange((c) => seen.push(c));
 
-    await write({ repo: { path: '/r' }, limits: { dailyBudgetUsd: 5 } });
+    await write({ repo: { path: '/r' }, limits: { dailyBudgetTokens: 5000 } });
     await until(() => seen.length > 0);
 
-    expect(provider.current().limits.dailyBudgetUsd).toBe(5);
-    expect(first.limits.dailyBudgetUsd).toBe(20);
+    expect(provider.current().limits.dailyBudgetTokens).toBe(5000);
+    expect(first.limits.dailyBudgetTokens).toBe(50_000_000);
     expect(seen.at(-1)).toBe(provider.current());
     expect(provider.lastError()).toBeNull();
+  });
+
+  it('loads an older file that still has the retired dollar budget, without it', async () => {
+    await write({ repo: { path: '/r' }, limits: { dailyBudgetUsd: 20, stallMinutes: 7 } });
+    provider = new FileConfigProvider(file);
+    const config = provider.load();
+    expect(config.limits.stallMinutes).toBe(7);
+    expect(config.limits.dailyBudgetTokens).toBe(50_000_000);
   });
 
   it('keeps the last good config on an invalid edit and records the error', async () => {
@@ -120,18 +128,18 @@ describe('FileConfigProvider hot reload', () => {
 
 describe('FileConfigProvider.update', () => {
   it('merges the patch into the raw file, keeping sibling fields, and writes it back', async () => {
-    await write({ repo: { path: '/r' }, limits: { dailyBudgetUsd: 5 } });
+    await write({ repo: { path: '/r' }, limits: { dailyBudgetTokens: 5000 } });
     provider = new FileConfigProvider(file);
     provider.load();
 
     const config = await provider.update({ limits: { stallMinutes: 1 } });
 
     expect(config.limits.stallMinutes).toBe(1);
-    expect(config.limits.dailyBudgetUsd).toBe(5);
+    expect(config.limits.dailyBudgetTokens).toBe(5000);
     expect(provider.current().limits.stallMinutes).toBe(1);
 
     const onDisk = JSON.parse(await readFile(file, 'utf8'));
-    expect(onDisk.limits).toEqual({ stallMinutes: 1, dailyBudgetUsd: 5 });
+    expect(onDisk.limits).toEqual({ stallMinutes: 1, dailyBudgetTokens: 5000 });
   });
 
   it('rejects a merge that fails validation, writing nothing', async () => {

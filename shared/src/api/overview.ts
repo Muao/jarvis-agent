@@ -4,9 +4,9 @@ import { TaskStageSchema } from '../enums.js';
 import { CheckStatusSchema, ReviewStateSchema } from './tasks.js';
 
 export const UsageDtoSchema = z.object({
-  /** Notional USD since local midnight (sum of `runs.cost_usd`). */
-  todayUsd: z.number().min(0),
-  budgetUsd: z.number().positive(),
+  /** Tokens since local midnight or the last reset: input, output, cache writes and cache reads. */
+  todayTokens: z.number().int().min(0),
+  budgetTokens: z.number().int().positive(),
   resetsAt: IsoDateSchema,
   /** Daily budget reached: new runs wait (LIM-04). */
   paused: z.boolean(),

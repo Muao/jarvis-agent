@@ -8,22 +8,22 @@ import { usage } from '../test/fixtures';
 import { UsageMeter } from './UsageMeter';
 
 describe('UsageMeter', () => {
-  it('compact: shows notional spend, links to /config, no warning', () => {
+  it('compact: shows the tokens used, links to /config, no warning', () => {
     renderWithProviders(<UsageMeter usage={usage()} />);
-    const link = screen.getByRole('link', { name: /notional \$3\.20 \/ \$20\.00 today/ });
+    const link = screen.getByRole('link', { name: /3\.2M \/ 20M tokens today/ });
     expect(link).toHaveAttribute('href', '/config');
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '16');
     expect(screen.queryByText(/Near limit|Paused/)).not.toBeInTheDocument();
   });
 
   it('warns from 80 %', () => {
-    renderWithProviders(<UsageMeter usage={usage({ todayUsd: 16 })} />);
+    renderWithProviders(<UsageMeter usage={usage({ todayTokens: 16_000_000 })} />);
     expect(screen.getByText('Near limit (80%)')).toBeInTheDocument();
   });
 
   it('shows Paused when the budget is reached', () => {
     renderWithProviders(
-      <UsageMeter usage={usage({ todayUsd: 25, paused: true })} variant="full" />,
+      <UsageMeter usage={usage({ todayTokens: 25_000_000, paused: true })} variant="full" />,
     );
     expect(screen.getByText(/Paused/)).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
@@ -44,7 +44,7 @@ describe('UsageMeter', () => {
     });
 
     it('posts the reset after confirming', async () => {
-      const fetch = stubFetch({ 'POST /api/usage/reset': usage({ todayUsd: 0 }) });
+      const fetch = stubFetch({ 'POST /api/usage/reset': usage({ todayTokens: 0 }) });
       renderWithProviders(<UsageMeter usage={usage()} />);
       FakeEventSource.current.open();
       await userEvent.click(screen.getByRole('button', { name: 'Reset' }));

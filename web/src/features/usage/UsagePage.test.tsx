@@ -23,7 +23,7 @@ const figures = {
   durationMs: 65_000,
 };
 
-const config = (todayUsd: number): ConfigDto => ({
+const config = (todayTokens: number): ConfigDto => ({
   valid: true,
   path: '/home/me/.jarvis/jarvis.config.json',
   loadedAt: AT,
@@ -32,8 +32,8 @@ const config = (todayUsd: number): ConfigDto => ({
     allowlist: { githubReviewers: ['alice'], autoAllowedCommands: ['pnpm test'] },
   }),
   usage: {
-    ...usage({ todayUsd, budgetUsd: 20 }),
-    byRole: { dispatcher: 0, worker: todayUsd },
+    ...usage({ todayTokens, budgetTokens: 20_000_000 }),
+    byRole: { dispatcher: 0, worker: 1.5 },
     byTask: [],
   },
   repository: { checkCommands: [], devCommand: null, warning: null },
@@ -57,7 +57,11 @@ const session = report('session', [
 ]);
 
 function stubUsage(overrides: Record<string, unknown> = {}) {
-  const spy = stubFetch({ 'GET /api/config': config(12.4), 'GET /api/usage': day, ...overrides });
+  const spy = stubFetch({
+    'GET /api/config': config(12_400_000),
+    'GET /api/usage': day,
+    ...overrides,
+  });
   return spy;
 }
 
@@ -79,7 +83,7 @@ describe('UsagePage', () => {
   it('shows the daily budget as text, and says the day buckets are UTC', async () => {
     stubUsage();
     renderWithProviders(<UsagePage />);
-    expect(await screen.findByText('12.4 / 20 USD')).toBeInTheDocument();
+    expect(await screen.findByText('12.4M / 20M tokens')).toBeInTheDocument();
     expect(screen.getByText(/local midnight/)).toHaveTextContent(/UTC dates/);
   });
 

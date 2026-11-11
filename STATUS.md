@@ -143,6 +143,10 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
   the server a rootless container served a loopback port from a read-only mount. **Not verified**: a
   real worker composing a plan for a real repository; the integration tests (no test database
   password on the laptop).
+- **After the deploy, same day**: a worker's closing text is posted to the thread (it used to flash in
+  the live view and vanish); the daily budget is counted in tokens (`limits.dailyBudgetTokens`, all
+  token kinds together) because the CLI's dollar figure is a session total, not a run's — a run now
+  records only what it added; three worker slots on the server (2 CPU / 3 GB: watch the memory).
 - Left for later: project records (spec section 3), egress filtering of the check network, neutral
   repository names in test fixtures.
 

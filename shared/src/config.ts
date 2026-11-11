@@ -58,7 +58,12 @@ export const JarvisConfigSchema = z.strictObject({
       taskTimeoutMinutes: positiveInt(60),
       maxTurnsPerRun: positiveInt(60),
       maxBudgetUsdPerRun: positiveNumber(3),
-      dailyBudgetUsd: positiveNumber(20),
+      /**
+       * Tokens all runs may use between two local midnights (input, output, cache writes and cache
+       * reads together); new runs wait once it is reached. Tokens, not dollars: on a subscription
+       * the CLI's dollar figure is notional and is reported per session, not per run.
+       */
+      dailyBudgetTokens: positiveInt(50_000_000),
       permissionTimeoutMinutes: positiveInt(30),
       stallMinutes: positiveInt(10),
       /** The first chat update of a run, so the owner is not left wondering for a whole interval. */
@@ -155,8 +160,12 @@ export const JarvisConfigSchema = z.strictObject({
     .prefault({}),
 });
 
-/** ADR-0026: target-specific keys that left the config. A file that still has them loads without them. */
+/**
+ * Keys that left the config: the target-specific ones (ADR-0026) and the dollar budget, replaced by
+ * `limits.dailyBudgetTokens`. A file that still has them loads without them.
+ */
 export const RETIRED_CONFIG_KEYS: readonly string[] = [
+  'limits.dailyBudgetUsd',
   'ui.devCommand',
   'ui.baseUrl',
   'ui.readyPath',

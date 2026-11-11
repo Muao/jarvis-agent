@@ -42,7 +42,7 @@ export class GetOverview {
     const data = await this.deps.uow.run(async (tx) => {
       const running = await tx.runs.listRunning();
       return {
-        spent: await tx.runs.costSince(await usageWindowStart(tx, now)),
+        spent: await tx.runs.tokensSince(await usageWindowStart(tx, now)),
         running,
         lastEvents: new Map<string, RunEvent | null>(
           await Promise.all(

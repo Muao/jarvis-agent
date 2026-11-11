@@ -331,9 +331,11 @@ export class PgRunRepository implements RunRepository {
     return rows.map(eventToDomain);
   }
 
-  async costSince(since: IsoTime): Promise<number> {
+  async tokensSince(since: IsoTime): Promise<number> {
     const [row] = await this.db
-      .select({ total: sql<number>`coalesce(sum(${runs.costUsd}), 0)::float8` })
+      .select({
+        total: sql<number>`coalesce(sum(${runs.tokensInput} + ${runs.tokensOutput} + ${runs.tokensCacheWrite} + ${runs.tokensCacheRead}), 0)::float8`,
+      })
       .from(runs)
       .where(gte(runs.startedAt, toDate(since)));
     return row?.total ?? 0;

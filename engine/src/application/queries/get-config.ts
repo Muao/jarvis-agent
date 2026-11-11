@@ -40,7 +40,9 @@ export class GetConfig {
       tx.runs.usageSince(await usageWindowStart(tx, now)),
     );
     const repository = await this.deps.repoInfo.commands(config.repo.path);
-    const spent = Object.values(usage.byRole).reduce((sum, cost) => sum + cost, 0);
+    const spent = await this.deps.uow.run(async (tx) =>
+      tx.runs.tokensSince(await usageWindowStart(tx, now)),
+    );
     return {
       valid: true,
       path: status.path(),

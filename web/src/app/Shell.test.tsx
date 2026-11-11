@@ -57,7 +57,7 @@ describe('Shell', () => {
   it('shows the compact usage meter linking to /config', async () => {
     routes();
     renderApp({ route: '/tasks' });
-    const meter = await screen.findByRole('link', { name: /notional \$3\.20 \/ \$20\.00 today/ });
+    const meter = await screen.findByRole('link', { name: /3\.2M \/ 20M tokens today/ });
     expect(meter).toHaveAttribute('href', '/config');
   });
 
@@ -75,7 +75,9 @@ describe('Shell', () => {
   });
 
   it('shows the budget banner when paused', async () => {
-    routes({ 'GET /api/overview': overview({ usage: usage({ todayUsd: 20, paused: true }) }) });
+    routes({
+      'GET /api/overview': overview({ usage: usage({ todayTokens: 20_000_000, paused: true }) }),
+    });
     renderApp({ route: '/tasks' });
     expect(await screen.findByText('Paused: daily budget reached')).toBeInTheDocument();
   });

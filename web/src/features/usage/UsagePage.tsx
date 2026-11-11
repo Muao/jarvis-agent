@@ -14,7 +14,7 @@ import { EmptyState } from '../../components/EmptyState';
 import { ErrorBlock } from '../../components/ErrorBlock';
 import { Loading } from '../../components/Loading';
 import { StageBadge } from '../../components/StageBadge';
-import { formatDuration, formatTokens, formatUsd } from '../tasks/format';
+import { formatDuration, formatTokenCount, formatTokens, formatUsd } from '../tasks/format';
 import table from '../tasks/Table.module.css';
 import styles from './Usage.module.css';
 
@@ -64,23 +64,21 @@ function customWindow(
 
 const todayUtc = () => new Date().toISOString().slice(0, 10);
 
-/** "12.4 / 20 USD": at most two decimals, no trailing zeros. */
-const plain = (value: number) => String(Number(value.toFixed(2)));
-
 function BudgetLine() {
   const { data, error, isPending } = useConfig();
   let body: string;
   if (isPending) body = 'Loading daily budget…';
   else if (error || !data) body = 'Daily budget unavailable.';
   else if (!data.valid) body = 'Daily budget unavailable: the config is invalid.';
-  else body = `${plain(data.usage.todayUsd)} / ${plain(data.usage.budgetUsd)} USD`;
+  else
+    body = `${formatTokenCount(data.usage.todayTokens)} / ${formatTokenCount(data.usage.budgetTokens)} tokens`;
   return (
     <section className={styles.budget} aria-label="Daily budget">
-      <h2 className={styles.sectionTitle}>Daily budget (notional)</h2>
+      <h2 className={styles.sectionTitle}>Daily budget</h2>
       <p className={styles.budgetValue}>{body}</p>
       <p className={styles.muted}>
-        Counted from local midnight and reset then. Day rows below use UTC dates, so “today” there
-        can be a different window.
+        Input, output, cache writes and cache reads together, counted from local midnight and reset
+        then. Day rows below use UTC dates, so “today” there can be a different window.
       </p>
     </section>
   );

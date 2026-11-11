@@ -511,7 +511,7 @@ describe('usage', () => {
     const res = await http.inject({ method: 'POST', url: '/api/usage/reset' });
 
     expect(res.statusCode).toBe(200);
-    expect(UsageDtoSchema.parse(res.json())).toMatchObject({ todayUsd: 0, paused: false });
+    expect(UsageDtoSchema.parse(res.json())).toMatchObject({ todayTokens: 0, paused: false });
   });
 
   it('GET /api/usage accepts every grouping and an explicit window', async () => {

@@ -249,6 +249,18 @@ describe('run exit', () => {
     expect(a.messagesOf(thread.id).filter((m) => m.kind === 'jarvis')).toEqual([]);
   });
 
+  it('records what a run added to the session, not the session total the CLI reports', async () => {
+    const a = app();
+    const { taskId } = await createTaskInNewThread(a);
+    await a.runner.forTask(taskId)?.exit({ ...result('success'), costUsd: 0.5 });
+
+    await a.scheduler.requestWorkerRun(taskId);
+    await a.runner.forTask(taskId)?.exit({ ...result('success'), costUsd: 0.8 });
+
+    const costs = [...a.db.tables.runs.values()].map((run) => Number(run.costUsd.toFixed(2)));
+    expect(costs).toEqual([0.5, 0.3]);
+  });
+
   it('tells the thread why a run failed', async () => {
     const a = app();
     const { taskId, thread } = await createTaskInNewThread(a);
