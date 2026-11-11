@@ -4,19 +4,60 @@ import { z } from 'zod';
  * ADR-0026: how to bring one target project up for a UI check. The worker composes it at runtime
  * from the repository's own files and passes it to `start_dev_server`; the engine runs it inside
  * disposable containers. Nothing here is configured by the owner, and nothing here may carry a
- * literal credential — a secret is `{ "generate": true }` and the engine invents it per check.
+ * literal credential — a secret is `{ "generate": true }` and the engine invents it per check. The
+ * credential check is a heuristic (see `planCredentialViolations`), so what is journalled of a plan
+ * is `redactPlanForJournal`, never the raw plan.
  */
 
 const port = z.number().int().min(1024).max(65535);
 
-/** A public image reference: `node:22-bookworm`, `mongo:7`, `ghcr.io/org/image:tag`. No digests, no flags. */
+/**
+ * Registries a plan may pull from besides Docker Hub (the implicit default). A plan is composed by
+ * an agent reading an untrusted pull request, so an arbitrary registry — an IP, `localhost`, a
+ * `host:port` — would let it pull from a server the pull request's author runs. ghcr.io and Docker
+ * Hub host the images projects actually use; `mcr.microsoft.com` (Playwright, .NET, SQL Server)
+ * and `public.ecr.aws` (mirrors of official images) are the other two common public ones.
+ */
+const REGISTRIES = ['docker.io', 'ghcr.io', 'mcr.microsoft.com', 'public.ecr.aws'] as const;
+
+const IMAGE_NAME_PART = '[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*';
+const IMAGE_REFERENCE = new RegExp(
+  `^(?:(${REGISTRIES.map((r) => r.replace(/\./g, '\\.')).join('|')})/)?` +
+    `(${IMAGE_NAME_PART}(?:/${IMAGE_NAME_PART})*)` +
+    '(?::[A-Za-z0-9_][A-Za-z0-9._-]{0,127})?(?:@sha256:[a-f0-9]{64})?$',
+);
+
+/**
+ * A public image reference: `node:22-bookworm`, `mongo:7`, `ghcr.io/org/image:tag`, optionally
+ * pinned `@sha256:<64 hex>`. No flags, and no registry outside `REGISTRIES`.
+ */
 const image = z
   .string()
   .max(200)
-  .regex(
-    /^[a-z0-9]+([._-][a-z0-9]+)*(:[0-9]+)?(\/[a-z0-9]+([._-]+[a-z0-9]+)*)*(:[A-Za-z0-9_][A-Za-z0-9._-]{0,127})?$/,
-    'must be a plain image reference such as node:22-bookworm',
-  );
+  .superRefine((value, ctx) => {
+    const match = IMAGE_REFERENCE.exec(value);
+    if (match === null) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'must be a plain image reference such as node:22-bookworm',
+      });
+      return;
+    }
+    const [, registry, name = ''] = match;
+    const first = name.split('/')[0] ?? '';
+    // Without a listed registry the first component of `a/b` is a Docker Hub user: a dot in it,
+    // or `localhost`, is how Docker itself recognises a registry host.
+    if (
+      registry === undefined &&
+      name.includes('/') &&
+      (first.includes('.') || first === 'localhost')
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `registry "${first}" is not allowed; use Docker Hub, ghcr.io, mcr.microsoft.com or public.ecr.aws`,
+      });
+    }
+  });
 
 const command = z.string().min(1).max(2000);
 
@@ -72,6 +113,12 @@ export const EnvironmentPlanSchema = z
   .strictObject({
     /** The image the project's own commands run in. Default: `ui.defaultImage`. */
     image: image.optional(),
+    /**
+     * Opt-in: run `prepare` and the app as root in the app container. Without it they run as an
+     * unprivileged user. Needed only when an install really has to write outside the workspace
+     * (apt-get, global npm); the owner sees it on the approval card.
+     */
+    runAsRoot: z.boolean().optional(),
     /** Run once, in order, in the repository root before anything starts: installs and builds. */
     prepare: z.array(command).max(10).default([]),
     services: z.array(EnvironmentServiceSchema).max(6).default([]),
@@ -127,7 +174,8 @@ export type EnvironmentPlanInput = z.input<typeof EnvironmentPlanSchema>;
 const REFERENCE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
 
 /** A variable whose name says it holds a credential. */
-const SECRET_NAME = /(SECRET|PASSWORD|PASSWD|PASSPHRASE|TOKEN|API_?KEY|PRIVATE_?KEY|CREDENTIAL)/i;
+const SECRET_NAME =
+  /(SECRET|PASS|PWD|TOKEN|API_?KEY|PRIVATE|CREDENTIAL|AUTH|SALT|COOKIE|SIGNING|ENCRYPTION|(^|_)KEY$|^KEY(_|$))/i;
 
 /** Shapes of real credentials, wherever they appear. */
 const SECRET_SHAPES: readonly RegExp[] = [
@@ -143,6 +191,45 @@ const SECRET_SHAPES: readonly RegExp[] = [
 /** `scheme://user:password@host` where the password is written out rather than `${NAME}`. */
 const URL_PASSWORD = /[a-z][a-z0-9+.-]*:\/\/[^\s/:@]*:([^\s/@]+)@/gi;
 
+/** `--password hunter2`, `--token=abc`: a secret flag with a written-out value (not `$VAR`). */
+const SECRET_FLAG =
+  /(?:^|\s)--?(?:password|passwd|pass|pwd|token|secret|api-?key|auth-?token|access-?key|secret-?key)(?:=|\s+)(?!["']?\$)["']?[^\s"']+/i;
+
+/** `PGPASSWORD=hunter2 psql …`: an inline assignment of a secret-named variable to a literal. */
+const SECRET_ASSIGNMENT = /(?:^|[\s;&|(])([A-Za-z_][A-Za-z0-9_]*)=(["']?)(?!\$)([^\s"';&|)]+)\2/g;
+
+/** Values that name a secret-looking variable but carry nothing secret. */
+const HARMLESS_VALUE = /^(?:true|false|yes|no|on|off|none|null|[0-9]+|https?:\/\/[^\s@]*)$/i;
+
+const MIN_RANDOM_LENGTH = 20;
+const MIN_RANDOM_ENTROPY = 3.5;
+
+/** Shannon entropy of `text` in bits per character. */
+function entropy(text: string): number {
+  const counts = new Map<string, number>();
+  for (const char of text) counts.set(char, (counts.get(char) ?? 0) + 1);
+  let bits = 0;
+  for (const count of counts.values()) {
+    const p = count / text.length;
+    bits -= p * Math.log2(p);
+  }
+  return bits;
+}
+
+/**
+ * A long single-token value that looks random: a key someone pasted whatever its variable is
+ * called. Paths, URLs and prose are left alone.
+ */
+function looksRandom(value: string): boolean {
+  const bare = value.replace(REFERENCE, '');
+  if (bare.length < MIN_RANDOM_LENGTH || /\s/.test(bare)) return false;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(bare) || bare.startsWith('/') || /^[.-]/.test(bare)) {
+    return false;
+  }
+  if (!/[0-9]/.test(bare) || !/[A-Za-z]/.test(bare)) return false;
+  return entropy(bare) >= MIN_RANDOM_ENTROPY;
+}
+
 const isOnlyReferences = (value: string): boolean =>
   value.replace(REFERENCE, '').trim().length === 0;
 
@@ -156,10 +243,25 @@ function literalSecretIn(text: string): string | null {
   return null;
 }
 
+function literalSecretInCommand(text: string): string | null {
+  const common = literalSecretIn(text);
+  if (common !== null) return common;
+  if (SECRET_FLAG.test(text)) return 'it passes a secret as a literal command-line argument';
+  for (const match of text.matchAll(SECRET_ASSIGNMENT)) {
+    if (SECRET_NAME.test(match[1] ?? '') && !HARMLESS_VALUE.test(match[3] ?? '')) {
+      return `it assigns a literal value to ${match[1] ?? 'a secret variable'}`;
+    }
+  }
+  return null;
+}
+
 /**
- * The credential rule of ADR-0026: no literal credential anywhere in a plan, so a plan is safe to
- * journal and to keep in the project record verbatim. Returns one line per violation, each naming
- * what to change; an empty list means the plan may run.
+ * The credential rule of ADR-0026: no literal credential anywhere in a plan. This is a heuristic —
+ * variable names, known token shapes, URL passwords, secret flags and inline assignments in
+ * commands, long random-looking values — and it cannot prove a plan clean, so it is a guard
+ * against mistakes, not the only protection: the journal gets `redactPlanForJournal`, never env
+ * values. Returns one line per violation, each naming what to change; an empty list means the
+ * plan may run.
  */
 export function planCredentialViolations(plan: EnvironmentPlan): string[] {
   const problems: string[] = [];
@@ -182,13 +284,16 @@ export function planCredentialViolations(plan: EnvironmentPlan): string[] {
     }
     const secretName = SECRET_NAME.test(name);
     const refersToGenerated = [...value.matchAll(REFERENCE)].some((m) => generated.has(m[1] ?? ''));
-    if (secretName && value !== '' && !(isOnlyReferences(value) && refersToGenerated)) {
+    const harmless = value === '' || HARMLESS_VALUE.test(value);
+    if (secretName && !harmless && !(isOnlyReferences(value) && refersToGenerated)) {
       problems.push(
         `env.${name} looks like a credential with a literal value: declare it as {"generate": true}`,
       );
       continue;
     }
-    const why = literalSecretIn(value);
+    const why =
+      literalSecretIn(value) ??
+      (looksRandom(value) ? 'it holds a long random-looking value' : null);
     if (why !== null) {
       problems.push(
         `env.${name}: ${why}; generate the secret ({"generate": true}) and refer to it as \${NAME}`,
@@ -206,7 +311,7 @@ export function planCredentialViolations(plan: EnvironmentPlan): string[] {
   ];
   for (const [where, value] of commands) {
     if (value === undefined) continue;
-    const why = literalSecretIn(value);
+    const why = literalSecretInCommand(value);
     if (why !== null) {
       problems.push(`${where}: ${why}; pass it through env as a generated value instead`);
     }
@@ -215,10 +320,19 @@ export function planCredentialViolations(plan: EnvironmentPlan): string[] {
 }
 
 /**
- * The environment the containers get: every `{ "generate": true }` replaced by `generate()`, then
- * `${NAME}` references filled in. References are resolved to a fixed depth, which is enough for a
- * connection string that names a generated password and cannot loop.
+ * What may be written to the task journal of a plan: everything but the env values. A name is
+ * kept (with `generated` or `set`), a value never is — the credential check is only a heuristic.
  */
+export function redactPlanForJournal(plan: EnvironmentPlan): Omit<EnvironmentPlan, 'env'> & {
+  env: Record<string, 'generated' | 'set'>;
+} {
+  const env: Record<string, 'generated' | 'set'> = {};
+  for (const [name, value] of Object.entries(plan.env)) {
+    env[name] = typeof value === 'string' ? 'set' : 'generated';
+  }
+  return { ...plan, env };
+}
+
 /** The generated variables the plan asked to see: `{ "generate": true, "reveal": true }`. */
 export function revealedPlanEnv(
   plan: EnvironmentPlan,
@@ -231,6 +345,11 @@ export function revealedPlanEnv(
   return revealed;
 }
 
+/**
+ * The environment the containers get: every `{ "generate": true }` replaced by `generate()`, then
+ * `${NAME}` references filled in. References are resolved to a fixed depth, which is enough for a
+ * connection string that names a generated password and cannot loop.
+ */
 export function resolvePlanEnv(
   plan: EnvironmentPlan,
   generate: () => string,

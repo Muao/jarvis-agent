@@ -2,6 +2,10 @@ import { z } from 'zod';
 
 const positiveInt = (fallback: number) => z.number().int().min(1).default(fallback);
 const positiveNumber = (fallback: number) => z.number().positive().default(fallback);
+const memoryLimit = z.string().regex(/^[1-9][0-9]*[kmg]$/i, 'must look like 512m or 2g');
+
+/** What `ui.appMemory`, `ui.serviceMemory` and `ui.cpus` default to when the config leaves them out. */
+export const UI_CONTAINER_LIMITS = { appMemory: '2g', serviceMemory: '1g', cpus: 1.5 } as const;
 const modelName = z.string().min(1).default('sonnet');
 
 const loopbackHosts = new Set(['127.0.0.1', 'localhost']);
@@ -129,6 +133,16 @@ export const JarvisConfigSchema = z.strictObject({
       maxStartAttempts: positiveInt(3),
       /** How long one environment may live before the engine removes its containers. */
       leaseMinutes: positiveInt(15),
+      /**
+       * Resource limits of a check's containers (docker `--memory` syntax: `512m`, `2g`); unset
+       * means `UI_CONTAINER_LIMITS`. The production host has about 3.7 GB, shared with the engine,
+       * Postgres and Chromium, so one app container gets 2g and each image service 1g (swap off:
+       * limit == memory-swap), which keeps a runaway install or fork bomb from taking the host down.
+       */
+      appMemory: memoryLimit.optional(),
+      serviceMemory: memoryLimit.optional(),
+      /** CPUs one check container may use (docker `--cpus`). */
+      cpus: z.number().positive().optional(),
       maxScenarios: positiveInt(8),
       maxScreenshots: positiveInt(12),
       maxImageMb: positiveNumber(5),

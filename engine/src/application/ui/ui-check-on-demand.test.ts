@@ -1,5 +1,5 @@
 import { EnvironmentPlanSchema, JarvisConfigSchema } from '@jarvis/shared';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildTestApp, createTaskInNewThread, type TestApp } from '../testing/index.js';
 import { HEAD_APPROVED, HEAD_REFUSED } from './trust-pull-request-head.js';
 import { EDITED, FAILED, POSTED, REFUSED } from './comment-on-pr.js';
@@ -29,6 +29,9 @@ function enable(app: TestApp, reviewers: string[] = ['burnjohn']): void {
 
 const journalOf = (app: TestApp, taskId: string): string[] =>
   app.db.tables.journal.filter((e) => e.taskId === taskId).map((e) => e.type);
+
+const journalDataOf = (app: TestApp, taskId: string): string =>
+  JSON.stringify(app.db.tables.journal.filter((e) => e.taskId === taskId));
 
 const cards = (app: TestApp, threadId: string) =>
   app.messagesOf(threadId).filter((m) => m.kind === 'permission');
@@ -110,7 +113,12 @@ describe('running a pull request’s code needs the owner (ADR-0018)', () => {
           author: 'stranger',
           head: 'stranger/jarvis-sandbox:feature',
           fromFork: true,
-          willRun: ['npm ci', 'npm run dev -- --host 0.0.0.0'],
+          plan: expect.objectContaining({
+            appImage: 'node:22-bookworm',
+            runAsRoot: false,
+            prepare: ['npm ci'],
+            app: expect.objectContaining({ command: 'npm run dev -- --host 0.0.0.0', port: 5173 }),
+          }),
         }),
       },
     });
@@ -169,6 +177,76 @@ describe('running a pull request’s code needs the owner (ADR-0018)', () => {
       ok: true,
     });
     expect(cards(app, thread.id)).toHaveLength(1);
+  });
+
+  it('asks again for a revised plan: an approval covers one plan, not the task', async () => {
+    const app = buildTestApp();
+    enable(app, []);
+    const { task, thread } = await checking(app, { author: 'stranger' });
+
+    const first = app.startDevServer.execute(app.identity.worker(task), PLAN);
+    await app.answerPermission.execute(permissionIdOf(await firstCard(app, thread.id)), 'allow');
+    await first;
+    expect(journalDataOf(app, task.id)).toMatch(/"fingerprint":"[0-9a-f]{64}"/);
+
+    const revised = EnvironmentPlanSchema.parse({
+      ...PLAN,
+      services: [{ name: 'db', image: 'postgres:16', command: 'postgres -c fsync=off' }],
+      runAsRoot: true,
+      env: { DB_PASSWORD: { generate: true } },
+    });
+    const second = app.startDevServer.execute(app.identity.worker(task), revised);
+    const cardsNow = await vi.waitFor(() => {
+      const found = cards(app, thread.id);
+      expect(found).toHaveLength(2);
+      return found;
+    });
+
+    expect(cardsNow[1]?.body.input).toMatchObject({
+      plan: {
+        runAsRoot: true,
+        services: [{ name: 'db', image: 'postgres:16', command: 'postgres -c fsync=off' }],
+        envNames: ['DB_PASSWORD'],
+      },
+    });
+    await app.answerPermission.execute(permissionIdOf(cardsNow[1] as never), 'deny');
+    await expect(second).resolves.toMatchObject({ ok: false, reason: 'untrusted_head' });
+  });
+
+  it('asks again when the head moved, even for the same plan', async () => {
+    const app = buildTestApp();
+    enable(app, []);
+    const { task, thread } = await checking(app, { author: 'stranger', headSha: 'a'.repeat(40) });
+
+    const first = app.startDevServer.execute(app.identity.worker(task), PLAN);
+    await app.answerPermission.execute(permissionIdOf(await firstCard(app, thread.id)), 'allow');
+    await first;
+    app.codeHost.describe(
+      PR.number,
+      { headRepo: REPO, author: 'stranger', headSha: 'b'.repeat(40) },
+      REPO,
+    );
+
+    const second = app.startDevServer.execute(app.identity.worker(task), PLAN);
+    await vi.waitFor(() => expect(cards(app, thread.id)).toHaveLength(2));
+    await app.answerPermission.execute(permissionIdOf(cards(app, thread.id)[1] as never), 'deny');
+    await expect(second).resolves.toMatchObject({ ok: false, reason: 'untrusted_head' });
+  });
+
+  it('journals the plan without env values', async () => {
+    const app = buildTestApp();
+    enable(app);
+    const { task } = await app.seed.task({ stage: 'Reviewing' });
+    const plan = EnvironmentPlanSchema.parse({
+      ...PLAN,
+      env: { NODE_ENV: 'development', DB_PASSWORD: { generate: true } },
+    });
+
+    await app.startDevServer.execute(app.identity.worker(task), plan);
+
+    const journal = journalDataOf(app, task.id);
+    expect(journal).toContain('DB_PASSWORD');
+    expect(journal).not.toContain('development');
   });
 
   it('refuses when the pull request cannot even be read, without asking the owner', async () => {

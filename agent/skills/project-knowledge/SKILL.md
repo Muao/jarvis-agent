@@ -32,6 +32,7 @@ For another stack (Python, Ruby, Go, …) the same order applies with its own fi
 ```jsonc
 {
   "image": "node:22-bookworm", // public image for the project's own commands
+  // "runAsRoot": true,        // opt-in, rarely needed: see "what is true about the place it runs"
   "prepare": [
     // once, in the repo root, in order: installs, builds, migrations, seeds
     "npm --prefix server ci",
@@ -68,6 +69,16 @@ What is true about the place it runs:
 
 - The sources are a **copy** at `/workspace` without `node_modules` and without `.git`. Everything
   must be installed in `prepare`. `cwd` is relative to the repository root.
+- `prepare` and the app run as an **unprivileged user** (uid 1000) with no Linux capabilities, a
+  home in `/tmp/jarvis-home`, and limits (about 2 GB of memory, 1.5 CPUs, no swap). `npm ci`,
+  `pnpm install`, `pip install --user` and builds inside `/workspace` all work. What does not:
+  `apt-get`, global installs (`npm i -g`), writes outside `/workspace` and `/tmp`. Prefer fixing the
+  command (`npx`, `npm ci --prefix`, `corepack enable --install-directory ~/bin`). Only when an
+  install genuinely cannot work unprivileged, set `"runAsRoot": true` in the plan — the owner sees
+  it on the approval card for a pull request they do not trust, so do not set it by habit.
+- Images come from Docker Hub, `ghcr.io`, `mcr.microsoft.com` or `public.ecr.aws`, optionally pinned
+  `@sha256:…`; any other registry is refused. Image services keep their own entrypoint (postgres,
+  mongo and redis start as usual); do not give them a `command` unless you must.
 - Image services start first, then `prepare`, then process services in order, then `app`. So a
   migration or a seed in `prepare` can already reach the database.
 - Every variable in `env` reaches every container of the check.
@@ -95,6 +106,9 @@ Keep the plan as small as the UI scenarios need. A service the changed screens n
   lease. Pass it to `ui-tester`, nowhere else.
 - Never copy a value from a `.env`, a CI config or the owner's machine. Never write a real key of a
   third-party service; a feature that needs one is out of reach of the check — say so in the report.
+- The credential check is a heuristic: names like `PASSWORD`, `AUTH`, `SALT`, `COOKIE`, `*_KEY`, long
+  random-looking values and `--password x` / `PGPASSWORD=x` inside commands are all refused. Use
+  `$VAR` in commands, never the value. The task journal keeps env **names** only.
 - A plan with a literal credential is refused as `invalid_plan` with the variable named.
 
 ## 4. When the start fails

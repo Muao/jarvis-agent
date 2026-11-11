@@ -111,6 +111,59 @@ describe('DockerDevServer (ADR-0026)', () => {
     expect(lines().filter((line) => line.includes('--volume'))).toHaveLength(1);
   });
 
+  it('hardens the containers: non-root, no capabilities, limits; services keep a minimal set', async () => {
+    const { server, lines } = setup();
+    await server.start('T-1', '/worktrees/T-1', plan());
+
+    const app = lines().find((line) => line.includes('--name jarvis-check-t-1-app')) ?? '';
+    expect(app).toContain('--user 1000:1000');
+    expect(app).toContain('--cap-drop ALL');
+    expect(app).toContain('--cap-add CHOWN --cap-add DAC_READ_SEARCH');
+    expect(app).not.toContain('SETUID');
+    expect(app).toContain('--pids-limit 1024');
+    expect(app).toContain('--memory 2g --memory-swap 2g');
+    expect(app).toContain('--cpus 1.5');
+    expect(app).toContain('--env HOME=/tmp/jarvis-home');
+
+    const db = lines().find((line) => line.includes('--name jarvis-check-t-1-svc-db')) ?? '';
+    expect(db).not.toContain('--user');
+    expect(db).toContain('--cap-drop ALL');
+    expect(db).toContain('--cap-add SETUID');
+    expect(db).toContain('--memory 1g --memory-swap 1g');
+    expect(db).toContain('--security-opt no-new-privileges');
+
+    const copy = lines().find((line) => line.includes('tar -C /src')) ?? '';
+    expect(copy).toContain('exec --user 0');
+    expect(copy).toContain('chown -R 1000:1000 /workspace');
+    // project commands run as the container's own (unprivileged) user
+    expect(lines().find((line) => line.includes('sh -c npm ci'))).not.toContain('--user');
+  });
+
+  it('takes limits from the ui config', async () => {
+    const { server, lines } = setup({
+      ui: { appMemory: '1500m', serviceMemory: '512m', cpus: 1 },
+    });
+    await server.start('T-1', '/worktrees/T-1', plan());
+
+    const app = lines().find((line) => line.includes('--name jarvis-check-t-1-app')) ?? '';
+    const db = lines().find((line) => line.includes('--name jarvis-check-t-1-svc-db')) ?? '';
+    expect(app).toContain('--memory 1500m --memory-swap 1500m');
+    expect(app).toContain('--cpus 1');
+    expect(db).toContain('--memory 512m --memory-swap 512m');
+  });
+
+  it('runs as root only when the plan says runAsRoot, with a wider but bounded capability set', async () => {
+    const { server, lines } = setup();
+    await server.start('T-1', '/worktrees/T-1', plan({ runAsRoot: true }));
+
+    const app = lines().find((line) => line.includes('--name jarvis-check-t-1-app')) ?? '';
+    expect(app).not.toContain('--user');
+    expect(app).toContain('--cap-drop ALL');
+    expect(app).toContain('--cap-add SETUID');
+    expect(app).not.toContain('SYS_ADMIN');
+    expect(lines().find((line) => line.includes('tar -C /src'))).not.toContain('chown');
+  });
+
   it('keeps generated values out of every docker argument and returns only the revealed ones', async () => {
     const { server, lines } = setup();
 
