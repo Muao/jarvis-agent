@@ -1436,4 +1436,62 @@ describe('OpenPr — pushed commits are counted per day', () => {
 
     expect(await app.openPr.execute(worker, TEXT)).toMatchObject({ ok: true });
   });
+
+  it('counts the commits of this push: 2 already today + 2 now > 3 is refused', async () => {
+    const { app, task, worker } = await setup('Implementing');
+    limitTo(app, 3);
+    await app.uow.run((tx) =>
+      tx.journal.append(
+        taskEvent(task.id, 'branch_pushed', app.clock.now(), 'system', { commits: 2 }),
+      ),
+    );
+    app.branchPublisher.state = { dirtyFiles: [], commitsAhead: 2, changedFiles: ['src/a.ts'] };
+
+    expect(await app.openPr.execute(worker, TEXT)).toMatchObject({
+      ok: false,
+      reason: 'daily_commit_limit',
+    });
+    expectNothingPublished(app);
+
+    app.branchPublisher.state = { dirtyFiles: [], commitsAhead: 1, changedFiles: ['src/a.ts'] };
+    expect(await app.openPr.execute(worker, TEXT)).toMatchObject({ ok: true });
+  });
+
+  it('two tasks pushing at the same time cannot both fit under a limit of one', async () => {
+    const first = await setup('Implementing');
+    limitTo(first.app, 1);
+    const second = await first.app.seed.task({ stage: 'Implementing' });
+    const secondWorker = first.app.identity.worker(second.task);
+    // Hold the first push until the second call has had every chance to pass its own check.
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const push = first.app.branchPublisher.push.bind(first.app.branchPublisher);
+    first.app.branchPublisher.push = async (input) => {
+      await gate;
+      return push(input);
+    };
+
+    const a = first.app.openPr.execute(first.worker, TEXT);
+    for (let i = 0; i < 30; i += 1) await tick();
+    const b = first.app.openPr.execute(secondWorker, TEXT);
+    for (let i = 0; i < 30; i += 1) await tick();
+    release();
+    const results = await Promise.all([a, b]);
+
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(results.find((r) => !r.ok)).toMatchObject({ reason: 'daily_commit_limit' });
+    expect(first.app.branchPublisher.pushes).toHaveLength(1);
+  });
+
+  it('a push that fails gives its reservation back', async () => {
+    const { app, worker } = await setup('Implementing');
+    limitTo(app, 1);
+    app.branchPublisher.pushResult = { ok: false, reason: 'unreachable', detail: 'offline' };
+    expect(await app.openPr.execute(worker, TEXT)).toMatchObject({ reason: 'host_error' });
+
+    app.branchPublisher.pushResult = { ok: true };
+    expect(await app.openPr.execute(worker, TEXT)).toMatchObject({ ok: true });
+  });
 });

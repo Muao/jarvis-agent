@@ -122,6 +122,8 @@ class InMemoryJournalRepository implements JournalRepository {
   append = async (event: Parameters<JournalRepository['append']>[0]) => {
     this.db.tables.journal.push(event);
   };
+  /** Transactions run one at a time here: nothing to hold. */
+  lock = async (): Promise<void> => undefined;
   list = async (taskId: string) => this.db.tables.journal.filter((e) => e.taskId === taskId);
   ofTypesSince = async (types: readonly string[], since: string) =>
     this.db.tables.journal.filter((e) => types.includes(e.type) && e.at >= since);

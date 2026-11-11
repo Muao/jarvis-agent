@@ -29,7 +29,7 @@ import { transact } from '../transaction.js';
 import type { IdGenerator } from '../ports/id-generator.js';
 import { alreadyProposed, isNarrowing, proposeChecks } from './checks-refresh.js';
 import type { TaskDeps } from './deps.js';
-import { reportDailyLimit, writesToday } from './daily-limit.js';
+import { releaseDaily, reportDailyLimit, reserveDaily } from './daily-limit.js';
 import { loadWorkerTask } from './guards.js';
 import { worktreeFor } from './worktree-for.js';
 
@@ -886,17 +886,6 @@ export class OpenPr {
     const { deps } = this;
     const { task, repo, headSha } = input;
 
-    // The brake on an agent that pushes without asking: commits per local day, across all tasks.
-    const limit = deps.config.current().limits.maxCommitsPerDay;
-    const pushes = await writesToday(deps, ['branch_pushed']);
-    if (pushes.reduce((sum, push) => sum + commitsOf(push), 0) >= limit) {
-      const told = await reportDailyLimit(deps, task, 'commits', limit);
-      return {
-        ok: false,
-        reason: 'daily_commit_limit',
-        detail: `${told} Your commits stay on the branch; stop here.`,
-      };
-    }
     const alreadyPushed = await transact(deps, async (tx) =>
       (await tx.journal.list(task.id)).reduce(
         (max, event) =>
@@ -909,8 +898,29 @@ export class OpenPr {
     const { commitsAhead } = input.status;
     const commits = Math.max(1, commitsAhead - alreadyPushed);
 
+    // The brake on an agent that pushes without asking: commits per local day, across all tasks.
+    // The commits of *this* push count, and the allowance is reserved under a lock before the
+    // push, so concurrent tasks cannot all pass the check and then all push.
+    const limit = deps.config.current().limits.maxCommitsPerDay;
+    const reserved = await reserveDaily(deps, {
+      taskId: task.id,
+      kind: 'commits',
+      amount: commits,
+      limit,
+      legacy: { type: 'branch_pushed', weight: commitsOf },
+    });
+    if (!reserved) {
+      const told = await reportDailyLimit(deps, task, 'commits', limit);
+      return {
+        ok: false,
+        reason: 'daily_commit_limit',
+        detail: `${told} Your commits stay on the branch; stop here.`,
+      };
+    }
+
     const pushed = await deps.branchPublisher.push({ taskId: task.id, repo, sha: headSha });
     if (!pushed.ok) {
+      await releaseDaily(deps, { taskId: task.id, kind: 'commits', amount: commits });
       await transact(deps, (tx) =>
         deps.writer.note(tx, task.id, 'push_failed', 'system', {
           headSha,
@@ -932,6 +942,7 @@ export class OpenPr {
         branch: task.branch,
         commits,
         commitsAhead,
+        reserved: true,
       }),
     );
 

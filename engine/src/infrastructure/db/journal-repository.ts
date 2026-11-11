@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type {
   JournalEntry,
   JournalRepository,
@@ -32,6 +32,10 @@ export class PgJournalRepository implements JournalRepository {
       actor: event.actor,
       data: event.data as Record<string, unknown>,
     });
+  }
+
+  async lock(key: string): Promise<void> {
+    await this.db.execute(sql`select pg_advisory_xact_lock(hashtext(${key}))`);
   }
 
   private rowsOf(taskId: string): Promise<Row[]> {

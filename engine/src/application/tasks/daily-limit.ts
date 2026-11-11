@@ -54,3 +54,69 @@ export async function reportDailyLimit(
   });
   return text;
 }
+
+/** Journal rows of the reservation ledger: an amount set aside before the write, and given back. */
+const RESERVED = 'daily_reserved';
+const RELEASED = 'daily_released';
+
+const amountOf = (event: TaskEvent): number =>
+  typeof event.data['amount'] === 'number' ? event.data['amount'] : 0;
+
+/**
+ * Sets `amount` of the day's `kind` allowance aside, atomically across tasks: under a lock the
+ * count of what is already reserved plus `amount` is compared with `limit` and, if it fits, the
+ * reservation is journalled in the same transaction. Two concurrent tasks can no longer both pass the
+ * check and then both write. A write that then fails must `releaseDaily`; a crash in between leaves
+ * the amount counted, which errs on the side of the limit.
+ *
+ * `legacyTypes` are rows older code wrote straight after the write, with no reservation; they count
+ * for the rest of the day they were written on, unless they carry `reserved: true`.
+ */
+export function reserveDaily(
+  deps: TaskDeps,
+  input: {
+    readonly taskId: string;
+    readonly kind: DailyLimitKind;
+    readonly amount: number;
+    readonly limit: number;
+    readonly legacy?: { readonly type: string; readonly weight: (event: TaskEvent) => number };
+  },
+): Promise<boolean> {
+  const { taskId, kind, amount, limit, legacy } = input;
+  return transact(deps, async (tx) => {
+    await tx.journal.lock(`daily:${kind}`);
+    const since = startOfLocalDay(deps.clock.now());
+    const rows = await tx.journal.ofTypesSince(
+      [RESERVED, RELEASED, ...(legacy === undefined ? [] : [legacy.type])],
+      since,
+    );
+    let used = 0;
+    for (const event of rows) {
+      if (event.type === RESERVED && event.data['kind'] === kind) used += amountOf(event);
+      else if (event.type === RELEASED && event.data['kind'] === kind) used -= amountOf(event);
+      else if (
+        legacy !== undefined &&
+        event.type === legacy.type &&
+        event.data['reserved'] !== true
+      ) {
+        used += legacy.weight(event);
+      }
+    }
+    if (used + amount > limit) return false;
+    await deps.writer.note(tx, taskId, RESERVED, 'system', { kind, amount });
+    return true;
+  });
+}
+
+/** Gives a reservation back: the write it was for did not happen. */
+export function releaseDaily(
+  deps: TaskDeps,
+  input: { readonly taskId: string; readonly kind: DailyLimitKind; readonly amount: number },
+): Promise<void> {
+  return transact(deps, (tx) =>
+    deps.writer.note(tx, input.taskId, RELEASED, 'system', {
+      kind: input.kind,
+      amount: input.amount,
+    }),
+  );
+}
