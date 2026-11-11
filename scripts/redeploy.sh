@@ -6,14 +6,15 @@
 #   pnpm run redeploy -- --wait 30   # wait up to 30 minutes instead of 10
 #   pnpm run redeploy -- --check     # only show what would be deployed and whether a run is live
 #
-# It wraps scripts/deploy.sh (which does the pull, install, build, migrate and restart on the server)
-# with the three things one otherwise does by hand around it: look at what is about to go out, avoid
-# cutting a working agent off mid-turn, and check that the engine came back healthy.
+# It resolves the commit to deploy (origin/main on GitHub) and calls the root-owned entrypoint
+# /usr/local/sbin/jarvis-deploy <sha> on the server (deploy/root/jarvis-deploy; installed once by the owner,
+# ADR-0016 §5). Nothing from the jarvis-writable checkout is executed as root. Around it: look at what is
+# about to go out, avoid cutting a working agent off mid-turn, and check that the engine came back healthy.
 #
-# Environment: JARVIS_HOST (default root@jarvis-01), JARVIS_ENGINE_PORT (default 4310).
+# Environment: JARVIS_HOST (required: the server's name, or user@name; root@ is assumed without a user;
+# read from the environment or ~/.jarvis/.env), JARVIS_ENGINE_PORT (default 4310).
 set -euo pipefail
 
-HOST="${JARVIS_HOST:-root@jarvis-01}"
 PORT="${JARVIS_ENGINE_PORT:-4310}"
 REPO_DIR="/home/jarvis/jarvis"
 WAIT_MINUTES=10
@@ -29,7 +30,7 @@ while [ $# -gt 0 ]; do
       WAIT_MINUTES="${1:?--wait needs a number of minutes}"
       ;;
     -h | --help)
-      sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n "2,15p" "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -46,6 +47,15 @@ case "$WAIT_MINUTES" in
     ;;
 esac
 
+if [ -z "${JARVIS_HOST:-}" ] && [ -f "$HOME/.jarvis/.env" ]; then
+  JARVIS_HOST="$(sed -n 's/^JARVIS_HOST=//p' "$HOME/.jarvis/.env" | tail -1 | tr -d '"' | tr -d "'" || true)"
+fi
+if [ -z "${JARVIS_HOST:-}" ]; then
+  echo "redeploy: JARVIS_HOST is not set. Export it or add JARVIS_HOST=<server name> to ~/.jarvis/.env." >&2
+  exit 1
+fi
+case "$JARVIS_HOST" in *@*) HOST="$JARVIS_HOST" ;; *) HOST="root@$JARVIS_HOST" ;; esac
+
 remote() { ssh -o BatchMode=yes -o ConnectTimeout=15 "$HOST" "$@"; }
 
 # Live runs, one per line as "role task started"; empty when the engine is idle.
@@ -54,7 +64,28 @@ live_runs() {
 }
 
 echo "redeploy: $HOST"
-remote "cd $REPO_DIR && runuser -u jarvis -- git fetch -q origin main && echo \"  running: \$(runuser -u jarvis -- git log -1 --format='%h %s')\" && n=\$(runuser -u jarvis -- git rev-list --count HEAD..origin/main) && if [ \"\$n\" = 0 ]; then echo '  nothing new on main: this restarts the same commit'; else echo \"  to deploy (\$n):\"; runuser -u jarvis -- git log --format='    %h %s' HEAD..origin/main; fi"
+# The commit to deploy is whatever GitHub says main is right now; the server re-checks the same thing.
+TARGET="$(git ls-remote origin refs/heads/main | awk '{print $1}')"
+case "$TARGET" in
+  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;;
+  *)
+    echo "redeploy: could not resolve origin/main (run from a clone of the repository)" >&2
+    exit 1
+    ;;
+esac
+RUNNING="$(remote "runuser -u jarvis -- git -C $REPO_DIR rev-parse HEAD" 2>/dev/null || true)"
+if [ "$RUNNING" = "$TARGET" ]; then
+  echo "  nothing new on main: this restarts the same commit (${TARGET:0:7})"
+else
+  echo "  running: ${RUNNING:-unknown}"
+  echo "  to deploy: $TARGET"
+  git fetch -q origin main 2>/dev/null || true
+  if [ -n "$RUNNING" ] && git cat-file -e "$RUNNING^{commit}" 2>/dev/null; then
+    git log --format='    %h %s' "$RUNNING..$TARGET"
+  else
+    git log -1 --format='    %h %s' "$TARGET" 2>/dev/null || true
+  fi
+fi
 
 runs="$(live_runs)"
 if [ -n "$runs" ]; then
@@ -83,7 +114,7 @@ elif [ -n "$runs" ]; then
   echo "redeploy: --now: these runs are interrupted and resumed after the restart"
 fi
 
-remote "$REPO_DIR/scripts/deploy.sh"
+remote "/usr/local/sbin/jarvis-deploy $TARGET"
 
 # The engine unit already refuses to start unhealthy (ExecStartPost); this is the view from outside it.
 echo "redeploy: verifying..."
