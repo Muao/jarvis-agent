@@ -1,6 +1,11 @@
 import { join } from 'node:path';
 import { toolsByRole } from '@jarvis/shared';
 import type { RunSpec } from '../../application/index.js';
+import {
+  claudeAiAllowRules,
+  claudeAiDenyRules,
+  usesClaudeAiConnectors,
+} from './claude-ai-connectors.js';
 import type { RunContext } from './run-context.js';
 
 /**
@@ -36,8 +41,16 @@ export const mcpToolName = (tool: string): string => `mcp__jarvis__${tool}`;
 /** The argv of one `claude` process (ADR-0003, ADR-0009). The prompt itself goes over stdin. */
 export function buildRunArgs(
   spec: RunSpec,
-  ctx: Pick<RunContext, 'agentDir' | 'runDir' | 'ownerPluginDir' | 'ownerPluginPresent'>,
+  ctx: Pick<
+    RunContext,
+    'agentDir' | 'runDir' | 'ownerPluginDir' | 'ownerPluginPresent' | 'claudeAiConnectors'
+  >,
 ): string[] {
+  // ADR-0027: the owner's claude.ai connectors exist only for a run that is not strict and reads
+  // the `user` settings source. Both are given up only when the owner listed a connector.
+  const connectors = usesClaudeAiConnectors(ctx.claudeAiConnectors, spec.taskKind)
+    ? ctx.claudeAiConnectors
+    : [];
   const args = [
     '-p',
     '--output-format',
@@ -65,10 +78,14 @@ export function buildRunArgs(
     // worktree is never trusted — but `deny` and `ask` apply at once, so a hostile head could
     // refuse the browser and turn every check into `inconclusive`. The owner's own user settings
     // stay; only the checked-out tree loses its vote.
-    spec.taskKind === 'ui_check' ? 'user' : 'project,local',
+    spec.taskKind === 'ui_check'
+      ? 'user'
+      : connectors.length > 0
+        ? 'user,project,local'
+        : 'project,local',
     '--mcp-config',
     join(ctx.runDir, 'mcp.json'),
-    '--strict-mcp-config',
+    ...(connectors.length > 0 ? [] : ['--strict-mcp-config']),
     '--permission-prompt-tool',
     mcpToolName('approve'),
     '--settings',
@@ -85,9 +102,13 @@ export function buildRunArgs(
   if (spec.role === 'dispatcher') {
     args.push(
       '--allowedTools',
-      [...toolsByRole.dispatcher.map(mcpToolName), ...DISPATCHER_READ_TOOLS].join(','),
+      [
+        ...toolsByRole.dispatcher.map(mcpToolName),
+        ...DISPATCHER_READ_TOOLS,
+        ...claudeAiAllowRules(connectors),
+      ].join(','),
       '--disallowedTools',
-      DISPATCHER_DENIED_TOOLS.join(','),
+      [...DISPATCHER_DENIED_TOOLS, ...claudeAiDenyRules(connectors)].join(','),
     );
   }
   return args;

@@ -40,7 +40,8 @@
   },
   "connectors": {
     "notionRoot": "notion-page-id-optional",
-    "googleFolder": "google-drive-folder-id-optional"
+    "googleFolder": "google-drive-folder-id-optional",
+    "claudeAi": []
   },
   "engine": {
     "port": 4310,

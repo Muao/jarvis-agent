@@ -156,4 +156,21 @@ describe('listMcpServers', () => {
     writeFileSync(file, '{ not json');
     expect((await listMcpServers(ctx())).map((s) => s.name)).toEqual(['jarvis']);
   });
+
+  // ADR-0027: claude.ai connectors are not in servers.json, yet runs have them.
+  it('lists the claude.ai connectors the owner turned on, for the dispatcher and the worker', async () => {
+    const servers = await listMcpServers({
+      config: config(false),
+      mcpServer: { command: 'node', args: [] },
+      apiUrl: 'http://127.0.0.1:4310',
+      claudeAiConnectors: ['slack'],
+    });
+
+    expect(servers.find((server) => server.name === 'claude.ai Slack')).toMatchObject({
+      source: 'connector',
+      roles: ['dispatcher', 'worker'],
+      transport: 'http',
+      url: 'https://mcp.slack.com/mcp',
+    });
+  });
 });

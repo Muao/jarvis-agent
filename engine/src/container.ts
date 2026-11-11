@@ -272,6 +272,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
         mcpServer: MCP_SERVER,
         apiUrl,
         connectorsFile: home.mcpServersFile,
+        claudeAiConnectors: current.connectors.claudeAi,
         connectorSecrets: {
           ...(env.githubToken === undefined ? {} : { GITHUB_TOKEN: env.githubToken }),
           ...(env.notionToken === undefined ? {} : { NOTION_TOKEN: env.notionToken }),
@@ -336,6 +337,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
         mcpServer: MCP_SERVER,
         apiUrl,
         connectorsFile: home.mcpServersFile,
+        claudeAiConnectors: provider.current().connectors.claudeAi,
       }),
   });
 

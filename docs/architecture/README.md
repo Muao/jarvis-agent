@@ -128,6 +128,9 @@ Postgres tables (indicative): `threads`, `messages`, `tasks`, `task_events`, `ru
 
 Runs use `--setting-sources project,local` so the owner's personal `~/.claude` plugins and hooks do not
 leak into the agent, and `--mcp-config ... --strict-mcp-config` so only Jarvis and connector servers load.
+The exception is a run given the owner's claude.ai connectors (`connectors.claudeAi`, ADR-0027): those exist
+only for a run that is not strict and reads the `user` source too, so such a run allows the connectors' read
+tools by name and denies the rest — and does see the owner's `~/.claude` plugins and hooks on that machine.
 The owner's skills and subagents are written only by the Capabilities page through the owner's HTTP API, never by an
 agent tool; the page also lists the built-in, repository and MCP capabilities read-only (ADR-0025,
 [`agent-capabilities`](../specs/agent-capabilities.md)).

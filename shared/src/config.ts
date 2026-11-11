@@ -30,6 +30,10 @@ const loopbackUrl = loopbackUrlOf('the local Alloy receiver');
  * `~/.jarvis/jarvis.config.json` (ADR-0005). Strict everywhere: a mistyped limit
  * or a stray key (for instance a token) is an error, never silently ignored.
  */
+/** ADR-0027: the claude.ai account connectors a run may be given, read-only. */
+export const ClaudeAiConnectorSchema = z.enum(['notion', 'slack', 'google_docs', 'google_drive']);
+export type ClaudeAiConnector = z.infer<typeof ClaudeAiConnectorSchema>;
+
 export const JarvisConfigSchema = z.strictObject({
   repo: z.strictObject({
     path: z.string().min(1),
@@ -92,6 +96,11 @@ export const JarvisConfigSchema = z.strictObject({
     .strictObject({
       notionRoot: z.string().min(1).optional(),
       googleFolder: z.string().min(1).optional(),
+      /**
+       * ADR-0027: connectors of the owner's claude.ai account that runs may read. Empty keeps
+       * every run on `--strict-mcp-config`, with no account connector in reach.
+       */
+      claudeAi: z.array(ClaudeAiConnectorSchema).default([]),
     })
     .prefault({}),
   engine: z

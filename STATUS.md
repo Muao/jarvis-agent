@@ -20,6 +20,13 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
 
 ## Done
 
+- **claude.ai connectors for runs** (2026-11-11, branch `feat/claude-ai-connectors`, ADR-0027, not yet
+  deployed): `connectors.claudeAi` lists which of the owner's account connectors (`notion`, `slack`,
+  `google_docs`, `google_drive`) dispatcher and worker runs may read. Such a run drops
+  `--strict-mcp-config`, adds the `user` settings source, allows the connector's read tools by name and
+  denies every other tool and connector; `ui_check` runs stay strict. Proven on the server by hand (a
+  print-mode run read Notion and Slack with these rules); no task has used it yet. To turn it on there:
+  set `connectors.claudeAi` in `~/.jarvis/jarvis.config.json` and restart the engine.
 - **Roomier chat layout** (T-4, 2026-11-11, branch `jarvis/T-4`): the navigation collapses to an
   icon-only rail from a header button; the thread list column is resizable (drag, arrow keys,
   double-click to reset; 14–32rem); both are kept in the browser's `localStorage`. The composer is one

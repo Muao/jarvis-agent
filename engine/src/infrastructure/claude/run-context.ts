@@ -1,4 +1,4 @@
-import type { JarvisConfig } from '@jarvis/shared';
+import type { ClaudeAiConnector, JarvisConfig } from '@jarvis/shared';
 
 /**
  * Where one run's files live and how its MCP server is started. The composition root builds it
@@ -23,6 +23,11 @@ export interface RunContext {
   readonly apiUrl: string;
   /** `~/.jarvis/mcp/servers.json`; connector servers are added for workers when it exists. */
   readonly connectorsFile?: string;
+  /**
+   * ADR-0027: `connectors.claudeAi` — the owner's claude.ai connectors this run may read. Absent
+   * or empty: the run stays on `--strict-mcp-config` and sees none of them.
+   */
+  readonly claudeAiConnectors?: readonly ClaudeAiConnector[];
   /** Values for `${VAR}` placeholders in the connectors file (ADR-0015). */
   readonly connectorSecrets: Readonly<Record<string, string | undefined>>;
 }

@@ -332,6 +332,23 @@ describe('writeRunFiles', () => {
     });
   });
 
+  // ADR-0027: a listed claude.ai connector is readable by a worker; a ui_check worker gets none.
+  it('gives a worker the read tools of its claude.ai connectors, never a ui_check worker', async () => {
+    const ctx = ctxOf({ claudeAiConnectors: ['notion'] });
+
+    await writeRunFiles(runDir, specOf(), ctx);
+    expect(permissions().allow).toContain('mcp__claude_ai_Notion__notion-fetch');
+    expect(permissions().deny).toEqual(
+      expect.arrayContaining([
+        'mcp__claude_ai_Notion__notion-create-pages',
+        'mcp__claude_ai_Slack',
+      ]),
+    );
+
+    await writeRunFiles(runDir, specOf({ taskKind: 'ui_check' }), ctx);
+    expect(JSON.stringify(permissions())).not.toContain('claude_ai');
+  });
+
   it('dispatcher settings allow only reading (files and the web) and deny every edit (DSP-03)', async () => {
     await writeRunFiles(runDir, specOf({ role: 'dispatcher' }), ctxOf());
     const { allow, deny } = permissions();

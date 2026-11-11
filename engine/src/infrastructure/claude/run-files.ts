@@ -2,17 +2,33 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { toolsByRole, type Role } from '@jarvis/shared';
 import type { RunSpec } from '../../application/index.js';
+import {
+  claudeAiAllowRules,
+  claudeAiDenyRules,
+  usesClaudeAiConnectors,
+} from './claude-ai-connectors.js';
 import type { RunContext } from './run-context.js';
 
 type Json = Record<string, unknown>;
 
 /** Dispatcher runs plan and talk, they never change files (DSP-03). The web is read without asking. */
-const DISPATCHER_SETTINGS = {
-  permissions: {
-    allow: ['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch', ...ownToolRules('dispatcher')],
-    deny: ['Edit', 'Write', 'Bash', 'NotebookEdit'],
-  },
-};
+export function buildDispatcherSettings(ctx: Pick<RunContext, 'claudeAiConnectors'>): Json {
+  const connectors = ctx.claudeAiConnectors ?? [];
+  return {
+    permissions: {
+      allow: [
+        'Read',
+        'Glob',
+        'Grep',
+        'WebFetch',
+        'WebSearch',
+        ...ownToolRules('dispatcher'),
+        ...claudeAiAllowRules(connectors),
+      ],
+      deny: ['Edit', 'Write', 'Bash', 'NotebookEdit', ...claudeAiDenyRules(connectors)],
+    },
+  };
+}
 
 /** A role's own Jarvis tools never need owner approval; `approve` is the approval path itself. */
 function ownToolRules(role: Role): string[] {
@@ -161,7 +177,14 @@ function ownerPluginDenies(ctx: RunContext): string[] {
   return [`Edit(${path})`, `Write(${path})`];
 }
 
-export async function buildWorkerSettings(ctx: RunContext): Promise<Json> {
+export async function buildWorkerSettings(
+  ctx: RunContext,
+  taskKind?: RunSpec['taskKind'],
+): Promise<Json> {
+  // ADR-0027: read tools of the listed claude.ai connectors, and a deny for the rest of them.
+  const connectors = usesClaudeAiConnectors(ctx.claudeAiConnectors, taskKind)
+    ? ctx.claudeAiConnectors
+    : [];
   const base = await readJson(join(ctx.agentDir, 'settings', 'worker.json'));
   const permissions = (base['permissions'] ?? {}) as Json;
   const { remote, baseBranch } = ctx.config.repo;
@@ -175,12 +198,14 @@ export async function buildWorkerSettings(ctx: RunContext): Promise<Json> {
         ...ctx.config.allowlist.autoAllowedCommands,
         ...ownToolRules('worker'),
         ...browserAllow,
+        ...claudeAiAllowRules(connectors),
       ]),
       deny: unique([
         ...stringList(permissions['deny']),
         ...baseBranchDenies(remote, baseBranch),
         ...BROWSER_DENIED_TOOLS.map(playwrightToolName),
         ...ownerPluginDenies(ctx),
+        ...claudeAiDenyRules(connectors),
       ]),
     },
   };
@@ -270,7 +295,10 @@ export async function buildMcpConfig(spec: RunSpec, ctx: RunContext): Promise<Js
 
 /** Writes `system.md`, `mcp.json` and `settings.json` into the (existing) run directory. */
 export async function writeRunFiles(runDir: string, spec: RunSpec, ctx: RunContext): Promise<void> {
-  const settings = spec.role === 'worker' ? await buildWorkerSettings(ctx) : DISPATCHER_SETTINGS;
+  const settings =
+    spec.role === 'worker'
+      ? await buildWorkerSettings(ctx, spec.taskKind)
+      : buildDispatcherSettings(ctx);
   const [system, mcp] = await Promise.all([
     buildSystemPrompt(ctx, spec.role),
     buildMcpConfig(spec, ctx),

@@ -1,4 +1,5 @@
 import type { McpServerItem } from '@jarvis/shared';
+import { CLAUDE_AI_CONNECTORS } from './claude-ai-connectors.js';
 import type { RunContext } from './run-context.js';
 import {
   jarvisServer,
@@ -8,7 +9,10 @@ import {
 } from './run-files.js';
 
 type Json = Record<string, unknown>;
-type McpListingContext = Pick<RunContext, 'config' | 'mcpServer' | 'apiUrl' | 'connectorsFile'>;
+type McpListingContext = Pick<
+  RunContext,
+  'config' | 'mcpServer' | 'apiUrl' | 'connectorsFile' | 'claudeAiConnectors'
+>;
 
 const PLACEHOLDER = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
 const SECRETISH = /token|secret|key|password|passwd|auth|credential/i;
@@ -120,6 +124,11 @@ export async function listMcpServers(ctx: McpListingContext): Promise<McpServerI
   }
   for (const [name, entry] of Object.entries(connectors)) {
     servers.push(describe(name, 'connector', ['worker', 'ui_check'], entry));
+  }
+  // ADR-0027: not in `mcp.json` — these come with the owner's claude.ai login, for every run but `ui_check`.
+  for (const id of ctx.claudeAiConnectors ?? []) {
+    const { name, url } = CLAUDE_AI_CONNECTORS[id];
+    servers.push(describe(name, 'connector', ['dispatcher', 'worker'], { type: 'http', url }));
   }
   return servers;
 }

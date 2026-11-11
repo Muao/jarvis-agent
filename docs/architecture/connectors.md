@@ -4,7 +4,36 @@ How the worker reaches Notion, Google Docs and other sources (CTX-02, CTX-03), a
 headless server (ADR-0016) with secrets in Infisical (ADR-0015). Status: decision taken 2026-11-08, implementation
 planned in `../plans/server-readiness.md` (Task 2.6).
 
-## How a connector is wired
+## Two ways in
+
+1. **The owner's claude.ai connectors** (ADR-0027) — Notion, Slack, Google Docs, Google Drive. No
+   token, no `servers.json` entry: see "claude.ai connectors" below. This is what the server uses.
+2. **A server in `servers.json` with a credential from Infisical** — everything else, and the way to
+   narrow a service to less than the owner's whole account. The rest of this document.
+
+## claude.ai connectors (ADR-0027)
+
+The `claude` login on the machine is the owner's claude.ai account, and the account's connectors come
+with it. To let runs read one:
+
+1. Connect the service once at <https://claude.ai/settings/connectors> (any device).
+2. On the machine, as the engine's user, check it is there: `claude mcp list` shows
+   `claude.ai Notion … ✔ Connected`.
+3. List it in `~/.jarvis/jarvis.config.json` and restart the engine:
+   ```json
+   "connectors": { "claudeAi": ["notion", "slack", "google_docs", "google_drive"] }
+   ```
+
+Dispatcher and worker runs then have the connector's **read** tools without asking, and are denied
+every other tool of it and every other connector of the account. A `ui_check` run gets none. The
+Connections page shows `claude.ai connector, read-only`; like every connector, it is proven only when
+a run reads a source.
+
+What to know before turning one on: a read tool sees the owner's whole account in that service
+(private Slack channels included), a run with connectors also reads the `user` settings source, and
+the grant expires with the claude.ai login. The ADR lists all of it.
+
+## How a `servers.json` connector is wired
 
 The engine writes a `mcp.json` for every run from `~/.jarvis/mcp/servers.json`, substituting `${VAR}` with the
 engine's environment, and starts `claude` with `--mcp-config <run>/mcp.json --strict-mcp-config`
@@ -78,10 +107,12 @@ Security of this way, and why it is only the fallback:
 - Rotation means repeating the procedure instead of changing a value in Infisical. Record the exact commands in
   `deploy/README.md` when a connector uses this way.
 
-## Not used on the server: Claude Code remote MCP OAuth
+## Not used: remote MCP servers authorised with `/mcp`
 
-Tokens from `/mcp` live in `~/.claude` (Keychain on macOS, a file on Linux), expire quickly and are not read when
-`--strict-mcp-config` points at Jarvis's `mcp.json`. Do not copy `~/.claude` between machines for this.
+A remote server added with `claude mcp add` and authorised with `/mcp` keeps its token in `~/.claude`
+(Keychain on macOS, a file on Linux) and is not given to runs: a strict run does not load it, and a
+run with claude.ai connectors (ADR-0027) has no allow rule for its tools. Do not copy `~/.claude`
+between machines for this. The account's own connectors are the exception, and they need no `/mcp`.
 
 ## Per connector
 

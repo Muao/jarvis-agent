@@ -1,4 +1,4 @@
-import { ConnectionIdSchema, type ConnectionId } from '@jarvis/shared';
+import { ConnectionIdSchema, type ClaudeAiConnector, type ConnectionId } from '@jarvis/shared';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConnectionOutcome } from '../../application/ports/connection-checks.js';
 import { FakeClock, StaticConfigProvider } from '../../application/testing/index.js';
@@ -260,9 +260,13 @@ describe('GitHub check', () => {
 });
 
 describe('Notion, Google Docs, Claude Design and Slack', () => {
-  const withConnectors = (connectors: { notionRoot?: string; googleFolder?: string }) => {
+  const withConnectors = (connectors: {
+    notionRoot?: string;
+    googleFolder?: string;
+    claudeAi?: ClaudeAiConnector[];
+  }) => {
     const config = new StaticConfigProvider();
-    config.set({ ...config.current(), connectors });
+    config.set({ ...config.current(), connectors: { claudeAi: [], ...connectors } });
     return config;
   };
 
@@ -343,6 +347,18 @@ describe('Notion, Google Docs, Claude Design and Slack', () => {
         summary: 'Not configured: connectors.googleFolder.',
       });
     });
+  });
+
+  // ADR-0027: a connector of the owner's claude.ai account needs no token of its own.
+  it('are configured through a claude.ai connector, Slack included', async () => {
+    const connections = checks({
+      config: withConnectors({ claudeAi: ['notion', 'slack', 'google_drive'] }),
+    });
+    const mode = { label: 'Mode', value: 'claude.ai connector, read-only' };
+
+    for (const id of ['notion', 'slack', 'google_docs'] as const) {
+      expect(await connections.check(id)).toMatchObject({ status: 'ok', details: [mode] });
+    }
   });
 
   it('say what is missing when only part is set', async () => {

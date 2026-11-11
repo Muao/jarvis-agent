@@ -1,3 +1,4 @@
+import type { ClaudeAiConnector } from '@jarvis/shared';
 import type { Clock } from '../../application/ports/clock.js';
 import type { ConfigProvider } from '../../application/ports/config-provider.js';
 import type { ConnectionChecks } from '../../application/ports/connection-checks.js';
@@ -30,9 +31,14 @@ const GOOGLE_VARS = [
   'GOOGLE_DRIVE_MCP_CLIENT_SECRET',
 ] as const;
 
+/** ADR-0027: the connector comes from the owner's claude.ai account, and runs may only read it. */
+const CLAUDE_AI_MODE = detail('Mode', 'claude.ai connector, read-only');
+
 /** The Connections screen's probes (CTX-01…CTX-05, SEC-04, SEC-05) behind the `ConnectionChecks` port. */
 export function createConnectionChecks(options: ConnectionChecksOptions): ConnectionChecks {
   const { config, env } = options;
+  const viaClaudeAi = (id: ClaudeAiConnector): boolean =>
+    config.current().connectors.claudeAi.includes(id);
   const exec = options.exec ?? execFileWith(buildChildEnv(env, { role: 'dispatcher' }));
   return new ProbedConnectionChecks({
     billingEnvDetected: () => billingVarsIn(env).length > 0,
@@ -47,6 +53,12 @@ export function createConnectionChecks(options: ConnectionChecksOptions): Connec
       github: githubProbe(options.github),
       notion: connectorProbe(() => {
         const root = config.current().connectors.notionRoot;
+        if (viaClaudeAi('notion')) {
+          return {
+            missing: [],
+            details: [CLAUDE_AI_MODE, ...(root ? [detail('Root page', root)] : [])],
+          };
+        }
         return {
           missing: [
             ...(present(env['NOTION_TOKEN']) ? [] : ['NOTION_TOKEN']),
@@ -57,6 +69,12 @@ export function createConnectionChecks(options: ConnectionChecksOptions): Connec
       }),
       google_docs: connectorProbe(() => {
         const folder = config.current().connectors.googleFolder;
+        if (viaClaudeAi('google_docs') || viaClaudeAi('google_drive')) {
+          return {
+            missing: [],
+            details: [CLAUDE_AI_MODE, ...(folder ? [detail('Folder', folder)] : [])],
+          };
+        }
         // Credential (env) and target (config folder) are reported together, so a half-configured
         // connector names the half that is missing.
         return {
@@ -71,7 +89,11 @@ export function createConnectionChecks(options: ConnectionChecksOptions): Connec
         };
       }),
       claude_design: fixedProbe('not_configured', 'Design handoff is manual in iteration 1.'),
-      slack: fixedProbe('disabled', 'Iteration 2.'),
+      // ADR-0006: Slack as the owner's channel is iteration 2. ADR-0027: as a source it can be read now.
+      slack: async () =>
+        viaClaudeAi('slack')
+          ? connectorProbe(() => ({ missing: [], details: [CLAUDE_AI_MODE] }))()
+          : fixedProbe('disabled', 'Iteration 2.')(),
     },
   });
 }
