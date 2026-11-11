@@ -122,3 +122,38 @@
   font-weight: 600;
   color: var(--color-warning);
 }
+
+.item {
+  position: relative;
+}
+
+/* Sits over the row's right edge; shown on hover and keyboard focus so the list stays calm. */
+.archive {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.item:hover .archive,
+.archive:focus-visible {
+  opacity: 1;
+}
+
+.archive:hover {
+  color: var(--color-text);
+}
+
+.archive:disabled {
+  cursor: not-allowed;
+}

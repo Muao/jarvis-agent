@@ -42,7 +42,7 @@ export const TaskDtoSchema = z.object({
   working: z.boolean(),
   /** The owner put the task on hold: no worker run starts until it is resumed. */
   held: z.boolean(),
-  /** The model the task's worker runs on; null means the configured `models.worker`. */
+  /** The model the task's worker runs on, pinned when the task is created; null means the configured `models.worker`. */
   model: TaskModelSchema.nullable(),
   waitingFor: WaitingForSchema,
   branch: z.string(),

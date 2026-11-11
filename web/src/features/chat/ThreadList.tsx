@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
 import type { ThreadDto } from '@jarvis/shared';
+import { useArchiveThread, useCanMutate } from '../../api/queries';
 import { ErrorBlock } from '../../components/ErrorBlock';
 import { Icon } from '../../components/Icon';
 import { Loading } from '../../components/Loading';
@@ -20,6 +21,8 @@ interface ThreadListProps {
 export function ThreadList({ threads, loading, error, onRetry, selectedId }: ThreadListProps) {
   const [filter, setFilter] = useState<ThreadFilter>('all');
   const rows = threads ? visibleThreads(threads, filter) : [];
+  const canMutate = useCanMutate();
+  const archive = useArchiveThread();
 
   return (
     <section className={styles.list} aria-label="Threads">
@@ -53,7 +56,7 @@ export function ThreadList({ threads, loading, error, onRetry, selectedId }: Thr
       ) : null}
       <ul className={styles.rows}>
         {rows.map((thread) => (
-          <li key={thread.id}>
+          <li key={thread.id} className={styles.item}>
             <Link
               to={`/chat/${encodeURIComponent(thread.id)}`}
               className={styles.row}
@@ -72,6 +75,16 @@ export function ThreadList({ threads, loading, error, onRetry, selectedId }: Thr
                 </span>
               ) : null}
             </Link>
+            <button
+              type="button"
+              className={styles.archive}
+              aria-label={`${thread.archived ? 'Unarchive' : 'Archive'} ${thread.title}`}
+              title={thread.archived ? 'Unarchive' : 'Archive'}
+              disabled={!canMutate}
+              onClick={() => archive.mutate({ threadId: thread.id, archived: !thread.archived })}
+            >
+              <Icon name={thread.archived ? 'unarchive' : 'archive'} size="sm" />
+            </button>
           </li>
         ))}
       </ul>

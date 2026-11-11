@@ -267,4 +267,36 @@ describe('CreateTask: ui_check tasks (ADR-0018)', () => {
 
     expect(app.task('T-1')).toMatchObject({ kind: 'build', pr: null, branch: 'jarvis/T-1' });
   });
+
+  it('pins the configured worker model on the task, and the model the owner named over it', async () => {
+    const app = buildTestApp();
+    app.config.set({
+      ...app.config.current(),
+      models: { ...app.config.current().models, worker: 'opus' },
+    });
+    const first = await app.seed.thread();
+    const second = await app.seed.thread();
+
+    const byDefault = await app.createTask.execute(app.identity.dispatcher(first.id), input);
+    const named = await app.createTask.execute(app.identity.dispatcher(second.id), {
+      ...input,
+      model: 'haiku',
+    });
+
+    expect(app.task(byDefault.taskId).model).toBe('opus');
+    expect(app.task(named.taskId).model).toBe('haiku');
+  });
+
+  it('leaves the model unpinned when the configured one is not an alias', async () => {
+    const app = buildTestApp();
+    app.config.set({
+      ...app.config.current(),
+      models: { ...app.config.current().models, worker: 'claude-sonnet-5-5' },
+    });
+    const thread = await app.seed.thread();
+
+    const created = await app.createTask.execute(app.identity.dispatcher(thread.id), input);
+
+    expect(app.task(created.taskId).model).toBeNull();
+  });
 });

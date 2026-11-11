@@ -225,7 +225,10 @@ resumed. A run already in progress is not interrupted. Hold and resume come from
 **DSP-12. Model per task.** A task runs on `models.worker` unless the owner names a model for it
 (`fable`, `opus`, `sonnet`, `haiku`): in the request (`create_task`'s `model`), later in chat
 (`set_task_model`), or with the model selector in the thread header. The change applies from the
-task's next worker run.
+task's next worker run. The model is stored on the task when it is created, so the thread shows
+what the task runs on and a later change of `models.worker` does not move a task under way; a
+configured value that is not one of the four aliases cannot be stored, and such a task follows the
+configured default.
 
 ## Requirements: Worker and the SDD flow
 

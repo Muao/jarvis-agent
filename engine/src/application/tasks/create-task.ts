@@ -1,7 +1,8 @@
-import type { TaskKind, TaskModel } from '@jarvis/shared';
+import { TaskModelSchema, type TaskKind, type TaskModel } from '@jarvis/shared';
 import { createTask } from '../../domain/index.js';
 import { transact } from '../transaction.js';
 import { ForbiddenError, InvalidInputError, NotFoundError } from '../errors.js';
+import type { ConfigProvider } from '../ports/config-provider.js';
 import type { IdGenerator } from '../ports/id-generator.js';
 import type { RepoResolver } from '../ports/repo-resolver.js';
 import type { WorktreeManager } from '../ports/worktree-manager.js';
@@ -37,6 +38,7 @@ export class CreateTask {
   constructor(
     private readonly deps: TaskDeps & {
       readonly ids: IdGenerator;
+      readonly config: ConfigProvider;
       readonly worktrees: WorktreeManager;
       readonly repos: RepoResolver;
     },
@@ -81,7 +83,7 @@ export class CreateTask {
         targetRepo,
         kind,
         pr,
-        model: input.model ?? null,
+        model: input.model ?? this.defaultModel(),
       });
       await this.deps.writer.update(tx, outbox, task, 'task_created', 'agent', {
         title: input.title,
@@ -94,6 +96,16 @@ export class CreateTask {
       outbox.requestWorkerRun(id, 'start');
       return { taskId: id, branch: worktree.branch };
     });
+  }
+
+  /**
+   * The task keeps the model it started on, so the thread can show it and a later change of
+   * `models.worker` does not move a task that is under way. A configured value that is not one of
+   * the aliases (a full model id) cannot be pinned; such a task stays on the configured default.
+   */
+  private defaultModel(): TaskModel | null {
+    const parsed = TaskModelSchema.safeParse(this.deps.config.current().models.worker);
+    return parsed.success ? parsed.data : null;
   }
 
   /**

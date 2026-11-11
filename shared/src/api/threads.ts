@@ -121,11 +121,17 @@ export const ThreadDtoSchema = z.object({
   working: z.boolean(),
   /** The thread's task is on hold (no worker run starts until it is resumed). */
   held: z.boolean(),
-  /** The model of the thread's task; null means the configured default (or no task). */
+  /**
+   * The model of the thread's task. Null when the thread has no task, or for a task whose model
+   * was never pinned (created before pinning, or `models.worker` is not one of the aliases): that
+   * one runs on the configured `models.worker`.
+   */
   model: TaskModelSchema.nullable(),
   prNumber: z.number().int().nullable(),
   prUrl: z.url().nullable(),
   waitingForOwner: z.boolean(),
+  /** The owner archived the thread: it shows only under the `Archived` filter. */
+  archived: z.boolean(),
   lastActivityAt: IsoDateSchema,
 });
 export type ThreadDto = z.infer<typeof ThreadDtoSchema>;

@@ -84,6 +84,7 @@ import { ReportStage } from './tasks/report-stage.js';
 import { RetryStage } from './tasks/retry-stage.js';
 import { SetTaskTargetRepo } from './tasks/set-task-target-repo.js';
 import { HoldTask, ResumeTask, SetTaskModel } from './tasks/hold-task.js';
+import { ArchiveThread } from './conversation/archive-thread.js';
 import { SendNow } from './conversation/send-now.js';
 import { StatusCard } from './tasks/status-card.js';
 import { SubmitSpec } from './tasks/submit-spec.js';
@@ -160,6 +161,7 @@ export interface Application {
   readonly holdTask: HoldTask;
   readonly resumeTask: ResumeTask;
   readonly setTaskModel: SetTaskModel;
+  readonly archiveThread: ArchiveThread;
   readonly sendNow: SendNow;
   readonly remember: Remember;
   /** ADR-0021: the rest of the memory tools. */
@@ -288,7 +290,7 @@ export function createApplication(ports: ApplicationPorts): Application {
     reply: new Reply(deps),
     listTasks: new ListTasks({ uow, runs: notifiers.runs }),
     sendToTask: new SendToTask(deps),
-    createTask: new CreateTask({ ...deps, ids, worktrees, repos: ports.repos }),
+    createTask: new CreateTask({ ...deps, ids, config, worktrees, repos: ports.repos }),
     submitSpec: new SubmitSpec({ ...deps, artifacts, repoInfo: ports.repoInfo, worktrees }),
     answerDecision,
     askOwner: new AskOwner(deps),
@@ -316,6 +318,7 @@ export function createApplication(ports: ApplicationPorts): Application {
     holdTask: new HoldTask(deps),
     resumeTask: new ResumeTask(deps),
     setTaskModel: new SetTaskModel(deps),
+    archiveThread: new ArchiveThread(deps),
     sendNow: new SendNow(deps),
     remember: new Remember({ profile: ports.profile, clock }),
     forget: new Forget({ profile: ports.profile, logger: ports.logger }),

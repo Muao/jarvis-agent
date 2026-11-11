@@ -2,7 +2,12 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router';
 import { describe, expect, it } from 'vitest';
-import type { MessageDto, ThreadDetailDto } from '@jarvis/shared';
+import {
+  JarvisConfigSchema,
+  type ConfigDto,
+  type MessageDto,
+  type ThreadDetailDto,
+} from '@jarvis/shared';
 import { FakeEventSource } from '../../test/FakeEventSource';
 import { stubFetch, type FakeRoutes } from '../../test/fakeFetch';
 import { overview, thread, usage } from '../../test/fixtures';
@@ -63,6 +68,10 @@ function posts(spy: ReturnType<typeof stubFetch>, path: string): Body[] {
     .map(([, init]) => JSON.parse(String(init?.body)) as Body);
 }
 
+/** How many POSTs went to `path` (for commands without a body). */
+const postCount = (spy: ReturnType<typeof stubFetch>, path: string): number =>
+  spy.mock.calls.filter(([url, init]) => String(url) === path && init?.method === 'POST').length;
+
 const openThread = (messages: MessageDto[], patch: Partial<ThreadDetailDto> = {}) =>
   renderChat('/chat/th-1', { 'GET /api/threads/th-1': detail(messages, patch) });
 
@@ -112,6 +121,24 @@ describe('thread list', () => {
 
     await user.click(screen.getByRole('button', { name: 'Active' }));
     expect(titles()).toHaveLength(3);
+  });
+
+  it('keeps archived threads under Archived only, and archives a thread from its row', async () => {
+    const user = userEvent.setup();
+    const spy = renderChat('/chat', {
+      'GET /api/threads': [...threads, thread({ id: 'e', title: 'Put away', archived: true })],
+      'POST /api/threads/a/archive': { status: 204, body: null },
+    }).spy;
+    await screen.findByText('Needs me');
+    expect(titles()).toHaveLength(4);
+
+    await user.click(screen.getByRole('button', { name: 'Archive Older active' }));
+    expect(postCount(spy, '/api/threads/a/archive')).toBe(1);
+
+    await user.click(screen.getByRole('button', { name: 'Archived' }));
+    expect(titles()).toHaveLength(1);
+    expect(titles()[0]).toContain('Put away');
+    expect(screen.getByRole('button', { name: 'Unarchive Put away' })).toBeInTheDocument();
   });
 
   it('shows an empty state', async () => {
@@ -282,6 +309,47 @@ describe('composer', () => {
       ([url, init]) => String(url) === '/api/tasks/T-12/model' && init?.method === 'PUT',
     );
     expect(JSON.parse(String(put?.[1]?.body))).toEqual({ model: 'fable' });
+  });
+
+  it('names the configured model for a task without one, and only shows the model once the task is over', async () => {
+    const view = renderChat('/chat/th-1', {
+      'GET /api/threads/th-1': detail([], { model: null }),
+      'GET /api/config': {
+        valid: true,
+        path: '/home/me/.jarvis/jarvis.config.json',
+        loadedAt: AT,
+        config: JarvisConfigSchema.parse({ repo: { path: '/work/repo' } }),
+        usage: { ...usage(), byRole: { dispatcher: 0, worker: 0 }, byTask: [] },
+        repository: { checkCommands: [], devCommand: null, warning: null },
+        profile: {
+          soul: { path: '/home/me/.jarvis/SOUL.md', content: null, modifiedAt: null },
+          user: { path: '/home/me/.jarvis/USER.md', content: null, modifiedAt: null },
+        },
+      } satisfies ConfigDto,
+    });
+    expect(await screen.findByRole('option', { name: 'Sonnet (default)' })).toBeInTheDocument();
+    view.unmount();
+
+    renderChat('/chat/th-1', {
+      'GET /api/threads/th-1': detail([], { stage: 'Done', model: 'opus' }),
+    });
+    const select = await screen.findByRole('combobox', { name: 'Model' });
+    expect(select).toHaveValue('opus');
+    expect(select).toBeDisabled();
+  });
+
+  it('archives the open thread from the thread menu and brings an archived one back', async () => {
+    const user = userEvent.setup();
+    const spy = renderChat('/chat/th-1', {
+      'GET /api/threads/th-1': detail([], { archived: true }),
+      'POST /api/threads/th-1/unarchive': { status: 204, body: null },
+    }).spy;
+
+    expect(await screen.findByText('Archived', { selector: 'span' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Thread actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Unarchive thread' }));
+
+    expect(postCount(spy, '/api/threads/th-1/unarchive')).toBe(1);
   });
 
   it('holds and resumes the task from the thread menu', async () => {

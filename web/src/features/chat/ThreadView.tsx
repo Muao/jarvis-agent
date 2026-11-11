@@ -96,6 +96,7 @@ function LoadedThread({ thread }: { thread: ThreadDetailDto }) {
           </a>
         ) : null}
         {thread.stage ? <StageBadge stage={thread.stage} working={thread.working} /> : null}
+        {thread.archived ? <span className={styles.archived}>Archived</span> : null}
         <TaskControls thread={thread} />
         <ThreadMenu thread={thread} onStatus={showStatus} />
       </header>

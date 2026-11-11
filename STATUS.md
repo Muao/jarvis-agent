@@ -20,6 +20,13 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
 
 ## Done
 
+- **Archiving threads and a pinned task model** (2026-11-11): a thread
+  can be archived and brought back from its row in the list or the `⋯` menu (`threads.archived_at`,
+  migration 0007, `POST /api/threads/:id/archive|unarchive`); archived threads show only under the
+  `Archived` filter and archiving touches nothing else — the task and its runs go on. `create_task`
+  now stores the model on the task (the named one, else `models.worker` when it is an alias), so the
+  header selector shows a real model instead of `Default model`; tasks created earlier show
+  `<configured> (default)`, and the selector stays, read-only, once the task is over.
 - **Checks judged against main** (on branch feat/checks-judged-against-main, not yet deployed): the engine
   refreshes a task's frozen check list from the remote base's `AGENTS.md` unless its source is `worker`
   (`checks_fixed {source: 'base_refresh'}`); a red command is re-run on the merge base and, red on both, is

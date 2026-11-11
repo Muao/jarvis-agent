@@ -20,6 +20,7 @@ export function toThreadDto(
     prNumber: task?.pr?.number ?? null,
     prUrl: task?.pr?.url ?? null,
     waitingForOwner: threadNeedsOwner(task, hasOpenCard),
+    archived: thread.archivedAt !== null,
     lastActivityAt: thread.updatedAt,
   };
 }

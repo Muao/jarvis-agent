@@ -41,6 +41,7 @@ export const threads = pgTable('threads', {
   title: text('title').notNull(),
   createdAt: time('created_at').notNull(),
   updatedAt: time('updated_at').notNull(),
+  archivedAt: time('archived_at'),
 });
 
 export const tasks = pgTable(

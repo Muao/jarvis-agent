@@ -185,6 +185,16 @@ export function useSetTaskModel() {
   });
 }
 
+/** Archives a thread (it leaves the list) or brings it back. */
+export function useArchiveThread() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ threadId, archived }: { threadId: string; archived: boolean }) =>
+      postVoid(`/threads/${encodeURIComponent(threadId)}/${archived ? 'archive' : 'unarchive'}`),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: keys.threads.all }),
+  });
+}
+
 /** "Send now": hands a message that waits for a task's worker to the thread's dispatcher. */
 export function useSendNow() {
   const queryClient = useQueryClient();

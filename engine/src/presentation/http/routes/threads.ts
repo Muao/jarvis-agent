@@ -31,6 +31,17 @@ export function threadRoutes(app: Application): FastifyPluginAsync {
       return reply.code(204).send();
     });
 
+    // Archiving only hides a thread from the list; its task and runs go on as they are.
+    http.post<{ Params: IdParams }>('/threads/:id/archive', async (request, reply) => {
+      await app.archiveThread.execute({ threadId: request.params.id, archived: true });
+      return reply.code(204).send();
+    });
+
+    http.post<{ Params: IdParams }>('/threads/:id/unarchive', async (request, reply) => {
+      await app.archiveThread.execute({ threadId: request.params.id, archived: false });
+      return reply.code(204).send();
+    });
+
     // "Send now": a message waiting for a task's worker goes to the thread's dispatcher instead.
     http.post<{ Params: IdParams }>('/messages/:id/send-now', async (request, reply) => {
       await app.sendNow.execute(request.params.id);

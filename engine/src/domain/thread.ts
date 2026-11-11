@@ -6,10 +6,27 @@ export interface Thread {
   readonly title: string;
   readonly createdAt: IsoTime;
   readonly updatedAt: IsoTime;
+  /** When the owner archived the thread; null while it is in the list. Archiving only hides it. */
+  readonly archivedAt: IsoTime | null;
 }
 
 export function createThread(input: { id: string; title: string; at: IsoTime }): Thread {
-  return { id: input.id, title: input.title, createdAt: input.at, updatedAt: input.at };
+  return {
+    id: input.id,
+    title: input.title,
+    createdAt: input.at,
+    updatedAt: input.at,
+    archivedAt: null,
+  };
+}
+
+/** Archiving is not activity: `updatedAt` stays, so the thread keeps its place when it comes back. */
+export function archiveThread(thread: Thread, at: IsoTime): Thread {
+  return thread.archivedAt === null ? { ...thread, archivedAt: at } : thread;
+}
+
+export function unarchiveThread(thread: Thread): Thread {
+  return thread.archivedAt === null ? thread : { ...thread, archivedAt: null };
 }
 
 export function touchThread(thread: Thread, at: IsoTime): Thread {

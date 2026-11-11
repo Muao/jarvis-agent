@@ -1,12 +1,13 @@
 import type { TaskStage, ThreadDto } from '@jarvis/shared';
 
-export type ThreadFilter = 'all' | 'waiting' | 'active' | 'done';
+export type ThreadFilter = 'all' | 'waiting' | 'active' | 'done' | 'archived';
 
 export const FILTERS: { id: ThreadFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'waiting', label: 'Waiting for me' },
   { id: 'active', label: 'Active' },
   { id: 'done', label: 'Done' },
+  { id: 'archived', label: 'Archived' },
 ];
 
 const TERMINAL: readonly TaskStage[] = ['Done', 'Failed', 'Cancelled'];
@@ -14,9 +15,14 @@ const TERMINAL: readonly TaskStage[] = ['Done', 'Failed', 'Cancelled'];
 export const isTerminalStage = (stage: TaskStage | null): boolean =>
   stage !== null && TERMINAL.includes(stage);
 
-/** `Active` includes threads without a task (a conversation is still going); `Done` is the terminal stages. */
+/**
+ * `Active` includes threads without a task (a conversation is still going); `Done` is the terminal
+ * stages. An archived thread shows under `Archived` and nowhere else.
+ */
 export function matchesFilter(thread: ThreadDto, filter: ThreadFilter): boolean {
+  if (thread.archived !== (filter === 'archived')) return false;
   switch (filter) {
+    case 'archived':
     case 'all':
       return true;
     case 'waiting':

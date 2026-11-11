@@ -90,7 +90,7 @@ DSP-01, DSP-04…DSP-07, WRK-04, WRK-05, SEC-01.
 **Blocks:**
 
 1. **Thread list** (left column). Each row: the first words of the message, a `Task Stage` badge (if there is a task),
-   time of last activity, a "waiting for you" marker. At the top, a `New thread` button and an `All · Waiting for me · Active · Done` filter.
+   time of last activity, a "waiting for you" marker. At the top, a `New thread` button and an `All · Waiting for me · Active · Done · Archived` filter. Each row has an archive button (shown on hover or focus); an archived thread shows only under `Archived`, where the same button brings it back. Archiving only hides the thread: its task and runs go on.
    Sorting: threads waiting on the owner first, then by last activity.
 2. **Thread** (center). Header: thread title, links to the task (`T-12 →`) and the PR (`PR #34 ↗`), stage badge.
    Below it, a chronological feed of messages.
@@ -117,7 +117,7 @@ After an answer, decision, question and permission cards become inactive and sho
 
 **Thread actions (the `⋯` menu):** `Status` (DSP-05), `Hold task` / `Resume task` (DSP-11), `Cancel task` (DSP-06, with confirmation), `Open task`, `Open dispatcher session`.
 
-**Thread header, task controls:** a `⏸ On hold` mark while the task is held (DSP-11) and a model selector (`Default model`, `Fable`, `Opus`, `Sonnet`, `Haiku`; DSP-12). An owner message that waits for the task's worker shows `queued` and a `Send now` button (DSP-10).
+**Thread header, task controls:** a `⏸ On hold` mark while the task is held (DSP-11) and a model selector (`Fable`, `Opus`, `Sonnet`, `Haiku`; DSP-12) that shows the model the task is pinned to — for a task with none, `<configured model> (default)` — and is read-only once the task is over. An archived thread carries an `Archived` mark; the `⋯` menu has `Archive thread` / `Unarchive thread`. An owner message that waits for the task's worker shows `queued` and a `Send now` button (DSP-10).
 
 **States:** empty thread list; thread loading; the dispatcher is "thinking" (an indicator under the last message);
 send failure (a message with `Retry`); thread without a task (a knowledge question, DSP-07); budget exhausted

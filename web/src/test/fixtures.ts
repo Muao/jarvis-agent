@@ -33,6 +33,7 @@ export const thread = (patch: Partial<ThreadDto> = {}): ThreadDto => ({
   prNumber: null,
   prUrl: null,
   waitingForOwner: false,
+  archived: false,
   lastActivityAt: AT,
   ...patch,
 });

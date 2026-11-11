@@ -12,6 +12,7 @@ const toDomain = (row: Row): Thread => ({
   title: row.title,
   createdAt: toIso(row.createdAt),
   updatedAt: toIso(row.updatedAt),
+  archivedAt: row.archivedAt === null ? null : toIso(row.archivedAt),
 });
 
 const toRow = (thread: Thread): Row => ({
@@ -19,6 +20,7 @@ const toRow = (thread: Thread): Row => ({
   title: thread.title,
   createdAt: toDate(thread.createdAt),
   updatedAt: toDate(thread.updatedAt),
+  archivedAt: thread.archivedAt === null ? null : toDate(thread.archivedAt),
 });
 
 export class PgThreadRepository implements ThreadRepository {

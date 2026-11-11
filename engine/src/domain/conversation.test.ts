@@ -67,7 +67,13 @@ describe('answerCard', () => {
 describe('thread', () => {
   it('creates and touches', () => {
     const thread = createThread({ id: 'th-1', title: 'Hello', at: T0 });
-    expect(thread).toEqual({ id: 'th-1', title: 'Hello', createdAt: T0, updatedAt: T0 });
+    expect(thread).toEqual({
+      id: 'th-1',
+      title: 'Hello',
+      createdAt: T0,
+      updatedAt: T0,
+      archivedAt: null,
+    });
     expect(touchThread(thread, T1).updatedAt).toBe(T1);
   });
 });
