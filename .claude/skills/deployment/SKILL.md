@@ -15,7 +15,9 @@ about how to *change* the deploy flow without breaking the properties it current
 
 ## Current flow
 
-`pnpm run deploy:remote` from the laptop (`ssh root@jarvis-01 /home/jarvis/jarvis/scripts/deploy.sh`) runs
+`pnpm run redeploy` from the laptop (`scripts/redeploy.sh`) is the manual entry point: it previews the commits,
+waits for live runs to finish (`-- --now` skips that), runs the deploy and verifies health. Underneath it,
+`pnpm run deploy:remote` (`ssh root@jarvis-01 /home/jarvis/jarvis/scripts/deploy.sh`) runs
 `scripts/deploy.sh` as root, which does every git and pnpm step as `jarvis` through `runuser` and only `systemctl` /
 `systemd-run` as root. `jarvis` has no sudo rule, so `pnpm run deploy` as `jarvis` on the server only works once one
 exists. The script body is a single function, so step 1 rewriting the script mid-run is safe:

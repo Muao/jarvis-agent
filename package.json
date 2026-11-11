@@ -15,7 +15,8 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "deploy": "bash scripts/deploy.sh",
-    "deploy:remote": "ssh root@jarvis-01 /home/jarvis/jarvis/scripts/deploy.sh"
+    "deploy:remote": "ssh root@jarvis-01 /home/jarvis/jarvis/scripts/deploy.sh",
+    "redeploy": "bash scripts/redeploy.sh"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

@@ -163,8 +163,17 @@ Then `systemctl enable --now jarvis-engine jarvis-web` and `tailscale serve --bg
 From the laptop, over Tailscale SSH:
 
 ```sh
-pnpm run deploy:remote   # = ssh root@jarvis-01 /home/jarvis/jarvis/scripts/deploy.sh
+pnpm run redeploy             # the usual way: see below
+pnpm run deploy:remote        # the bare deploy: ssh root@jarvis-01 /home/jarvis/jarvis/scripts/deploy.sh
 ```
+
+`pnpm run redeploy` (`scripts/redeploy.sh`) is the manual redeploy in one command. It shows the commits
+that are about to go out, waits for live runs to finish so a working agent is not cut off mid-turn (up to
+10 minutes; `-- --wait 30` to wait longer, `-- --now` to interrupt them — they resume after the restart),
+runs `scripts/deploy.sh` on the server, then checks `/api/health` and the units and prints the commit that
+is live. `-- --check` only shows what would be deployed and whether a run is live. With nothing new on
+`main` it restarts the same commit, which is how to bounce the engine after a config or unit change.
+`JARVIS_HOST` overrides the host (default `root@jarvis-01`).
 
 `jarvis` has no password and no sudo rule, so the deploy runs as root; the script then runs every git and
 pnpm step as `jarvis` (`runuser`), so nothing in the checkout ends up owned by root, and only `systemctl` and
