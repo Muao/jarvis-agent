@@ -16,6 +16,12 @@ import {
 
 type CallableTool = Exclude<ToolName, 'approve'>;
 
+function taskThreadName(taskId: string, title: string): string {
+  const normalized = title.replace(/\s+/g, ' ').trim();
+  const label = Array.from(normalized).slice(0, 100).join('');
+  return label ? `${taskId} ${label}` : taskId;
+}
+
 interface RunnerOptions {
   readonly binary: string;
   readonly env: NodeJS.ProcessEnv;
@@ -91,6 +97,9 @@ export class CodexChatRunner implements AgentRunner {
         cwd: spec.cwd,
         env: this.options.env,
         prompt: spec.firstMessage,
+        ...(spec.taskId && spec.taskTitle
+          ? { threadName: taskThreadName(spec.taskId, spec.taskTitle) }
+          : {}),
         ...(model.success ? { model: model.data.slice('codex:'.length) } : {}),
         instructions:
           instructions +
@@ -153,7 +162,7 @@ export class CodexChatRunner implements AgentRunner {
               ? 'Create a Jarvis build task. Supply a title, self-contained description and optional allowed repository.'
               : this.options.descriptions[name],
           inputSchema: schema.toJSONSchema(),
-          call: async (input: unknown) => {
+          call: async (input: unknown, nameThread?: (name: string) => void) => {
             const parsed = schema.safeParse(input);
             if (!parsed.success) throw new Error(parsed.error.message);
             if (name === 'create_task') {
@@ -161,6 +170,16 @@ export class CodexChatRunner implements AgentRunner {
               if (task.kind === 'ui_check' || task.pr || task.model) {
                 throw new Error('Use a build task without a PR reference or model override.');
               }
+              const result = await this.options.callTool(spec, name, task);
+              if (
+                result &&
+                typeof result === 'object' &&
+                'taskId' in result &&
+                typeof result.taskId === 'string'
+              ) {
+                nameThread?.(taskThreadName(result.taskId, task.title));
+              }
+              return result;
             }
             return this.options.callTool(spec, name, parsed.data);
           },

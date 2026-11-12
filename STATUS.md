@@ -26,7 +26,8 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
   dispatcher tools through the existing role-checked engine API. Codex build workers use a
   workspace sandbox, the existing spec and command approval gates, and the engine's draft PR
   tool. The task model picker uses the active Codex account's catalog, and an explicit selection
-  applies on the next worker run. Browser checks remain unavailable. The local smoke task
+  applies on the next worker run. Browser checks remain unavailable. Codex task conversation
+  titles start with the task ID in both the dispatcher and worker. The local smoke task
   reached spec approval, resumed after approval, and produced a commit that passed its local
   check. Draft PR creation still needs end-to-end verification.
 

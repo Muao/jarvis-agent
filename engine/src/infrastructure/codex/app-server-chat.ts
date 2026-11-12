@@ -58,7 +58,7 @@ export interface CodexTool {
   readonly name: string;
   readonly description: string;
   readonly inputSchema: Readonly<Record<string, unknown>>;
-  call(input: unknown): Promise<unknown>;
+  call(input: unknown, nameThread?: (name: string) => void): Promise<unknown>;
 }
 
 /** Starts or resumes a thread and returns the turn's reply. */
@@ -78,6 +78,7 @@ export async function runCodexChat(
     onTurn?: (steer: (text: string) => void) => void;
     timeoutMs?: number;
     model?: string;
+    threadName?: string;
     onUsage?: (usage: TokenUsage) => void;
   },
 ): Promise<string> {
@@ -92,6 +93,7 @@ export async function runCodexChat(
     onTurn,
     timeoutMs,
     model,
+    threadName,
     onUsage,
     ...connection
   } = options;
@@ -142,13 +144,19 @@ export async function runCodexChat(
         });
       }
 
+      function nameThread(name: string) {
+        if (threadId) {
+          send({ id: -1, method: 'thread/name/set', params: { threadId, name } });
+        }
+      }
+
       async function respondToTool(id: number | string, params: NonNullable<Message['params']>) {
         try {
           const tool = tools?.find(({ name }) => name === params.tool);
           if (!tool || params.namespace != null) {
             throw new Error('This Jarvis tool is unavailable.');
           }
-          const result = await tool.call(params.arguments);
+          const result = await tool.call(params.arguments, nameThread);
           send({
             id,
             result: {
@@ -198,6 +206,7 @@ export async function runCodexChat(
         }
 
         if (message?.method === undefined && typeof message?.id === 'number' && message.error) {
+          if (message.id === -1) return;
           const operation =
             message.id === 2 ? threadMethod : message.id === 3 ? 'turn/start' : 'turn/steer';
           const error = message.error as { message?: unknown };
@@ -227,6 +236,7 @@ export async function runCodexChat(
             finish(new Error('Codex did not return a thread ID.'));
             return;
           }
+          if (threadName && threadMethod !== 'thread/resume') nameThread(threadName);
           send({
             id: 3,
             method: 'turn/start',

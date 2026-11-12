@@ -31,6 +31,7 @@ export interface RunSpec {
   /** Workers take owner input while they run, so their stdin stays open. */
   readonly keepStdinOpen: boolean;
   readonly taskId?: string;
+  readonly taskTitle?: string;
   /** ADR-0018: a `ui_check` stands on a head the owner may not have written; its settings are not ours to load. */
   readonly taskKind?: TaskKind;
   /** ADR-0014: where Playwright MCP writes the UI check's screenshots; workers only. */

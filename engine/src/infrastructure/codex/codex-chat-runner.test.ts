@@ -20,7 +20,7 @@ const dispatcher: RunSpec = {
 };
 
 function fixture() {
-  const callTool = vi.fn(async () => ({ id: 'T-1' }));
+  const callTool = vi.fn(async () => ({ taskId: 'T-1' }));
   const approveCommand = vi.fn(async () => true);
   const runner = new CodexChatRunner({
     binary: 'codex',
@@ -47,7 +47,9 @@ describe('CodexChatRunner', () => {
       await expect(
         create!.call({ title: 'Page', description: 'Add a page', kind: 'ui_check' }),
       ).rejects.toThrow('Use a build task');
-      await create!.call({ title: 'Page', description: 'Add a page' });
+      const nameThread = vi.fn();
+      await create!.call({ title: 'Page', description: 'Add a page' }, nameThread);
+      expect(nameThread).toHaveBeenCalledExactlyOnceWith('T-1 Page');
       return 'Created T-1';
     });
     runner.start(dispatcher, listener);
@@ -71,10 +73,12 @@ describe('CodexChatRunner', () => {
       model: 'codex:gpt-test',
       taskKind: 'build',
       taskId: 'T-1',
+      taskTitle: '  Add\n a page  ',
       cwd: '/test/worktree',
     };
     vi.mocked(runCodexChat).mockImplementationOnce(async (_, options) => {
       expect(options.model).toBe('gpt-test');
+      expect(options.threadName).toBe('T-1 Add a page');
       expect(options.writableRoots).toEqual(['/test/worktree', '/test/artifacts/T-1']);
       expect(options.tools?.some(({ name }) => name === 'submit_spec_for_approval')).toBe(true);
       expect(options.tools?.some(({ name }) => name === 'create_task')).toBe(false);
