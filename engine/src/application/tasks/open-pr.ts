@@ -143,29 +143,28 @@ function lastIndexOfType(journal: readonly TaskEvent[], type: string): number {
 const commitsOf = (push: TaskEvent): number =>
   typeof push.data['commits'] === 'number' ? push.data['commits'] : 1;
 
-/** Journal rows that show the worker at least tried to bring the app up (ADR-0014). */
-const UI_CHECK_ATTEMPTS: readonly string[] = ['dev_server_started', 'dev_server_refused'];
-
-/**
- * The UI check is part of the workflow, not an option the worker may forget: a first pull request
- * whose diff touches UI files is not opened until the journal shows the check was attempted. A
- * refused start counts — the worker then says in the PR why the check did not complete.
- */
+/** A mandatory check requires a completed browser verdict for the exact commit. */
 function uiCheckMissing(
-  task: Task,
   journal: readonly TaskEvent[],
   status: BranchStatus,
   ui: { readonly enabled: boolean; readonly paths: readonly string[] },
+  headSha: string,
 ): OpenPrResult | null {
-  if (!ui.enabled || task.pr !== null) return null;
+  if (!ui.enabled) return null;
   const files = uiFilesIn(status.changedFiles, ui.paths);
   if (files.length === 0) return null;
-  if (journal.some((event) => UI_CHECK_ATTEMPTS.includes(event.type))) return null;
+  const result = [...journal]
+    .reverse()
+    .find((event) => event.type === 'ui_check_completed' && event.data['headSha'] === headSha);
+  if (result?.data['status'] === 'passed') return null;
   return {
     ok: false,
     reason: 'ui_check_required',
     detail:
-      'This change touches UI files and no UI check has run. Call report_stage Reviewing, run the UI check (start_dev_server with a plan, the ui-tester subagent, stop_dev_server), then call open_pr again.',
+      'This UI change needs a confirmed passed browser check for the current commit. In Reviewing, start_dev_server, use ui_browser, stop_dev_server and report_ui_check. ' +
+      (result
+        ? `Last result: ${String(result.data['status'])}: ${String(result.data['reason'] ?? result.data['summary'])}`
+        : 'No completed result for this commit.'),
     files: files.slice(0, 20),
   };
 }
@@ -432,9 +431,9 @@ export class OpenPr {
           'There is no commit beyond the base branch yet: commit your work, then call open_pr.',
       };
     }
-    const missing = uiCheckMissing(task, journal, status, deps.config.current().ui);
-    if (missing !== null) return missing;
     const headSha = await deps.branchPublisher.headSha(task.id);
+    const missing = uiCheckMissing(journal, status, deps.config.current().ui, headSha);
+    if (missing !== null) return missing;
 
     const commands = await this.commandsFor(identity, task, journal, worktree.path, repo);
     if (commands === null) {

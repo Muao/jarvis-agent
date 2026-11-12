@@ -104,3 +104,7 @@ shows the plan's commands.
 ## More Information
 
 Spec: `docs/specs/generic-engine-and-project-knowledge.md` (sections 1, 2, 5).
+
+## Amendment: confirmed UI verdict required (T-6, 2026-11-12)
+
+A server attempt or refusal no longer satisfies mandatory UI verification. report_ui_check records passed/failed/unavailable against an engine-generated check ID, authenticated run and clean HEAD. Passing requires observed browser activity, screenshot evidence associated with the check and confirmed cleanup. open_pr requires the latest result for the current commit to be passed for UI diffs, including follow-up publication. Failed/unavailable remain blockers; explicit ui.enabled=false remains disabled rather than passed. Existing task journal storage is sufficient; no migration is required.

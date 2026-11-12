@@ -7,7 +7,6 @@ import { toolsByRole } from '@jarvis/shared';
 import type { RunContext } from './run-context.js';
 import {
   BROWSER_DENIED_TOOLS,
-  BROWSER_TOOLS,
   PLAYWRIGHT_BROWSER_VERSION,
   PLAYWRIGHT_MCP,
   playwrightToolName,
@@ -198,7 +197,7 @@ describe('writeRunFiles', () => {
         ?.match(/^tools:(.*)$/m)?.[1];
       const granted = (frontMatter ?? '').split(',').map((tool) => tool.trim());
 
-      expect(granted).toEqual(['Read', 'Glob', 'Grep', ...BROWSER_TOOLS.map(playwrightToolName)]);
+      expect(granted).toEqual(['Read', 'Glob', 'Grep', 'mcp__jarvis__ui_browser']);
       for (const denied of BROWSER_DENIED_TOOLS) {
         expect(granted).not.toContain(playwrightToolName(denied));
       }

@@ -68,21 +68,31 @@ describe('cloneOnDemand', () => {
 
   /** What git itself gets back when it asks the stored helper for a github.com credential. */
   function askGitForCredentials(repo: string, env: Record<string, string>): string {
-    return execFileSync('git', ['credential', 'fill'], {
+    const helper = execFileSync('git', ['config', '--local', '--get', HELPER_KEY], {
       cwd: repo,
-      input: 'protocol=https\nhost=github.com\n\n',
       encoding: 'utf8',
-      // Isolate from the developer's own helpers, so only the clone's config can answer.
-      env: {
-        ...process.env,
-        GIT_CONFIG_GLOBAL: '/dev/null',
-        GIT_CONFIG_SYSTEM: '/dev/null',
-        GIT_TERMINAL_PROMPT: '0',
-        GH_TOKEN: '',
-        GITHUB_TOKEN: '',
-        ...env,
+    }).trim();
+    // Clear inherited helpers before reapplying the clone's own helper: credential.fill must
+    // never consult a developer's keychain, even when Git has a platform-specific helper.
+    return execFileSync(
+      'git',
+      ['-c', 'credential.helper=', '-c', `${HELPER_KEY}=${helper}`, 'credential', 'fill'],
+      {
+        cwd: repo,
+        input: 'protocol=https\nhost=github.com\n\n',
+        encoding: 'utf8',
+        // Isolate from the developer's own helpers, so only the clone's config can answer.
+        env: {
+          ...process.env,
+          GIT_CONFIG_GLOBAL: '/dev/null',
+          GIT_CONFIG_SYSTEM: '/dev/null',
+          GIT_TERMINAL_PROMPT: '0',
+          GH_TOKEN: '',
+          GITHUB_TOKEN: '',
+          ...env,
+        },
       },
-    });
+    );
   }
 
   it('answers git with the token from the environment, and with nothing without one', async () => {

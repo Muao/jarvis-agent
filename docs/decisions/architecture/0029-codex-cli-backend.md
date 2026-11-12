@@ -42,3 +42,7 @@ configurations explicitly until equivalent controls are available.
 - Owner input, approvals, and execution limits are either supported and tested
   or surfaced as unavailable before starting an affected workflow.
 - Existing Claude configurations and sessions continue to work.
+
+## Amendment: Codex browser capability (T-6, 2026-11-12)
+
+Codex build workers expose start_dev_server, stop_dev_server, ui_browser and report_ui_check through the existing authenticated engine API. Browser results preserve image content alongside text/evidence. Worker runs start fresh Codex threads so old dynamic tool catalogs cannot hide newly available capabilities; dispatcher thread resume is unchanged. Pending dynamic calls settle before run-exit cleanup. Standalone ui_check tasks remain unsupported on Codex.

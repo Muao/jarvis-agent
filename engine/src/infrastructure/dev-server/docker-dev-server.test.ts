@@ -277,4 +277,18 @@ describe('DockerDevServer (ADR-0026)', () => {
     expect(lines()).toContain('rm --force --volumes c1 c2');
     expect(lines()).toContain('network rm n1');
   });
+
+  it('does not confirm cleanup when Docker refuses removal; still attempts network removal', async () => {
+    const { server, lines } = setup({
+      answers: {
+        'ps --all': { code: 0, output: 'c1', timedOut: false },
+        'rm --force': { code: 1, output: 'daemon error', timedOut: false },
+        'network ls': { code: 0, output: 'n1', timedOut: false },
+      },
+    });
+    expect((await server.start('T-1', '/w', plan())).ok).toBe(true);
+    await expect(server.stop('T-1')).rejects.toThrow('Could not confirm');
+    expect(lines()).toContain('network rm n1');
+    expect(server.current()?.taskId).toBe('T-1');
+  });
 });

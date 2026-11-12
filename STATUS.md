@@ -20,13 +20,23 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
 
 ## Done
 
+- **Codex UI verification** (T-6, 2026-11-12): build workers use an engine-owned disposable
+  environment and a run-scoped Playwright MCP gateway, then submit an explicit result bound to the
+  checked commit. UI publication requires a confirmed pass; failures and unavailable checks block it.
+  Claude uses the same reporting gateway. The engine releases browser and Docker resources on stop,
+  expiry, run exit and shutdown; cleanup failures cannot pass. A real local Docker/Chromium fixture
+  verified a button interaction, screenshot and resource removal; a missing-browser run reported
+  unavailable. Full Codex-to-PR behavior has not yet been exercised as a live task. Spec:
+  `docs/specs/codex-ui-verification.md`.
+
+
 - **Codex chat preview** (2026-11-12, ADR-0029): set `engine.codexBinary` to the Codex executable
   path to start with ChatGPT authentication and use the web chat. A successful message stores
   the read-only Codex thread ID so the next message can resume it. New Codex threads have
   dispatcher tools through the existing role-checked engine API. Codex build workers use a
   workspace sandbox, the existing spec and command approval gates, and the engine's draft PR
   tool. The task model picker uses the active Codex account's catalog, and an explicit selection
-  applies on the next worker run. Browser checks remain unavailable. The local smoke task
+  applies on the next worker run. Browser checks were unavailable in that preview; T-6 adds them as described above. The local smoke task
   reached spec approval, resumed after approval, and produced a commit that passed its local
   check. Draft PR creation still needs end-to-end verification.
 
