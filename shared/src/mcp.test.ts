@@ -28,6 +28,13 @@ const validInputs: Record<ToolName, Record<string, unknown>> = {
   post_update: { text: 'ran the suite, 2 failures, fixing now' },
   start_dev_server: { plan: { app: { command: 'npm run dev', port: 5173 } } },
   stop_dev_server: {},
+  report_ui_check: {
+    status: 'unavailable',
+    summary: 'No browser',
+    reason: 'not installed',
+    scenarios: [],
+  },
+  ui_browser: { checkId: 'c1', tool: 'browser_snapshot', arguments: {} },
   attach_image: { path: 'screenshots/001-task-card.png', alt: 'the task card' },
   comment_on_pr: { body: '## UI verification\n\nverdict: pass' },
   note_insight: { fact: 'Dates go through formatDate().', citations: ['lib/date.ts:12'] },
@@ -83,7 +90,8 @@ describe('tool input schemas', () => {
 
   it('declares no identity field at all', () => {
     for (const schema of Object.values(toolInputSchemas)) {
-      for (const field of identityFields) expect(Object.keys(schema.shape)).not.toContain(field);
+      for (const field of identityFields)
+        expect(Object.keys(schema.toJSONSchema().properties ?? {})).not.toContain(field);
     }
   });
 

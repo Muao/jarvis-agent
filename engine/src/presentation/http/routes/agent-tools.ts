@@ -131,6 +131,12 @@ export const toolCalls: Readonly<Partial<Record<ToolName, Call>>> = {
   stop_dev_server: tool(schemas.stop_dev_server, (app, identity) =>
     app.stopDevServer.execute(identity),
   ),
+  ui_browser: tool(schemas.ui_browser, (app, identity, input) =>
+    app.uiVerification.browse(identity, input),
+  ),
+  report_ui_check: tool(schemas.report_ui_check, (app, identity, input) =>
+    app.uiVerification.report(identity, input),
+  ),
   attach_image: tool(schemas.attach_image, (app, identity, input) =>
     app.attachImage.execute(identity, input),
   ),

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { UiCheckReportSchema, UI_BROWSER_TOOLS } from './ui-verification.js';
 import { TaskIdSchema } from './common.js';
 import { EnvironmentPlanSchema } from './environment-plan.js';
 import { TaskKindSchema, TaskModelSchema, type Role } from './enums.js';
@@ -184,6 +185,12 @@ export const toolInputSchemas = {
    */
   start_dev_server: z.strictObject({ plan: EnvironmentPlanSchema }),
   stop_dev_server: z.strictObject({}),
+  report_ui_check: UiCheckReportSchema,
+  ui_browser: z.strictObject({
+    checkId: z.string().min(1).max(100),
+    tool: z.enum(['list', ...UI_BROWSER_TOOLS]),
+    arguments: z.record(z.string(), z.unknown()),
+  }),
   /**
    * ADR-0014. `path` is relative to the task's artifacts directory and may not leave it.
    */
@@ -244,6 +251,8 @@ export const toolsByRole = {
     'post_update',
     'start_dev_server',
     'stop_dev_server',
+    'report_ui_check',
+    'ui_browser',
     'attach_image',
     'comment_on_pr',
     'note_insight',

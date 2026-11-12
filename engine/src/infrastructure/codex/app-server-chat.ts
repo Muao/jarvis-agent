@@ -98,6 +98,7 @@ export async function runCodexChat(
   const { cwd } = connection;
   const { process, lines, closed } = await connectCodexAppServer(binary, connection);
   let threadId: string | undefined;
+  const pendingTools = new Set<Promise<void>>();
 
   try {
     return await new Promise<string>((resolve, reject) => {
@@ -152,8 +153,27 @@ export async function runCodexChat(
           send({
             id,
             result: {
-              success: true,
-              contentItems: [{ type: 'inputText', text: JSON.stringify(result) }],
+              success: !(
+                result &&
+                typeof result === 'object' &&
+                'isError' in result &&
+                result.isError === true
+              ),
+              contentItems: [
+                {
+                  type: 'inputText',
+                  text: JSON.stringify(result, (_key, value: unknown) =>
+                    value &&
+                    typeof value === 'object' &&
+                    'type' in value &&
+                    value.type === 'image' &&
+                    'data' in value
+                      ? { ...value, data: '[image content supplied separately]' }
+                      : value,
+                  ),
+                },
+                ...imageItems(result),
+              ],
             },
           });
         } catch (error) {
@@ -276,7 +296,17 @@ export async function runCodexChat(
           return;
         }
         if (message.method === 'item/tool/call' && message.id !== undefined) {
-          void respondToTool(message.id, message.params);
+          const pending = respondToTool(message.id, message.params);
+          // Only UI operations own resources that must be drained before the scheduler cleans up.
+          // A question or approval may wait for the owner indefinitely and must not hold run exit.
+          if (
+            ['start_dev_server', 'stop_dev_server', 'ui_browser', 'report_ui_check'].includes(
+              message.params.tool ?? '',
+            )
+          ) {
+            pendingTools.add(pending);
+            void pending.finally(() => pendingTools.delete(pending));
+          }
           return;
         }
         if (
@@ -350,5 +380,32 @@ export async function runCodexChat(
     clearTimeout(terminate);
     clearTimeout(forceKill);
     lines.close();
+    // A tool already accepted by the engine must finish before run-exit cleanup drains it.
+    await Promise.allSettled([...pendingTools]);
   }
+}
+
+/** Dynamic tools can return browser images in addition to the textual evidence manifest. */
+function imageItems(result: unknown): { type: 'inputImage'; imageUrl: string }[] {
+  if (
+    !result ||
+    typeof result !== 'object' ||
+    !('content' in result) ||
+    !Array.isArray(result.content)
+  )
+    return [];
+  return result.content.flatMap((item: unknown) => {
+    if (!item || typeof item !== 'object') return [];
+    const image = item as Record<string, unknown>;
+    return image['type'] === 'image' &&
+      typeof image['data'] === 'string' &&
+      typeof image['mimeType'] === 'string'
+      ? [
+          {
+            type: 'inputImage' as const,
+            imageUrl: `data:${image['mimeType']};base64,${image['data']}`,
+          },
+        ]
+      : [];
+  });
 }

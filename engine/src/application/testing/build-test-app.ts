@@ -131,6 +131,7 @@ export interface TestApp extends Application {
 }
 
 export interface TestAppOptions {
+  readonly uiBrowser?: import('../ports/ui-browser.js').UiBrowser;
   /**
    * Use the real `RunScheduler` (with `runner` as its process source) instead of the recording
    * coordinator. Default false: use cases then only record what they asked `runs` to do.
@@ -171,6 +172,7 @@ export function buildTestApp(options: TestAppOptions = {}): TestApp {
   const capabilities = new FakeCapabilityCatalog(ownerPlugin);
 
   const application = createApplication({
+    ...(options.uiBrowser === undefined ? {} : { uiBrowser: options.uiBrowser }),
     ...(options.redact === undefined ? {} : { redact: options.redact }),
     uow,
     ids,

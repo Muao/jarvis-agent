@@ -19,6 +19,7 @@ import { DockerDevServer } from './infrastructure/dev-server/docker-dev-server.j
 import { HttpHeartbeat } from './infrastructure/heartbeat/http-heartbeat.js';
 import { buildChildEnv } from './infrastructure/claude/child-env.js';
 import { ClaudeCliRunner } from './infrastructure/claude/index.js';
+import { PlaywrightUiBrowser } from './infrastructure/codex/playwright-ui-browser.js';
 import { CodexChatRunner } from './infrastructure/codex/codex-chat-runner.js';
 import { listCodexModels } from './infrastructure/codex/model-catalog.js';
 import { checkCodexCliLogin } from './infrastructure/connections/codex-cli-login.js';
@@ -420,6 +421,12 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
     }),
     artifacts: new FileArtifactStore(join(home.root, 'tasks')),
     devServers,
+    uiBrowser: new PlaywrightUiBrowser({
+      config: () => provider.current(),
+      apiUrl: () => apiUrl,
+      protectedPorts: databasePorts,
+      env: options.env,
+    }),
     capabilities,
     ownerPlugin,
     codeHost: options.codeHost ?? github ?? unconfiguredCodeHost,
@@ -477,11 +484,22 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
       return apiUrl;
     },
     async close() {
-      await server.close();
-      // Before the pool: a dev server must never outlive the engine that leased it (AC-13).
-      await devServers.stopAll();
-      provider.close();
-      await pool.end();
+      const errors: unknown[] = [];
+      // Keep the database until UI cleanup has journalled any failure, but attempt every release.
+      for (const release of [
+        () => server.close(),
+        () => app.uiVerification.closeAll(),
+        () => devServers.stopAll(),
+        async () => provider.close(),
+        () => pool.end(),
+      ]) {
+        try {
+          await release();
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+      if (errors.length > 0) throw new AggregateError(errors, 'Engine resource cleanup failed');
     },
   };
 }

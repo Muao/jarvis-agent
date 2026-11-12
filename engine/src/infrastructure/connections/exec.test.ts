@@ -7,13 +7,14 @@ describe('execFileWith', () => {
   it('returns the output and exit code, a non-zero code included', async () => {
     expect(await exec(process.execPath, ['-e', 'console.log("hi")'], { timeoutMs: 5000 })).toEqual({
       stdout: 'hi\n',
+      stderr: '',
       exitCode: 0,
     });
     expect(
       await exec(process.execPath, ['-e', 'console.log("no"); process.exit(3)'], {
         timeoutMs: 5000,
       }),
-    ).toEqual({ stdout: 'no\n', exitCode: 3 });
+    ).toEqual({ stdout: 'no\n', stderr: '', exitCode: 3 });
   });
 
   it('rejects when the program does not exist or does not answer in time', async () => {

@@ -1376,13 +1376,16 @@ describe('OpenPr — a change to the UI is checked in a browser first (ADR-0014)
   });
 
   it.each(['dev_server_started', 'dev_server_refused'])(
-    'opens the PR once the journal shows %s',
+    'does not accept %s as a browser verdict',
     async (type) => {
       const { app, task, worker } = await setup('Reviewing');
       touchUi(app);
       await note(app, task.id, type);
 
-      expect(await app.openPr.execute(worker, TEXT)).toMatchObject({ ok: true });
+      expect(await app.openPr.execute(worker, TEXT)).toMatchObject({
+        ok: false,
+        reason: 'ui_check_required',
+      });
     },
   );
 
@@ -1390,6 +1393,44 @@ describe('OpenPr — a change to the UI is checked in a browser first (ADR-0014)
     const { app, worker } = await setup('Reviewing');
 
     expect(await app.openPr.execute(worker, TEXT)).toMatchObject({ ok: true });
+  });
+
+  it.each(['failed', 'unavailable'])('blocks an explicit %s verdict', async (status) => {
+    const { app, task, worker } = await setup('Reviewing');
+    touchUi(app);
+    await app.uow.run((tx) =>
+      tx.journal.append(
+        taskEvent(task.id, 'ui_check_completed', app.clock.now(), 'system', {
+          status,
+          headSha: SHA,
+        }),
+      ),
+    );
+    expect(await app.openPr.execute(worker, TEXT)).toMatchObject({
+      ok: false,
+      reason: 'ui_check_required',
+    });
+    expectNothingPublished(app);
+  });
+
+  it('accepts only the latest verdict for the current commit, including follow-up publication', async () => {
+    const { app, task, worker } = await setup('Reviewing');
+    touchUi(app);
+    const verdict = (status: string, headSha = SHA) =>
+      app.uow.run((tx) =>
+        tx.journal.append(
+          taskEvent(task.id, 'ui_check_completed', app.clock.now(), 'system', { status, headSha }),
+        ),
+      );
+    await verdict('passed', 'b'.repeat(40));
+    expect(await app.openPr.execute(worker, TEXT)).toMatchObject({ reason: 'ui_check_required' });
+    await verdict('passed');
+    await verdict('unavailable');
+    expect(await app.openPr.execute(worker, TEXT)).toMatchObject({ reason: 'ui_check_required' });
+    await verdict('passed');
+    expect(await app.openPr.execute(worker, TEXT)).toMatchObject({ ok: true });
+    app.branchPublisher.sha = 'c'.repeat(40);
+    expect(await app.openPr.execute(worker, {})).toMatchObject({ reason: 'ui_check_required' });
   });
 });
 

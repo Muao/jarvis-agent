@@ -120,3 +120,7 @@ point: a link the reviewer has to open is not evidence they will look at.
 - [Programmatically upload attachments to GitHub Issues, Pull Requests, and Comments](https://island94.org/2026/08/programmatically-upload-attachments-to-github-issues-pull-requests-comments)
 - [Comment API for uploading images/attachments · community discussion #28219](https://github.com/orgs/community/discussions/28219)
 - `npx @playwright/mcp@0.0.84 --help` and its `tools/list`, read on 2026-11-08.
+
+## Amendment: Codex and confirmed results (T-6, 2026-11-12)
+
+Codex build workers drive the approved Playwright tools themselves. Claude retains its ui-tester subagent. Both use the authenticated ui_browser gateway, with one isolated MCP session per run, so the engine observes activity and names screenshot evidence. The gateway uses the existing SDK and pinned launch configuration. Server leases remain engine-owned; browser lifecycle is implemented by a run-scoped infrastructure adapter behind an application port. stop_dev_server closes both. Run exit, expiry and shutdown drain pending calls and release resources. Cleanup errors disqualify the attempt. See docs/specs/codex-ui-verification.md.

@@ -42,7 +42,7 @@ const WORKER_INSTRUCTIONS = [
   'Wait for the engine to resume you after approval.',
   'Only implement after approval. Use report_stage to report Implementing and Reviewing as appropriate.',
   'Make code changes in the task worktree, verify them, and commit the changes. Ask approval if Git requires access outside the sandbox.',
-  'Review the diff yourself. If the engine requires a browser check, report the blocker to the owner.',
+  'Review the diff yourself. For UI changes, commit first, report Reviewing, derive an EnvironmentPlan from the repository and call start_dev_server. Use its checkId with ui_browser (list first for schemas), execute the approved acceptance scenarios and capture screenshots. Always stop_dev_server, then report_ui_check with passed/failed/unavailable and per-scenario evidence. Only confirmed passed for the current commit permits publication; report infrastructure blockers as unavailable and tell the owner. Never start the app directly on the host.',
   'Call open_pr to run the engine checks and open the draft PR. Never push or open a PR directly.',
 ].join(' ');
 
@@ -109,7 +109,7 @@ export class CodexChatRunner implements AgentRunner {
                 this.options.approveCommand(spec, input),
             }
           : {}),
-        ...(resumeThreadId ? { resumeThreadId } : {}),
+        ...(resumeThreadId && spec.role !== 'worker' ? { resumeThreadId } : {}),
         onThread: (threadId) => listener.session(CODEX_SESSION_PREFIX + threadId),
         tools: this.tools(spec),
       });
@@ -137,8 +137,6 @@ export class CodexChatRunner implements AgentRunner {
       'approve',
       'reply',
       'set_task_model',
-      'start_dev_server',
-      'stop_dev_server',
       'attach_image',
       'comment_on_pr',
     ]);

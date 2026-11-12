@@ -647,16 +647,20 @@ export class DockerDevServer implements DevServerManager {
         taskId: running.taskId,
       });
       // Not through the queue: a start that hangs must not keep its own expiry waiting.
-      void this.teardown();
+      void this.teardown().catch((error: unknown) => {
+        this.options.logger.error('could not remove expired check environment', {
+          error: String(error),
+        });
+      });
     }, leaseMinutes * 60_000);
     running.timer.unref?.();
   }
 
   private async teardown(): Promise<void> {
     const running = this.running;
-    this.running = null;
     if (running?.timer !== undefined) clearTimeout(running.timer);
-    const removed = await this.removeLabelled();
+    const removed = await this.removeLabelled(running !== null);
+    this.running = null;
     if (running !== null) {
       this.options.logger.info('check environment removed', {
         event: 'dev_server.stopped',
@@ -666,17 +670,24 @@ export class DockerDevServer implements DevServerManager {
     }
   }
 
-  /** Removes every labelled container, then every labelled network. Never throws. */
-  private async removeLabelled(): Promise<number> {
+  /** Best effort at startup; a leased check must positively confirm removal before passing. */
+  private async removeLabelled(strict = false): Promise<number> {
     const filter = ['--filter', `label=${CHECK_LABEL}`];
     const containers = await this.docker(['ps', '--all', '--quiet', ...filter], QUICK_MS);
+    let failed = containers.code !== 0;
     const ids = containers.code === 0 ? containers.output.split(/\s+/).filter(Boolean) : [];
     if (ids.length > 0) {
-      await this.docker(['rm', '--force', '--volumes', ...ids], QUICK_MS * 4);
+      const removed = await this.docker(['rm', '--force', '--volumes', ...ids], QUICK_MS * 4);
+      failed ||= removed.code !== 0;
     }
     const networks = await this.docker(['network', 'ls', '--quiet', ...filter], QUICK_MS);
+    failed ||= networks.code !== 0;
     const nets = networks.code === 0 ? networks.output.split(/\s+/).filter(Boolean) : [];
-    if (nets.length > 0) await this.docker(['network', 'rm', ...nets], QUICK_MS);
+    if (nets.length > 0) {
+      const removed = await this.docker(['network', 'rm', ...nets], QUICK_MS);
+      failed ||= removed.code !== 0;
+    }
+    if (strict && failed) throw new Error('Could not confirm removal of UI containers/network');
     return ids.length;
   }
 }
