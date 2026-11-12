@@ -20,6 +20,12 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
 
 ## Done
 
+- **Codex chat preview** (2026-11-12, ADR-0029): set `engine.codexBinary` to the Codex executable
+  path to start with ChatGPT authentication and use the web chat. Each message runs in a fresh
+  read-only Codex thread. Task workers, Jarvis MCP tools, session resume, and usage reporting are
+  pending. The standalone Codex turn returned `JARVIS_OK`, and the owner confirmed web chat works
+  with an existing local Git checkout.
+
 - **claude.ai connectors for runs** (2026-11-11, branch `feat/claude-ai-connectors`, ADR-0027, not yet
   deployed): `connectors.claudeAi` lists which of the owner's account connectors (`notion`, `slack`,
   `google_docs`, `google_drive`) dispatcher and worker runs may read. Such a run drops

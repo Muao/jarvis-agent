@@ -99,11 +99,11 @@ export class RunSink implements RunListener {
    * What a worker says at the end of its turn is an answer to the owner — a summary, or the reply
    * to a question asked in the task's thread. The live view shows it while the run streams and
    * drops it when the run ends, so unless it is posted here the owner sees it flash and vanish.
-   * The dispatcher answers through its `reply` tool and is left alone.
+   * Dispatchers using the reply tool omit dispatcherReply.
    */
   private async postClosingText(run: Run, outcome: RunOutcome): Promise<void> {
-    if (run.role !== 'worker' || run.status !== 'completed' || outcome.type !== 'result') return;
-    const text = outcome.message?.trim() ?? '';
+    if (run.status !== 'completed' || outcome.type !== 'result') return;
+    const text = (run.role === 'worker' ? outcome.message : outcome.dispatcherReply)?.trim() ?? '';
     if (text === '') return;
     await transact(this.deps, async (tx, outbox) => {
       await this.deps.messages.post(tx, outbox, {

@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 
 export interface ExecResult {
   readonly stdout: string;
+  readonly stderr?: string;
   /** Exit code; a non-zero code is a result, not a failure to run. */
   readonly exitCode: number;
 }
@@ -21,11 +22,12 @@ export function execFileWith(env: Record<string, string>): Exec {
         file,
         [...args],
         { env, timeout: timeoutMs, maxBuffer: 1024 * 1024 },
-        (error, stdout) => {
-          if (error === null) return resolve({ stdout, exitCode: 0 });
+        (error, stdout, stderr) => {
+          if (error === null) return resolve({ stdout, stderr, exitCode: 0 });
           if (error.killed)
             return reject(new Error(`${file} did not answer within ${timeoutMs} ms`));
-          if (typeof error.code === 'number') return resolve({ stdout, exitCode: error.code });
+          if (typeof error.code === 'number')
+            return resolve({ stdout, stderr, exitCode: error.code });
           reject(error);
         },
       );
