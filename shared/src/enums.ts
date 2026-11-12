@@ -96,6 +96,11 @@ export type RunEventKind = z.infer<typeof RunEventKindSchema>;
  * The models a task can be switched to, as `claude --model` aliases (the CLI maps each to its
  * current model). `null` on a task means the configured `models.worker`.
  */
-export const TaskModelSchema = z.enum(['fable', 'opus', 'sonnet', 'haiku']);
+export const ClaudeTaskModelSchema = z.enum(['fable', 'opus', 'sonnet', 'haiku']);
+export const CodexTaskModelSchema = z.templateLiteral([
+  'codex:',
+  z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/),
+]);
+export const TaskModelSchema = z.union([ClaudeTaskModelSchema, CodexTaskModelSchema]);
 export type TaskModel = z.infer<typeof TaskModelSchema>;
-export const TASK_MODELS = TaskModelSchema.options;
+export const TASK_MODELS = ClaudeTaskModelSchema.options;

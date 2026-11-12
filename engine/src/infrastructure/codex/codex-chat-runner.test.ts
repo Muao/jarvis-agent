@@ -68,11 +68,13 @@ describe('CodexChatRunner', () => {
     const worker: RunSpec = {
       ...dispatcher,
       role: 'worker',
+      model: 'codex:gpt-test',
       taskKind: 'build',
       taskId: 'T-1',
       cwd: '/test/worktree',
     };
     vi.mocked(runCodexChat).mockImplementationOnce(async (_, options) => {
+      expect(options.model).toBe('gpt-test');
       expect(options.writableRoots).toEqual(['/test/worktree', '/test/artifacts/T-1']);
       expect(options.tools?.some(({ name }) => name === 'submit_spec_for_approval')).toBe(true);
       expect(options.tools?.some(({ name }) => name === 'create_task')).toBe(false);

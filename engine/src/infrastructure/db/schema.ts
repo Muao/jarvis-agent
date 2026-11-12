@@ -80,7 +80,10 @@ export const tasks = pgTable(
   (t) => [
     check('tasks_kind_check', oneOf('kind', TASK_KINDS)),
     check('tasks_stage_check', oneOf('stage', TASK_STAGES)),
-    check('tasks_model_check', sql`${t.model} is null or ${oneOf('model', TASK_MODELS)}`),
+    check(
+      'tasks_model_check',
+      sql`${t.model} is null or ${oneOf('model', TASK_MODELS)} or ${t.model} ~ '^codex:[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$'`,
+    ),
     check(
       'tasks_resume_stage_check',
       sql`${t.resumeStage} is null or ${oneOf('resume_stage', TASK_STAGES)}`,

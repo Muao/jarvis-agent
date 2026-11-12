@@ -6,7 +6,13 @@ import {
 } from '../../application/ports/agent-runner.js';
 import { EMPTY_USAGE, type RunOutcome } from '../../domain/run.js';
 import { runCodexChat, type CodexTool } from './app-server-chat.js';
-import { toolInputSchemas, toolsByRole, type ToolInput, type ToolName } from '@jarvis/shared';
+import {
+  CodexTaskModelSchema,
+  toolInputSchemas,
+  toolsByRole,
+  type ToolInput,
+  type ToolName,
+} from '@jarvis/shared';
 
 type CallableTool = Exclude<ToolName, 'approve'>;
 
@@ -79,11 +85,13 @@ export class CodexChatRunner implements AgentRunner {
         ? sessionId.slice(CODEX_SESSION_PREFIX.length)
         : undefined;
       const instructions = await this.options.instructions(spec.role);
+      const model = CodexTaskModelSchema.safeParse(spec.model);
       let usage = EMPTY_USAGE;
       const reply = await runCodexChat(this.options.binary, {
         cwd: spec.cwd,
         env: this.options.env,
         prompt: spec.firstMessage,
+        ...(model.success ? { model: model.data.slice('codex:'.length) } : {}),
         instructions:
           instructions +
           '\n\n' +

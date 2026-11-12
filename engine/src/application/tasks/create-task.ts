@@ -1,4 +1,4 @@
-import { TaskModelSchema, type TaskKind, type TaskModel } from '@jarvis/shared';
+import { ClaudeTaskModelSchema, type TaskKind, type TaskModel } from '@jarvis/shared';
 import { createTask } from '../../domain/index.js';
 import { transact } from '../transaction.js';
 import { ForbiddenError, InvalidInputError, NotFoundError } from '../errors.js';
@@ -104,7 +104,9 @@ export class CreateTask {
    * the aliases (a full model id) cannot be pinned; such a task stays on the configured default.
    */
   private defaultModel(): TaskModel | null {
-    const parsed = TaskModelSchema.safeParse(this.deps.config.current().models.worker);
+    const config = this.deps.config.current();
+    if (config.engine.codexBinary) return null;
+    const parsed = ClaudeTaskModelSchema.safeParse(config.models.worker);
     return parsed.success ? parsed.data : null;
   }
 

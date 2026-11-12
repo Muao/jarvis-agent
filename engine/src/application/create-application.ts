@@ -97,6 +97,7 @@ import { StopDevServer } from './ui/stop-dev-server.js';
 
 /** Every port the use cases need; the composition root (or `buildTestApp`) supplies the adapters. */
 export interface ApplicationPorts extends Omit<Notifiers, 'runs'> {
+  readonly codexModels?: () => Promise<import('@jarvis/shared').CodexModelChoice[]>;
   readonly uow: UnitOfWork;
   readonly ids: IdGenerator;
   readonly clock: Clock;
@@ -320,7 +321,7 @@ export function createApplication(ports: ApplicationPorts): Application {
     setTaskTargetRepo: new SetTaskTargetRepo({ ...deps, repos: ports.repos }),
     holdTask: new HoldTask(deps),
     resumeTask: new ResumeTask(deps),
-    setTaskModel: new SetTaskModel(deps),
+    setTaskModel: new SetTaskModel(deps, ports.codexModels),
     archiveThread: new ArchiveThread(deps),
     sendNow: new SendNow(deps),
     remember: new Remember({ profile: ports.profile, clock }),
@@ -395,6 +396,7 @@ export function createApplication(ports: ApplicationPorts): Application {
       status: ports.configStatus,
       repoInfo: ports.repoInfo,
       profile: ports.profileFiles,
+      ...(ports.codexModels ? { codexModels: ports.codexModels } : {}),
     }),
     getConnections: new GetConnections({ checks: ports.connections, clock }),
     getUsage: new GetUsage({ uow, clock }),

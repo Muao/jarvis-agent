@@ -25,7 +25,8 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
   the read-only Codex thread ID so the next message can resume it. New Codex threads have
   dispatcher tools through the existing role-checked engine API. Codex build workers use a
   workspace sandbox, the existing spec and command approval gates, and the engine's draft PR
-  tool. Browser checks and per-task model selection remain unavailable. The local smoke task
+  tool. The task model picker uses the active Codex account's catalog, and an explicit selection
+  applies on the next worker run. Browser checks remain unavailable. The local smoke task
   reached spec approval, resumed after approval, and produced a commit that passed its local
   check. Draft PR creation still needs end-to-end verification.
 

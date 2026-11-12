@@ -20,6 +20,7 @@ import { HttpHeartbeat } from './infrastructure/heartbeat/http-heartbeat.js';
 import { buildChildEnv } from './infrastructure/claude/child-env.js';
 import { ClaudeCliRunner } from './infrastructure/claude/index.js';
 import { CodexChatRunner } from './infrastructure/codex/codex-chat-runner.js';
+import { listCodexModels } from './infrastructure/codex/model-catalog.js';
 import { checkCodexCliLogin } from './infrastructure/connections/codex-cli-login.js';
 import { listMcpServers } from './infrastructure/claude/mcp-listing.js';
 import { FileCapabilityCatalog } from './infrastructure/capabilities/file-capability-catalog.js';
@@ -236,6 +237,10 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
     env.heartbeatUrl ?? '',
   ]);
   const logger = new ConsoleLogger({ redact, level: env.logLevel });
+  const codexModels =
+    codexBinary === undefined
+      ? undefined
+      : () => listCodexModels(codexBinary, { cwd: JARVIS_ROOT, env: codexEnv }).catch(() => []);
   const pool = await connectDatabase(env.databaseUrl);
 
   const hub = new SseHub();
@@ -391,6 +396,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
   });
 
   const app = createApplication({
+    ...(codexModels ? { codexModels } : {}),
     redact,
     uow: new PgUnitOfWork(createDatabase(pool)),
     ids: new CryptoIdGenerator(),

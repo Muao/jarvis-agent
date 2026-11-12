@@ -77,6 +77,7 @@ export async function runCodexChat(
     approveCommand?: (input: Record<string, unknown>) => Promise<boolean>;
     onTurn?: (steer: (text: string) => void) => void;
     timeoutMs?: number;
+    model?: string;
     onUsage?: (usage: TokenUsage) => void;
   },
 ): Promise<string> {
@@ -90,6 +91,7 @@ export async function runCodexChat(
     approveCommand,
     onTurn,
     timeoutMs,
+    model,
     onUsage,
     ...connection
   } = options;
@@ -111,6 +113,7 @@ export async function runCodexChat(
       let threadMethod = resumeThreadId ? 'thread/resume' : 'thread/start';
       const threadOptions = {
         cwd,
+        ...(model ? { model } : {}),
         sandbox: writableRoots ? 'workspace-write' : 'read-only',
         approvalPolicy,
         ...(instructions ? { developerInstructions: instructions } : {}),
@@ -229,6 +232,7 @@ export async function runCodexChat(
             method: 'turn/start',
             params: {
               threadId,
+              ...(model ? { model } : {}),
               input: [{ type: 'text', text: prompt, text_elements: [] }],
               ...(writableRoots
                 ? {
