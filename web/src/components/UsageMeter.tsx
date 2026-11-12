@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import type { UsageDto } from '@jarvis/shared';
+import type { CodexQuotaWindow, UsageDto } from '@jarvis/shared';
 import { useCanMutate, useResetUsage } from '../api/queries';
 import { formatTokenCount } from '../features/tasks/format';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -20,6 +20,41 @@ interface UsageMeterProps {
   usage: UsageDto;
   /** `compact` is the shell link to `/config`; `full` adds the reset time and state text. */
   variant?: 'compact' | 'full';
+}
+
+export function CodexQuotaMeter({ windows }: { windows: readonly CodexQuotaWindow[] }) {
+  const window = windows.reduce<CodexQuotaWindow | undefined>(
+    (highest, current) =>
+      !highest || current.usedPercent > highest.usedPercent ? current : highest,
+    undefined,
+  );
+  if (!window) return <span className={styles.detail}>Codex quota unavailable</span>;
+
+  const remaining = Math.floor(100 - window.usedPercent);
+  const level = remaining === 0 ? 'paused' : remaining <= 20 ? 'warning' : 'ok';
+  return (
+    <div className={styles.meter}>
+      <span>Codex quota · {remaining}% left</span>
+      <span
+        role="progressbar"
+        aria-label="Codex quota used"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={window.usedPercent}
+        className={styles.track}
+      >
+        <span
+          className={`${styles.fill} ${styles[level]}`}
+          style={{ width: `${window.usedPercent}%` }}
+        />
+      </span>
+      {window.resetsAt ? (
+        <span className={styles.detail}>
+          Resets <RelativeTime at={window.resetsAt} />
+        </span>
+      ) : null}
+    </div>
+  );
 }
 
 /** Starts "spent today" over from now (LIM-04); asks first because it cannot be undone. */

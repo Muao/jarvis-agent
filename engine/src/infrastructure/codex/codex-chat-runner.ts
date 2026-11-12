@@ -25,6 +25,7 @@ interface RunnerOptions {
   callTool(spec: RunSpec, name: CallableTool, input: ToolInput<CallableTool>): Promise<unknown>;
   approveCommand(spec: RunSpec, input: Record<string, unknown>): Promise<boolean>;
   timeoutMs(spec: RunSpec): number;
+  onModel?(spec: RunSpec, model: string): void;
 }
 
 const DISPATCHER_INSTRUCTIONS = [
@@ -91,7 +92,10 @@ export class CodexChatRunner implements AgentRunner {
         cwd: spec.cwd,
         env: this.options.env,
         prompt: spec.firstMessage,
-        ...(model.success ? { model: model.data.slice('codex:'.length) } : {}),
+        ...(model.success && model.data !== 'codex:default'
+          ? { model: model.data.slice('codex:'.length) }
+          : {}),
+        onModel: (actualModel) => this.options.onModel?.(spec, actualModel),
         instructions:
           instructions +
           '\n\n' +

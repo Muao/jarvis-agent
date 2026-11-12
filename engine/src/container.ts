@@ -22,6 +22,7 @@ import { ClaudeCliRunner } from './infrastructure/claude/index.js';
 import { PlaywrightUiBrowser } from './infrastructure/codex/playwright-ui-browser.js';
 import { CodexChatRunner } from './infrastructure/codex/codex-chat-runner.js';
 import { listCodexModels } from './infrastructure/codex/model-catalog.js';
+import { codexAccountQuota } from './infrastructure/codex/account-quota.js';
 import { checkCodexCliLogin } from './infrastructure/connections/codex-cli-login.js';
 import { listMcpServers } from './infrastructure/claude/mcp-listing.js';
 import { FileCapabilityCatalog } from './infrastructure/capabilities/file-capability-catalog.js';
@@ -289,6 +290,15 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
           artifactsDir: (taskId) => home.taskDir(taskId),
           instructions: () => readFile(join(AGENT_DIR, 'SOUL.md'), 'utf8'),
           descriptions: toolDescriptions,
+          onModel: (spec, model) => {
+            logger.info(`run ${spec.runId} resolved model`, {
+              event: 'run.model_resolved',
+              runId: spec.runId,
+              role: spec.role,
+              backend: 'codex',
+              model,
+            });
+          },
           timeoutMs: (spec) =>
             spec.role === 'worker'
               ? provider.current().limits.taskTimeoutMinutes * 60_000
@@ -398,6 +408,9 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
 
   const app = createApplication({
     ...(codexModels ? { codexModels } : {}),
+    ...(codexBinary
+      ? { codexQuota: codexAccountQuota(codexBinary, { cwd: JARVIS_ROOT, env: codexEnv }) }
+      : {}),
     redact,
     uow: new PgUnitOfWork(createDatabase(pool)),
     ids: new CryptoIdGenerator(),

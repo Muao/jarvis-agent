@@ -13,6 +13,13 @@ export const UsageDtoSchema = z.object({
 });
 export type UsageDto = z.infer<typeof UsageDtoSchema>;
 
+export const CodexQuotaWindowSchema = z.object({
+  usedPercent: z.number().min(0).max(100),
+  windowMinutes: z.number().int().positive().nullable(),
+  resetsAt: IsoDateSchema.nullable(),
+});
+export type CodexQuotaWindow = z.infer<typeof CodexQuotaWindowSchema>;
+
 const WorkerSlotSchema = z.discriminatedUnion('state', [
   z.object({ state: z.literal('free') }),
   z.object({
@@ -30,6 +37,8 @@ const WorkerSlotSchema = z.discriminatedUnion('state', [
 /** `GET /api/overview` */
 export const OverviewDtoSchema = z.object({
   usage: UsageDtoSchema,
+  /** Omitted for Claude and empty when the Codex account reports no quota windows. */
+  codexQuota: z.array(CodexQuotaWindowSchema).optional(),
   dispatcher: z.object({
     status: z.enum(['idle', 'running', 'waiting_for_permission', 'error']),
     action: z.string().nullable(),
