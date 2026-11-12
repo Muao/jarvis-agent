@@ -92,7 +92,11 @@ export const useRunEvents = (runId: string | undefined) =>
   });
 
 export const useOverview = () =>
-  useQuery({ queryKey: keys.overview, queryFn: () => get('/overview', OverviewDtoSchema) });
+  useQuery({
+    queryKey: keys.overview,
+    queryFn: () => get('/overview', OverviewDtoSchema),
+    refetchInterval: (query) => (query.state.data?.codexQuota === undefined ? false : 60_000),
+  });
 
 export const useConfig = () =>
   useQuery({ queryKey: keys.config, queryFn: () => get('/config', ConfigDtoSchema) });

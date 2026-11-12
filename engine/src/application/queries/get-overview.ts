@@ -1,4 +1,4 @@
-import type { OverviewDto, RunEvent } from '@jarvis/shared';
+import type { CodexQuotaWindow, OverviewDto, RunEvent } from '@jarvis/shared';
 import { isActive, isStalled, toMs, type Run, type Task } from '../../domain/index.js';
 import type { Clock } from '../ports/clock.js';
 import type { ConfigProvider } from '../ports/config-provider.js';
@@ -32,6 +32,7 @@ export class GetOverview {
       readonly runs: RunCoordinator;
       readonly config: ConfigProvider;
       readonly clock: Clock;
+      readonly codexQuota?: () => Promise<CodexQuotaWindow[]>;
     },
   ) {}
 
@@ -103,6 +104,7 @@ export class GetOverview {
 
     return {
       usage: usageOf(data.spent, limits, now),
+      ...(this.deps.codexQuota ? { codexQuota: await this.deps.codexQuota() } : {}),
       dispatcher: this.dispatcher(data, activity),
       workers: [...workers, ...free],
       queue: queue.map((entry, index) => ({

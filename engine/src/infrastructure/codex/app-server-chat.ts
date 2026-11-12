@@ -8,7 +8,7 @@ interface Message {
   id?: number | string;
   method?: string;
   error?: unknown;
-  result?: { thread?: { id?: string } };
+  result?: { thread?: { id?: string }; model?: string };
   params?: {
     threadId?: string;
     delta?: string;
@@ -78,6 +78,7 @@ export async function runCodexChat(
     onTurn?: (steer: (text: string) => void) => void;
     timeoutMs?: number;
     model?: string;
+    onModel?: (model: string) => void;
     onUsage?: (usage: TokenUsage) => void;
   },
 ): Promise<string> {
@@ -92,6 +93,7 @@ export async function runCodexChat(
     onTurn,
     timeoutMs,
     model,
+    onModel,
     onUsage,
     ...connection
   } = options;
@@ -247,6 +249,8 @@ export async function runCodexChat(
             finish(new Error('Codex did not return a thread ID.'));
             return;
           }
+          const actualModel = message.result?.model;
+          if (typeof actualModel === 'string' && actualModel.trim()) onModel?.(actualModel);
           send({
             id: 3,
             method: 'turn/start',

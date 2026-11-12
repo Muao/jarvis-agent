@@ -39,6 +39,9 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
   applies on the next worker run. Browser checks were unavailable in that preview; T-6 adds them as described above. The local smoke task
   reached spec approval, resumed after approval, and produced a commit that passed its local
   check. Draft PR creation still needs end-to-end verification.
+- **Codex quota meter** (2026-11-12): the header shows the remaining percentage and reset time
+  of the most-used Codex account quota window. Jarvis's local scheduling budget remains in
+  Config. The quota query returned both account windows in a live CLI check.
 
 - **claude.ai connectors for runs** (2026-11-11, branch `feat/claude-ai-connectors`, ADR-0027, not yet
   deployed): `connectors.claudeAi` lists which of the owner's account connectors (`notion`, `slack`,

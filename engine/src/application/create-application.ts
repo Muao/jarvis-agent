@@ -99,6 +99,7 @@ import type { UiBrowser } from './ports/ui-browser.js';
 /** Every port the use cases need; the composition root (or `buildTestApp`) supplies the adapters. */
 export interface ApplicationPorts extends Omit<Notifiers, 'runs'> {
   readonly codexModels?: () => Promise<import('@jarvis/shared').CodexModelChoice[]>;
+  readonly codexQuota?: () => Promise<import('@jarvis/shared').CodexQuotaWindow[]>;
   readonly uow: UnitOfWork;
   readonly ids: IdGenerator;
   readonly clock: Clock;
@@ -411,7 +412,13 @@ export function createApplication(ports: ApplicationPorts): Application {
     getArtifact: new GetArtifact({ uow, artifacts }),
     getSession: new GetSession({ uow, config, clock }),
     getRunEvents: new GetRunEvents({ uow }),
-    getOverview: new GetOverview({ uow, runs: notifiers.runs, config, clock }),
+    getOverview: new GetOverview({
+      uow,
+      runs: notifiers.runs,
+      config,
+      clock,
+      ...(ports.codexQuota ? { codexQuota: ports.codexQuota } : {}),
+    }),
     getConfig: new GetConfig({
       uow,
       clock,
