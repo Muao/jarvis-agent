@@ -1,6 +1,7 @@
-import type { TaskModel } from '@jarvis/shared';
+import { ClaudeTaskModelSchema, type CodexModelChoice, type TaskModel } from '@jarvis/shared';
 import { holdTask, resumeTask, setTaskModel, type Task } from '../../domain/index.js';
 import type { RunIdentity } from '../run-identity.js';
+import { InvalidInputError } from '../errors.js';
 import { transact } from '../transaction.js';
 import type { TaskDeps } from './deps.js';
 import { loadTask, requireDispatcher } from './guards.js';
@@ -84,13 +85,29 @@ export class SetTaskModel extends OwnerControl<{
   readonly taskId: string;
   readonly model: TaskModel;
 }> {
+  constructor(
+    deps: TaskDeps,
+    private readonly codexModels?: () => Promise<CodexModelChoice[]>,
+  ) {
+    super(deps);
+  }
+
+  override async execute(input: { taskId: string; model: TaskModel }, identity?: RunIdentity) {
+    if (identity !== undefined) requireDispatcher(identity);
+    const allowed = this.codexModels
+      ? (await this.codexModels()).some(({ id }) => id === input.model)
+      : ClaudeTaskModelSchema.safeParse(input.model).success;
+    if (!allowed) throw new InvalidInputError('This model is unavailable for the active backend.');
+    await super.execute(input, identity);
+  }
+
   protected apply(task: Task, input: { readonly model: TaskModel }): Change | null {
     if (task.model === input.model) return null;
     return {
       task: setTaskModel(task, input.model, this.now()),
       event: 'model_set',
       data: { from: task.model, to: input.model },
-      text: `${task.id} runs on ${input.model} from its next worker run.`,
+      text: `${task.id} runs on ${input.model.replace(/^codex:/, '')} from its next worker run.`,
     };
   }
 }

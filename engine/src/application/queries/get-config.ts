@@ -1,4 +1,4 @@
-import type { ConfigDto } from '@jarvis/shared';
+import type { CodexModelChoice, ConfigDto } from '@jarvis/shared';
 import type { Clock } from '../ports/clock.js';
 import type { ConfigProvider, ConfigStatus } from '../ports/config-provider.js';
 import type { ProfileFiles } from '../ports/profile-files.js';
@@ -21,6 +21,7 @@ export class GetConfig {
       readonly status: ConfigStatus;
       readonly repoInfo: RepoInfo;
       readonly profile: ProfileFiles;
+      readonly codexModels?: () => Promise<CodexModelChoice[]>;
     },
   ) {}
 
@@ -48,6 +49,7 @@ export class GetConfig {
       path: status.path(),
       loadedAt: status.loadedAt() ?? now,
       config,
+      ...(this.deps.codexModels ? { codexModels: await this.deps.codexModels() } : {}),
       usage: {
         ...usageOf(spent, config.limits, now),
         byRole: usage.byRole,

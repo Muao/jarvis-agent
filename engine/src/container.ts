@@ -1,5 +1,6 @@
 // Composition root (ADR-0002): the only place adapters are constructed and wired to the application.
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import type { JarvisConfig } from '@jarvis/shared';
@@ -18,6 +19,9 @@ import { DockerDevServer } from './infrastructure/dev-server/docker-dev-server.j
 import { HttpHeartbeat } from './infrastructure/heartbeat/http-heartbeat.js';
 import { buildChildEnv } from './infrastructure/claude/child-env.js';
 import { ClaudeCliRunner } from './infrastructure/claude/index.js';
+import { CodexChatRunner } from './infrastructure/codex/codex-chat-runner.js';
+import { listCodexModels } from './infrastructure/codex/model-catalog.js';
+import { checkCodexCliLogin } from './infrastructure/connections/codex-cli-login.js';
 import { listMcpServers } from './infrastructure/claude/mcp-listing.js';
 import { FileCapabilityCatalog } from './infrastructure/capabilities/file-capability-catalog.js';
 import { FileOwnerPluginStore } from './infrastructure/capabilities/file-owner-plugin-store.js';
@@ -60,6 +64,8 @@ import { SseHub } from './infrastructure/sse/sse-hub.js';
 import { WebOwnerChannel } from './infrastructure/sse/web-owner-channel.js';
 import { LOOPBACK_HOST, buildServer } from './presentation/http/server.js';
 import type { TimerDeps } from './presentation/timers/index.js';
+import { createApiClient } from './presentation/mcp/api-client.js';
+import { toolDescriptions } from './presentation/mcp/server.js';
 
 /** `<repo checkout>/agent`: the Claude Code plugin the runs load (ADR-0009). */
 const AGENT_DIR = fileURLToPath(new URL('../../agent', import.meta.url));
@@ -205,7 +211,23 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
 
   const provider = new FileConfigProvider(home.configFile);
   const config = provider.load();
-  if (config.engine.claudeBinary === 'claude') {
+  const codexBinary = config.engine.codexBinary;
+  const codexEnv = Object.fromEntries(
+    ['HOME', 'PATH', 'USER', 'TMPDIR'].flatMap((name) => {
+      const value = options.env[name];
+      return value === undefined ? [] : [[name, value]];
+    }),
+  );
+  if (codexBinary !== undefined) {
+    const login = await checkCodexCliLogin(codexBinary, execFileWith(codexEnv));
+    if (login !== 'chatgpt') {
+      throw new StartupError(
+        login === 'unavailable'
+          ? 'Cannot run Codex. Check engine.codexBinary in jarvis.config.json.'
+          : 'Codex requires a ChatGPT login. Run `codex login` and sign in with ChatGPT.',
+      );
+    }
+  } else if (config.engine.claudeBinary === 'claude') {
     await assertSubscriptionLogin(config.engine.claudeBinary, options.env);
   }
 
@@ -215,6 +237,10 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
     env.heartbeatUrl ?? '',
   ]);
   const logger = new ConsoleLogger({ redact, level: env.logLevel });
+  const codexModels =
+    codexBinary === undefined
+      ? undefined
+      : () => listCodexModels(codexBinary, { cwd: JARVIS_ROOT, env: codexEnv }).catch(() => []);
   const pool = await connectDatabase(env.databaseUrl);
 
   const hub = new SseHub();
@@ -254,36 +280,60 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
       defaultRepo === null ? null : { owner: defaultRepo.owner, name: defaultRepo.repo },
   };
 
-  const runner = new ClaudeCliRunner({
-    binary: config.engine.claudeBinary,
-    envSource: options.env,
-    ...(options.runnerEnv === undefined ? {} : { extraEnv: options.runnerEnv }),
-    redact,
-    contextFor: (spec: RunSpec) => {
-      const current = provider.current();
-      return {
-        agentDir: AGENT_DIR,
-        ownerPluginDir: home.ownerPluginDir,
-        ownerPluginPresent: existsSync(join(home.ownerPluginDir, '.claude-plugin', 'plugin.json')),
-        runDir: home.runDir(spec.runId),
-        config: {
-          repo: current.repo,
-          allowlist: current.allowlist,
-          telemetry: current.telemetry,
-          ui: current.ui,
-        },
-        mcpServer: MCP_SERVER,
-        apiUrl,
-        protectedPorts: databasePorts,
-        connectorsFile: home.mcpServersFile,
-        claudeAiConnectors: current.connectors.claudeAi,
-        connectorSecrets: {
-          ...(env.githubToken === undefined ? {} : { GITHUB_TOKEN: env.githubToken }),
-          ...(env.notionToken === undefined ? {} : { NOTION_TOKEN: env.notionToken }),
-        },
-      };
-    },
-  });
+  const runner =
+    codexBinary !== undefined
+      ? new CodexChatRunner({
+          binary: codexBinary,
+          env: codexEnv,
+          artifactsDir: (taskId) => home.taskDir(taskId),
+          instructions: () => readFile(join(AGENT_DIR, 'SOUL.md'), 'utf8'),
+          descriptions: toolDescriptions,
+          timeoutMs: (spec) =>
+            spec.role === 'worker'
+              ? provider.current().limits.taskTimeoutMinutes * 60_000
+              : 120_000,
+          callTool: (spec, name, input) =>
+            createApiClient({ baseUrl: apiUrl, runToken: spec.runToken }).call(name, input),
+          approveCommand: async (spec, input) => {
+            const result = await createApiClient({
+              baseUrl: apiUrl,
+              runToken: spec.runToken,
+            }).approve({ tool_name: 'Codex command execution', input });
+            return result.behavior === 'allow';
+          },
+        })
+      : new ClaudeCliRunner({
+          binary: config.engine.claudeBinary,
+          envSource: options.env,
+          ...(options.runnerEnv === undefined ? {} : { extraEnv: options.runnerEnv }),
+          redact,
+          contextFor: (spec: RunSpec) => {
+            const current = provider.current();
+            return {
+              agentDir: AGENT_DIR,
+              ownerPluginDir: home.ownerPluginDir,
+              ownerPluginPresent: existsSync(
+                join(home.ownerPluginDir, '.claude-plugin', 'plugin.json'),
+              ),
+              runDir: home.runDir(spec.runId),
+              config: {
+                repo: current.repo,
+                allowlist: current.allowlist,
+                telemetry: current.telemetry,
+                ui: current.ui,
+              },
+              mcpServer: MCP_SERVER,
+              apiUrl,
+              protectedPorts: databasePorts,
+              connectorsFile: home.mcpServersFile,
+              claudeAiConnectors: current.connectors.claudeAi,
+              connectorSecrets: {
+                ...(env.githubToken === undefined ? {} : { GITHUB_TOKEN: env.githubToken }),
+                ...(env.notionToken === undefined ? {} : { NOTION_TOKEN: env.notionToken }),
+              },
+            };
+          },
+        });
 
   const configStatus: ConfigStatus = {
     path: () => home.configFile,
@@ -346,6 +396,7 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
   });
 
   const app = createApplication({
+    ...(codexModels ? { codexModels } : {}),
     redact,
     uow: new PgUnitOfWork(createDatabase(pool)),
     ids: new CryptoIdGenerator(),

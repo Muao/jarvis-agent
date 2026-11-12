@@ -1,6 +1,9 @@
 import type { Role, RunEvent, TaskKind } from '@jarvis/shared';
 import type { RunOutcome } from '../../domain/index.js';
 
+/** Distinguishes Codex thread IDs from existing unprefixed Claude session IDs. */
+export const CODEX_SESSION_PREFIX = 'codex:';
+
 /** A normalised stream-json line before the engine stamps it with `seq`, `runId` and `at`. */
 export type RunEventBody = RunEvent extends infer E
   ? E extends RunEvent

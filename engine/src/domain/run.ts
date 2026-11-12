@@ -64,7 +64,12 @@ interface Totals {
 /** How a `claude` process ended, as seen by the engine. */
 export type RunOutcome =
   /** The CLI's final `result` line. `subtype` is its `subtype` field. */
-  | ({ readonly type: 'result'; readonly subtype: string; readonly message?: string } & Totals)
+  | ({
+      readonly type: 'result';
+      readonly subtype: string;
+      readonly message?: string;
+      readonly dispatcherReply?: string;
+    } & Totals)
   /** The process exited without a `result` line. */
   | { readonly type: 'exit'; readonly code: number | null; readonly message?: string }
   /** The CLI reported an exhausted subscription limit. */

@@ -20,6 +20,16 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
 
 ## Done
 
+- **Codex chat preview** (2026-11-12, ADR-0029): set `engine.codexBinary` to the Codex executable
+  path to start with ChatGPT authentication and use the web chat. A successful message stores
+  the read-only Codex thread ID so the next message can resume it. New Codex threads have
+  dispatcher tools through the existing role-checked engine API. Codex build workers use a
+  workspace sandbox, the existing spec and command approval gates, and the engine's draft PR
+  tool. The task model picker uses the active Codex account's catalog, and an explicit selection
+  applies on the next worker run. Browser checks remain unavailable. The local smoke task
+  reached spec approval, resumed after approval, and produced a commit that passed its local
+  check. Draft PR creation still needs end-to-end verification.
+
 - **claude.ai connectors for runs** (2026-11-11, branch `feat/claude-ai-connectors`, ADR-0027, not yet
   deployed): `connectors.claudeAi` lists which of the owner's account connectors (`notion`, `slack`,
   `google_docs`, `google_drive`) dispatcher and worker runs may read. Such a run drops

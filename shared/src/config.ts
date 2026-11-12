@@ -111,6 +111,7 @@ export const JarvisConfigSchema = z.strictObject({
     .strictObject({
       port: z.number().int().min(1).max(65535).default(4310),
       claudeBinary: z.string().min(1).default('claude'),
+      codexBinary: z.string().min(1).optional(),
     })
     .prefault({}),
   /**

@@ -25,6 +25,7 @@ export const FORBIDDEN_PATHS = [
   'repos.allowSelf',
   'engine.port',
   'engine.claudeBinary',
+  'engine.codexBinary',
   // What a check runs in, whether its browser is sandboxed and which diffs count as UI are the
   // owner's; `ui.autoApproveComments` disables the only gate before writing to a pull request.
   'ui.defaultImage',

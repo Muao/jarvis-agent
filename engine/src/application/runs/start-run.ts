@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { CodexTaskModelSchema } from '@jarvis/shared';
 import {
   assignWorkerSession,
   isTerminal,
@@ -386,6 +387,15 @@ export class StartRun {
     const { registry, liveRuns, runner, config } = this.deps;
     const { run, session } = prepared;
     const current = config.current();
+    const taskModel = prepared.task?.model;
+    const codexModel = CodexTaskModelSchema.safeParse(taskModel);
+    const workerModel = current.engine.codexBinary
+      ? codexModel.success
+        ? codexModel.data
+        : 'default'
+      : codexModel.success
+        ? current.models.worker
+        : (taskModel ?? current.models.worker);
     const identity = {
       runId: run.id,
       role: run.role,
@@ -409,10 +419,7 @@ export class StartRun {
       firstMessage: prepared.firstMessage,
       ...(session.claudeSessionId === null ? {} : { resumeSessionId: session.claudeSessionId }),
       // The owner may switch a task to another model; it applies from the run that starts next.
-      model:
-        run.role === 'worker'
-          ? (prepared.task?.model ?? current.models.worker)
-          : current.models.dispatcher,
+      model: run.role === 'worker' ? workerModel : current.models.dispatcher,
       maxTurns: current.limits.maxTurnsPerRun,
       maxBudgetUsd: current.limits.maxBudgetUsdPerRun,
       runToken: live.token,

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { IsoDateSchema, TaskIdSchema } from '../common.js';
 import { JarvisConfigSchema } from '../config.js';
-import { RoleSchema } from '../enums.js';
+import { CodexTaskModelSchema, RoleSchema } from '../enums.js';
 import { UsageDtoSchema } from './overview.js';
 
 const ProfileFileSchema = z.object({
@@ -10,6 +10,13 @@ const ProfileFileSchema = z.object({
   modifiedAt: IsoDateSchema.nullable(),
 });
 
+export const CodexModelChoiceSchema = z.object({
+  id: CodexTaskModelSchema,
+  label: z.string(),
+  isDefault: z.boolean(),
+});
+export type CodexModelChoice = z.infer<typeof CodexModelChoiceSchema>;
+
 /** `GET /api/config` — read-only view; values change in the config file. */
 export const ConfigDtoSchema = z.discriminatedUnion('valid', [
   z.object({
@@ -17,6 +24,7 @@ export const ConfigDtoSchema = z.discriminatedUnion('valid', [
     path: z.string(),
     loadedAt: IsoDateSchema,
     config: JarvisConfigSchema,
+    codexModels: z.array(CodexModelChoiceSchema).optional(),
     usage: UsageDtoSchema.extend({
       byRole: z.record(RoleSchema, z.number().min(0)),
       byTask: z.array(z.object({ taskId: TaskIdSchema, costUsd: z.number().min(0) })),

@@ -17,8 +17,15 @@ export function TaskControls({ thread }: { thread: ThreadDetailDto }) {
   const { taskId } = thread;
   if (taskId === null) return null;
   const over = isTerminalStage(thread.stage);
-  // A task with no model of its own runs on the configured default; name it rather than leave a blank.
-  const fallback = config.data?.valid ? config.data.config.models.worker : null;
+  const settings = config.data?.valid ? config.data : undefined;
+  const codex = Boolean(settings?.config.engine.codexBinary);
+  const choices = codex
+    ? (settings?.codexModels ?? [])
+    : TASK_MODELS.map((id) => ({ id, label: capitalize(id) }));
+  const selected = thread.model && thread.model.startsWith('codex:') === codex ? thread.model : '';
+  const fallback = codex
+    ? (settings?.codexModels?.find(({ isDefault }) => isDefault)?.label ?? 'Codex')
+    : settings?.config.models.worker;
 
   return (
     <>
@@ -35,18 +42,22 @@ export function TaskControls({ thread }: { thread: ThreadDetailDto }) {
             ? "The model the task's worker ran on"
             : "The model the task's worker runs on, from its next run"
         }
-        value={thread.model ?? ''}
-        disabled={over || !canMutate || setModel.isPending}
+        value={selected}
+        disabled={over || !canMutate || setModel.isPending || !settings || choices.length === 0}
         onChange={(event) => setModel.mutate({ taskId, model: event.target.value as TaskModel })}
       >
-        {thread.model === null ? (
-          <option value="">
-            {fallback ? `${capitalize(fallback)} (default)` : 'Default model'}
+        {!choices.some(({ id }) => id === selected) ? (
+          <option value={selected} disabled>
+            {selected
+              ? selected.replace(/^codex:/, '')
+              : fallback
+                ? `${capitalize(fallback)} (default)`
+                : 'Default model'}
           </option>
         ) : null}
-        {TASK_MODELS.map((model) => (
-          <option key={model} value={model}>
-            {capitalize(model)}
+        {choices.map(({ id, label }) => (
+          <option key={id} value={id}>
+            {label}
           </option>
         ))}
       </select>
