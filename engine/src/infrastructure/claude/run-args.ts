@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { toolsByRole } from '@jarvis/shared';
 import type { RunSpec } from '../../application/index.js';
+import { CODEX_SESSION_PREFIX } from '../../application/ports/agent-runner.js';
 import {
   claudeAiAllowRules,
   claudeAiDenyRules,
@@ -58,7 +59,9 @@ export function buildRunArgs(
     '--verbose',
     '--input-format',
     'stream-json',
-    ...(spec.resumeSessionId ? ['--resume', spec.resumeSessionId] : []),
+    ...(spec.resumeSessionId && !spec.resumeSessionId.startsWith(CODEX_SESSION_PREFIX)
+      ? ['--resume', spec.resumeSessionId]
+      : []),
     '--model',
     spec.model,
     '--max-turns',

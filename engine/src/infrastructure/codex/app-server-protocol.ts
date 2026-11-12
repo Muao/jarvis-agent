@@ -3,7 +3,10 @@ export function initializeCodexAppServer(): string {
   return encodeCodexMessage({
     id: 1,
     method: 'initialize',
-    params: { clientInfo: { name: 'jarvis', version: '0.0.0' } },
+    params: {
+      clientInfo: { name: 'jarvis', version: '0.0.0' },
+      capabilities: { experimentalApi: true },
+    },
   });
 }
 

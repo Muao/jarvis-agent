@@ -1,5 +1,6 @@
 // Composition root (ADR-0002): the only place adapters are constructed and wired to the application.
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import type { JarvisConfig } from '@jarvis/shared';
@@ -62,6 +63,8 @@ import { SseHub } from './infrastructure/sse/sse-hub.js';
 import { WebOwnerChannel } from './infrastructure/sse/web-owner-channel.js';
 import { LOOPBACK_HOST, buildServer } from './presentation/http/server.js';
 import type { TimerDeps } from './presentation/timers/index.js';
+import { createApiClient } from './presentation/mcp/api-client.js';
+import { toolDescriptions } from './presentation/mcp/server.js';
 
 /** `<repo checkout>/agent`: the Claude Code plugin the runs load (ADR-0009). */
 const AGENT_DIR = fileURLToPath(new URL('../../agent', import.meta.url));
@@ -274,7 +277,26 @@ export async function createContainer(options: ContainerOptions): Promise<Contai
 
   const runner =
     codexBinary !== undefined
-      ? new CodexChatRunner(codexBinary, codexEnv)
+      ? new CodexChatRunner({
+          binary: codexBinary,
+          env: codexEnv,
+          artifactsDir: (taskId) => home.taskDir(taskId),
+          instructions: () => readFile(join(AGENT_DIR, 'SOUL.md'), 'utf8'),
+          descriptions: toolDescriptions,
+          timeoutMs: (spec) =>
+            spec.role === 'worker'
+              ? provider.current().limits.taskTimeoutMinutes * 60_000
+              : 120_000,
+          callTool: (spec, name, input) =>
+            createApiClient({ baseUrl: apiUrl, runToken: spec.runToken }).call(name, input),
+          approveCommand: async (spec, input) => {
+            const result = await createApiClient({
+              baseUrl: apiUrl,
+              runToken: spec.runToken,
+            }).approve({ tool_name: 'Codex command execution', input });
+            return result.behavior === 'allow';
+          },
+        })
       : new ClaudeCliRunner({
           binary: config.engine.claudeBinary,
           envSource: options.env,
