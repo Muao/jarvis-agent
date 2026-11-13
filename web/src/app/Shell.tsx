@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router';
 import { useOverview, useThreads } from '../api/queries';
 import { Icon, type IconName } from '../components/Icon';
-import { UsageMeter } from '../components/UsageMeter';
+import { CodexQuotaMeter, UsageMeter } from '../components/UsageMeter';
 import { Banners } from './Banners';
 import { ConnectionIndicator } from './ConnectionIndicator';
 import { WaitingCounter } from './WaitingCounter';
@@ -75,7 +75,13 @@ export function Shell() {
           {deployment.text}
         </span>
         <div className={styles.status}>
-          {overview.data ? <UsageMeter usage={overview.data.usage} /> : null}
+          {overview.data ? (
+            overview.data.codexQuota === undefined ? (
+              <UsageMeter usage={overview.data.usage} />
+            ) : (
+              <CodexQuotaMeter windows={overview.data.codexQuota} />
+            )
+          ) : null}
           <WaitingCounter threads={threads.data ?? []} />
           <ConnectionIndicator />
         </div>

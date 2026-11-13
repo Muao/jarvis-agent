@@ -93,11 +93,13 @@ import { AttachImage } from './ui/attach-image.js';
 import { CommentOnPr } from './ui/comment-on-pr.js';
 import { TrustPullRequestHead } from './ui/trust-pull-request-head.js';
 import { StartDevServer } from './ui/start-dev-server.js';
-import { StopDevServer } from './ui/stop-dev-server.js';
+import { UiVerification } from './ui/ui-verification.js';
+import type { UiBrowser } from './ports/ui-browser.js';
 
 /** Every port the use cases need; the composition root (or `buildTestApp`) supplies the adapters. */
 export interface ApplicationPorts extends Omit<Notifiers, 'runs'> {
   readonly codexModels?: () => Promise<import('@jarvis/shared').CodexModelChoice[]>;
+  readonly codexQuota?: () => Promise<import('@jarvis/shared').CodexQuotaWindow[]>;
   readonly uow: UnitOfWork;
   readonly ids: IdGenerator;
   readonly clock: Clock;
@@ -128,6 +130,7 @@ export interface ApplicationPorts extends Omit<Notifiers, 'runs'> {
   readonly database: DatabasePing;
   /** ADR-0014: the engine-owned dev server the worker's UI check runs against. */
   readonly devServers: DevServerManager;
+  readonly uiBrowser?: UiBrowser;
   /** ADR-0025: skills, subagents and MCP servers a run can use (read side). */
   readonly capabilities: CapabilityCatalog;
   /** ADR-0025: the owner's own plugin. Used by the HTTP use cases only, never by an agent tool. */
@@ -177,8 +180,9 @@ export interface Application {
   readonly rememberOwner: RememberOwner;
   readonly updateConfig: UpdateConfig;
   /** ADR-0014: the worker's UI check. */
-  readonly startDevServer: StartDevServer;
-  readonly stopDevServer: StopDevServer;
+  readonly startDevServer: Pick<StartDevServer, 'execute'>;
+  readonly stopDevServer: { execute: UiVerification['stop'] };
+  readonly uiVerification: UiVerification;
   readonly attachImage: AttachImage;
   readonly commentOnPr: CommentOnPr;
   readonly scheduler: RunScheduler;
@@ -251,7 +255,9 @@ export function createApplication(ports: ApplicationPorts): Application {
     liveRuns,
     eventLog,
     connections: ports.connections,
-    devServers: ports.devServers,
+    devServers: {
+      stop: (taskId) => uiVerification.cleanup(taskId),
+    },
   });
   const notifiers: Notifiers = {
     owner: ports.owner,
@@ -288,6 +294,29 @@ export function createApplication(ports: ApplicationPorts): Application {
   const capabilityDeps = { catalog: ports.capabilities, store: ports.ownerPlugin };
   const answerQuestion = new AnswerQuestion(deps);
   const answerDecision = new AnswerDecision(deps);
+  const uiVerification = new UiVerification({
+    ...deps,
+    config,
+    ids,
+    branchPublisher: ports.branchPublisher,
+    artifacts,
+    ...(ports.redact === undefined ? {} : { redact: ports.redact }),
+    devServers: ports.devServers,
+    browser: ports.uiBrowser ?? {
+      call: async () => {
+        throw new Error('Browser is unavailable on this runtime');
+      },
+      close: async () => {},
+    },
+    start: new StartDevServer({
+      ...deps,
+      config,
+      devServers: ports.devServers,
+      worktrees,
+      trustHead,
+    }),
+  });
+  const verification = uiVerification;
   return {
     postOwnerMessage: new PostOwnerMessage({ ...deps, ids, answerQuestion, answerDecision }),
     reply: new Reply(deps),
@@ -338,14 +367,9 @@ export function createApplication(ports: ApplicationPorts): Application {
     contradictInsight: new ContradictInsight({ ...deps, profile: ports.profile }),
     rememberOwner: new RememberOwner({ ...deps, profile: ports.profile, repos: ports.repos }),
     updateConfig: new UpdateConfig({ ...deps, config }),
-    startDevServer: new StartDevServer({
-      ...deps,
-      config,
-      devServers: ports.devServers,
-      worktrees,
-      trustHead,
-    }),
-    stopDevServer: new StopDevServer({ ...deps, devServers: ports.devServers }),
+    startDevServer: { execute: (identity, plan) => verification.start(identity, plan) },
+    stopDevServer: { execute: (identity) => verification.stop(identity) },
+    uiVerification: verification,
     attachImage: new AttachImage({ ...deps, config, artifacts, codeHost: ports.codeHost }),
     commentOnPr: new CommentOnPr({
       ...deps,
@@ -388,7 +412,13 @@ export function createApplication(ports: ApplicationPorts): Application {
     getArtifact: new GetArtifact({ uow, artifacts }),
     getSession: new GetSession({ uow, config, clock }),
     getRunEvents: new GetRunEvents({ uow }),
-    getOverview: new GetOverview({ uow, runs: notifiers.runs, config, clock }),
+    getOverview: new GetOverview({
+      uow,
+      runs: notifiers.runs,
+      config,
+      clock,
+      ...(ports.codexQuota ? { codexQuota: ports.codexQuota } : {}),
+    }),
     getConfig: new GetConfig({
       uow,
       clock,

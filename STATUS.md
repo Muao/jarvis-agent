@@ -20,6 +20,18 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
 
 ## Done
 
+- **First project setup** (2026-11-13): `pnpm create-project` creates a private GitHub repository and local checkout on `main`, then generates a first configuration or switches the default in an existing configuration with a backup. Account setup and startup are documented in [Running Jarvis](docs/running.md#first-project-setup).
+
+- **Codex UI verification** (T-6, 2026-11-12): build workers use an engine-owned disposable
+  environment and a run-scoped Playwright MCP gateway, then submit an explicit result bound to the
+  checked commit. UI publication requires a confirmed pass; failures and unavailable checks block it.
+  Claude uses the same reporting gateway. The engine releases browser and Docker resources on stop,
+  expiry, run exit and shutdown; cleanup failures cannot pass. A real local Docker/Chromium fixture
+  verified a button interaction, screenshot and resource removal; a missing-browser run reported
+  unavailable. Full Codex-to-PR behavior has not yet been exercised as a live task. Spec:
+  `docs/specs/codex-ui-verification.md`.
+
+
 - **Codex chat preview** (2026-11-12, ADR-0029): set `engine.codexBinary` to the Codex executable
   path to start with ChatGPT authentication and use the web chat. A successful message stores
   the read-only Codex thread ID so the next message can resume it. New Codex threads have
@@ -30,6 +42,9 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
   titles start with the task ID in both the dispatcher and worker. The local smoke task
   reached spec approval, resumed after approval, and produced a commit that passed its local
   check. Draft PR creation still needs end-to-end verification.
+- **Codex quota meter** (2026-11-12): the header shows the remaining percentage and reset time
+  of the most-used Codex account quota window. Jarvis's local scheduling budget remains in
+  Config. The quota query returned both account windows in a live CLI check.
 
 - **claude.ai connectors for runs** (2026-11-11, branch `feat/claude-ai-connectors`, ADR-0027, not yet
   deployed): `connectors.claudeAi` lists which of the owner's account connectors (`notion`, `slack`,

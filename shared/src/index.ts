@@ -15,3 +15,5 @@ export * from './api/connections.js';
 export * from './api/health.js';
 export * from './api/usage-report.js';
 export * from './api/capabilities.js';
+
+export * from './ui-verification.js';

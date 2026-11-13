@@ -1,3 +1,4 @@
+import { UI_BROWSER_TOOLS } from '@jarvis/shared';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { toolsByRole, type Role } from '@jarvis/shared';
@@ -53,35 +54,7 @@ export const PLAYWRIGHT_BROWSER_VERSION = '1.65.0-alpha-2026-10-30';
  * ADR-0014: what the `ui-tester` subagent may do in the browser. Everything that drives the UI
  * the way a person would, plus what it needs to read console and network.
  */
-export const BROWSER_TOOLS = [
-  'browser_navigate',
-  'browser_navigate_back',
-  'browser_snapshot',
-  'browser_take_screenshot',
-  'browser_click',
-  'browser_type',
-  'browser_fill_form',
-  'browser_press_key',
-  'browser_hover',
-  'browser_select_option',
-  'browser_drag',
-  'browser_drop',
-  'browser_find',
-  'browser_wait_for',
-  'browser_resize',
-  'browser_console_messages',
-  'browser_network_requests',
-  'browser_network_request',
-  'browser_handle_dialog',
-  'browser_tabs',
-  'browser_close',
-  'browser_emulate_media',
-  // Picking a file is something a person does in a form. Denying it did not make the check safer,
-  // it made it shallower: a cover image, an avatar or an import is simply unreachable, and the
-  // worker ends up recreating the record through the API, which proves nothing about the form
-  // (T-6 on quick-blog PR #38, 2026-11-09).
-  'browser_file_upload',
-] as const;
+export const BROWSER_TOOLS = UI_BROWSER_TOOLS;
 
 /**
  * Arbitrary page JavaScript, and only that. Both of these let the agent reach past the interface

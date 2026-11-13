@@ -161,46 +161,29 @@ revise the affected artifacts, re-verify the plan, and submit again (WRK-04).
 1. `report_stage` with `stage: Reviewing`.
 2. Call `reviewer` with the base branch name, `spec.md`, the repo rules and the memory entries. Fix every
    `blocker`; consider `suggestion`s and take the cheap ones.
-3. **UI check (WRK-10).** It is a step of the workflow, not an option: run it whenever
-   `git diff <base>...HEAD --name-only` touches a UI file (components, styles, templates, pages) and
-   `uiCheck` is `available`. `open_pr` refuses a UI change that was never checked (`ui_check_required`).
-   The engine knows nothing about this repository — you work out how to run it. Load the
-   `project-knowledge` skill first, then, once:
-   1. Derive the UI scenarios from `spec.md`'s acceptance criteria — one scenario per visible criterion,
-      at most the config's `maxScenarios`. When `spec.md` names no visible criterion, fall back to the
-      diff: one scenario per changed UI surface — open it, drive the control the change is about, check it
-      renders with a clean console. One scenario is still a check; an empty call never is.
-   2. Compose the environment plan from the repository's own files, as the skill describes, and call
-      `mcp__jarvis__start_dev_server({plan})`. The engine runs it in disposable containers, never on
-      this machine directly. A refusal comes back as `{ok: false, reason, detail, step}`:
-      - `step_failed`, `not_ready`, `exited`, `port_busy`, `invalid_plan` → read `detail` (it carries the
-        failing step's output), fix the plan and call again. You have `ui.maxStartAttempts` tries per run.
-      - `attempts_exhausted`, `docker_unavailable`, `disabled`, `busy`, `untrusted_head` → stop. It is a
-        finding for the PR: say what you tried and what failed, never work around it.
-   3. Call the `ui-tester` subagent with the `baseUrl` you got, the path of `spec.md`, the numbered
-      scenarios, and the ceilings. It drives the browser; you do not — including behind a login.
-      When a scenario needs an account, find the test account the project seeds (a seed script,
-      a `*.env.example`, a fixture, the README) and pass it in the call. When that account's password
-      comes from an environment variable, declare it `{"generate": true, "reveal": true}` in the plan
-      and pass the value that comes back in `revealed`. Say which account it is. It belongs to the
-      throwaway database of this check and dies with it. If the project has no way to get an account,
-      say so in the call: the subagent will skip those scenarios and name the account it needed, which
-      is a finding worth reporting, not a failure. Never pass a credential of the owner's, and never
-      one from outside the project under test.
-   4. `mcp__jarvis__stop_dev_server` as soon as it answers, whatever the verdict.
-   5. Act on the verdict:
-      - `pass` → attach the screenshots and go to the PR stage.
-      - `fail` → fix the blockers: fix, then `report_stage Reviewing` again. Each
-        round through here spends one of `limits.reviewRounds`; when they run out, open the PR anyway
-        and put the remaining UI blocker under **Open questions** with its screenshot.
-      - `inconclusive` → one more attempt (`start_dev_server` again, `ui-tester` again). Still
-        inconclusive: open the PR with a line saying the UI check did not complete and why.
-   6. Attach each screenshot with `mcp__jarvis__attach_image` (`path` relative to `<artifactsDir>`,
-      `alt` the scenario name) and paste the returned `markdown` into `pr-body.md`. A refusal comes back
-      as `{ok: false, reason}`: write the file name as plain text in the PR, never a markdown image that
-      would render broken.
-      If `uiCheck` is `disabled: <reason>`, or the environment never came up, say that reason in the PR
-      description and in `result.md` instead of skipping silently.
+3. **UI check (WRK-10).** For a UI diff with `uiCheck: available`, a confirmed passing
+   result for the current commit is mandatory, including follow-up fixes. Commit changes first.
+   Load the `project-knowledge` skill; derive scenarios from the approved spec and compose the
+   environment plan from repository files. Never run the app directly on the host.
+   1. Call `start_dev_server({plan})`. Keep its `checkId`, lease and generated test credentials.
+      Retry a correctable plan within `ui.maxStartAttempts`. A startup refusal is unavailable,
+      never a passed check.
+   2. Use `ui_browser({checkId, tool: "list", arguments: {}})` to read tool schemas, then drive
+      the real UI with that tool and approved browser actions. On Claude, give the `ui-tester`
+      subagent the checkId and scenarios; on Codex, drive the scenarios yourself. Use this gateway
+      so the engine can associate browser activity and screenshots with the check. Direct browser
+      calls outside the gateway cannot establish a passing result.
+   3. Capture each scenario's criterion, expected/observed result and screenshot evidence paths
+      returned by `ui_browser`. Use only generated test credentials of this disposable environment.
+      Missing accounts, missing browser and inability to execute a scenario mean unavailable.
+   4. Always call `stop_dev_server`, even after a browser failure. It closes the run's browser too.
+      Submit `report_ui_check({checkId, status, summary, scenarios, reason?})` after cleanup:
+      `passed` only when every scenario passed with evidence; `failed` for assertion failures;
+      `unavailable` with a reason for infrastructure, incomplete inspection or cleanup failure.
+   5. A failed or unavailable mandatory check blocks `open_pr`. Fix and retry within existing limits;
+      if blocked, tell the owner. Never open the PR anyway or describe an attempted check as passed.
+      Attach evidence with `attach_image` when available, keeping file paths as fallback if upload fails.
+      State explicit `uiCheck: disabled` reasons in PR/result artifacts; disabled never means passed.
 
 ### 6. PR
 

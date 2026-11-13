@@ -392,7 +392,7 @@ export class StartRun {
     const workerModel = current.engine.codexBinary
       ? codexModel.success
         ? codexModel.data
-        : 'default'
+        : 'codex:default'
       : codexModel.success
         ? current.models.worker
         : (taskModel ?? current.models.worker);
@@ -419,7 +419,12 @@ export class StartRun {
       firstMessage: prepared.firstMessage,
       ...(session.claudeSessionId === null ? {} : { resumeSessionId: session.claudeSessionId }),
       // The owner may switch a task to another model; it applies from the run that starts next.
-      model: run.role === 'worker' ? workerModel : current.models.dispatcher,
+      model:
+        run.role === 'worker'
+          ? workerModel
+          : current.engine.codexBinary
+            ? 'codex:default'
+            : current.models.dispatcher,
       maxTurns: current.limits.maxTurnsPerRun,
       maxBudgetUsd: current.limits.maxBudgetUsdPerRun,
       runToken: live.token,
@@ -444,6 +449,7 @@ export class StartRun {
       ...(run.taskId === null ? {} : { taskId: run.taskId }),
       threadId: run.threadId,
       role: run.role,
+      ...(current.engine.codexBinary ? { backend: 'codex' } : {}),
       model: spec.model,
     });
     try {

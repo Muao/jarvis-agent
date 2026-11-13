@@ -82,6 +82,12 @@ describe('CodexChatRunner', () => {
       expect(options.writableRoots).toEqual(['/test/worktree', '/test/artifacts/T-1']);
       expect(options.tools?.some(({ name }) => name === 'submit_spec_for_approval')).toBe(true);
       expect(options.tools?.some(({ name }) => name === 'create_task')).toBe(false);
+      for (const name of ['start_dev_server', 'stop_dev_server', 'ui_browser', 'report_ui_check']) {
+        expect(
+          options.tools?.some((tool) => tool.name === name),
+          name,
+        ).toBe(true);
+      }
       await options.approveCommand?.({ command: 'git status' });
       return 'Spec submitted';
     });
@@ -91,5 +97,25 @@ describe('CodexChatRunner', () => {
     expect(listener.exit).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'Spec submitted' }),
     );
+  });
+
+  it('starts workers with a fresh tool catalog rather than a stale resumed thread', async () => {
+    const { runner, listener } = fixture();
+    vi.mocked(runCodexChat).mockImplementationOnce(async (_, options) => {
+      expect(options.resumeThreadId).toBeUndefined();
+      expect(options.tools?.some(({ name }) => name === 'ui_browser')).toBe(true);
+      return 'Ready';
+    });
+    runner.start(
+      {
+        ...dispatcher,
+        role: 'worker',
+        taskId: 'T-1',
+        taskKind: 'build',
+        resumeSessionId: 'codex:old',
+      },
+      listener,
+    );
+    await vi.waitFor(() => expect(listener.exit).toHaveBeenCalled());
   });
 });
