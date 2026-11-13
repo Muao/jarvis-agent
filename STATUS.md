@@ -20,6 +20,8 @@ and is half-provisioned, and the laptop sleeps mid-task, so the always-on run is
 
 ## Done
 
+- **First project setup** (2026-11-13): `pnpm create-project` creates a private GitHub repository and local checkout on `main`, then generates a first configuration or switches the default in an existing configuration with a backup. Account setup and startup are documented in [Running Jarvis](docs/running.md#first-project-setup).
+
 - **Codex UI verification** (T-6, 2026-11-12): build workers use an engine-owned disposable
   environment and a run-scoped Playwright MCP gateway, then submit an explicit result bound to the
   checked commit. UI publication requires a confirmed pass; failures and unavailable checks block it.

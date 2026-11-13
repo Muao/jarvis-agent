@@ -21,6 +21,37 @@ Postgres container and never start the real `claude`).
 After the first `pnpm dev`, `curl -s http://127.0.0.1:4310/api/connections` should report `claude: ok` with your
 plan; the engine refuses to start while that check fails.
 
+## First project setup
+
+1. Install Git, GitHub CLI, Node 22, pnpm 10, Docker with Compose, and Claude Code. Open a terminal in the Jarvis checkout. Start Docker.
+2. Create or sign in to your human GitHub account. Use HTTPS for the setup, and set your Git commit identity if this machine is new.
+
+   ```sh
+   gh auth login --hostname github.com --git-protocol https --web
+   gh auth setup-git --hostname github.com
+   git config --global user.name "Your Name"
+   git config --global user.email "your-verified-email@example.com"
+   ```
+
+3. Run `pnpm create-project`. Choose the GitHub namespace, project name, and a new local folder. The wizard confirms before creating a private GitHub repository, pushing its first commit on `main`, and generating Jarvis's config and local Postgres credentials.
+4. For draft PRs and CI follow-up, create a separate GitHub bot account and give it write access. For a repository-scoped fine-grained token, choose an organization namespace in step 3 and add the bot as an organization member with access to the repository. GitHub fine-grained tokens have a [collaborator limitation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#fine-grained-personal-access-tokens-limitations). As the bot, create a fine-grained token for the selected repository with Contents and Pull requests read/write, Checks and Commit statuses read, and Actions read/write for CI logs and reruns. Complete organization approval if required. Put it in Infisical as `GITHUB_TOKEN`, or fill in `GITHUB_TOKEN` in the local fallback file `~/.jarvis/.env`. You can start chat with this field empty and complete GitHub access before trying a draft PR.
+5. Run `claude` and sign in with your Claude subscription. Start Postgres and Jarvis from the Jarvis checkout.
+
+   ```sh
+   export COMPOSE_ENV_FILES="$HOME/.jarvis/.env"
+   docker compose up -d --wait
+   pnpm install
+   pnpm dev
+   ```
+
+   If you used a custom `JARVIS_HOME`, point `COMPOSE_ENV_FILES` at that directory's `.env` and start the engine with that file loaded into the process environment. For a wizard-generated file, run `set -a; . "$COMPOSE_ENV_FILES"; set +a` before `pnpm dev`. For Infisical, start Jarvis with its secrets injected into the environment.
+
+6. Open [Jarvis](http://127.0.0.1:5180) and ask for a small first task, such as adding a short description to the README. For GitHub verification, follow the task through spec approval and draft PR creation.
+
+## Create a project with an existing local setup
+
+Wait for active tasks to finish, then stop `pnpm dev`. Run `pnpm create-project` from the Jarvis checkout. The wizard creates the repository and switches the default in your existing `jarvis.config.json`. It prints the path of the backup. Restart with your usual `pnpm dev` command using your existing environment and database. Check that the existing GitHub bot token grants access to the new repository before opening a draft PR.
+
 ## Local UI against the server's engine
 
 To work on the UI while the agent itself runs on the server ([deployment](architecture/deployment.md)), skip the local

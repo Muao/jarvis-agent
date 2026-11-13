@@ -66,6 +66,8 @@ report.
 
 ## Quick start
 
+Starting without a project repository? Follow [first project setup](docs/running.md#first-project-setup).
+
 Prerequisites: Node 22, pnpm 10, Docker, and Claude Code (`claude`) logged in with a Claude subscription.
 
 ```sh
